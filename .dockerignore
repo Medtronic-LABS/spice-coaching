@@ -1,0 +1,64 @@
+# Mirrors .gitignore plus a few build-context-only excludes.
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+tests/
+
+# Docker compose overrides (host-only)
+docker-compose.override.yml
+
+# IDE / tool caches
+.idea/
+.vscode/
+.qodo/
+.cursor/
+.claude/
+.ruff_cache/
+
+# Logs / pids / local DBs
+*.log
+*.pid
+*.sqlite
+*.db
+.ipynb_checkpoints/
+
+# Local-only working dirs
+dumps/
+managed_context/
+test_suite_analysis/
+
+# Docs and OSS metadata not needed inside images
+docs/
+*.md
+.github/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Docker
+docker-compose.override.yml
+node_modules/
+
+# Uploads
+/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# uv
+.python-version
+
+# Logs, pids, local DBs
+*.log
+*.pid
+*.sqlite
+*.db
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Local-only working dirs (not redistributable)
+dumps/
+managed_context/
+test_suite_analysis/
+
+# Tool/agent caches and configs
+.qodo/
+.cursor/hooks/
+.ruff_cache/
+.claude/
+.cursor/

@@ -1,0 +1,217 @@
+# Base compose: infra services (db / redis / clickhouse) are reachable
+# only on the internal Docker network — no host port bindings here.
+# For local dev, `docker-compose.override.yml` (gitignored) republishes
+# them on localhost. Do NOT run this stack on a public host without
+# replacing default credentials and putting admin endpoints behind a
+# reverse proxy with auth.
+services:
+  # ── Persistence layer ────────────────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: microcoaching
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.4
+    volumes:
+      - chdata:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  clickhouse-init:
+    image: clickhouse/clickhouse-server:24.4
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - ./infra/clickhouse/init.sql:/init.sql:ro
+    command: >
+      sh -c "clickhouse-client --host clickhouse --multiquery < /init.sql"
+
+  # ── DB migrations (runs once, then exits) ────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+    command: >
+      sh -c "alembic -c infra/alembic.ini upgrade head"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/microcoaching
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── Platform API ─────────────────────────────────────────────────────────────
+  platform-api:
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      database_url: postgresql+asyncpg://postgres:postgres@db:5432/microcoaching
+      database_password: postgres
+      redis_url: redis://redis:6379/0
+      clickhouse_host: clickhouse
+      ai_runtime_base_url: http://ai-runtime:8001
+      ai_runtime_token: ${AI_RUNTIME_TOKEN:-dev-internal-token}
+      ai_runtime_timeout_seconds: ${AI_RUNTIME_TIMEOUT_SECONDS:-120}
+      ai_cloud_provider: ${AI_CLOUD_PROVIDER:-google}
+      # Model selection — must match what the Vertex project actually has
+      # access to in GOOGLE_CLOUD_LOCATION. Platform forwards these as
+      # model_policy.model in the InferenceRequest to ai-runtime.
+      google_inference_model: ${GOOGLE_INFERENCE_MODEL:-gemini-2.5-flash}
+      google_identification_model: ${GOOGLE_IDENTIFICATION_MODEL:-gemini-2.5-pro}
+      google_vision_model: ${GOOGLE_VISION_MODEL:-gemini-2.5-flash}
+      google_embedding_model: ${GOOGLE_EMBEDDING_MODEL:-text-embedding-005}
+      app_env: ${APP_ENV:-development}
+      log_json: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      clickhouse-init:
+        condition: service_completed_successfully
+      ai-runtime:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Platform Celery Worker ────────────────────────────────────────────────────
+  platform-celery-worker:
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+    command: celery -A platform_service.celery_app.celery_app worker --loglevel=INFO
+    environment:
+      database_url: postgresql+asyncpg://postgres:postgres@db:5432/microcoaching
+      database_password: postgres
+      redis_url: redis://redis:6379/0
+      ai_runtime_base_url: http://ai-runtime:8001
+      ai_runtime_token: ${AI_RUNTIME_TOKEN:-dev-internal-token}
+      ai_runtime_timeout_seconds: ${AI_RUNTIME_TIMEOUT_SECONDS:-120}
+      ai_cloud_provider: ${AI_CLOUD_PROVIDER:-google}
+      google_inference_model: ${GOOGLE_INFERENCE_MODEL:-gemini-2.5-flash}
+      google_identification_model: ${GOOGLE_IDENTIFICATION_MODEL:-gemini-2.5-pro}
+      google_vision_model: ${GOOGLE_VISION_MODEL:-gemini-2.5-flash}
+      google_embedding_model: ${GOOGLE_EMBEDDING_MODEL:-text-embedding-005}
+      app_env: ${APP_ENV:-development}
+      log_service_name: platform-celery-worker
+      log_json: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      clickhouse-init:
+        condition: service_completed_successfully
+      ai-runtime:
+        condition: service_healthy
+
+  # ── Platform Celery Beat (scheduling) ─────────────────────────────────────────
+  platform-celery-beat:
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+    command: celery -A platform_service.celery_app.celery_app beat --loglevel=INFO
+    environment:
+      database_url: postgresql+asyncpg://postgres:postgres@db:5432/microcoaching
+      database_password: postgres
+      redis_url: redis://redis:6379/0
+      clickhouse_host: clickhouse
+      ai_runtime_base_url: http://ai-runtime:8001
+      ai_runtime_token: ${AI_RUNTIME_TOKEN:-dev-internal-token}
+      ai_cloud_provider: ${AI_CLOUD_PROVIDER:-google}
+      app_env: ${APP_ENV:-development}
+      log_service_name: platform-celery-beat
+      log_json: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      clickhouse-init:
+        condition: service_completed_successfully
+      ai-runtime:
+        condition: service_healthy
+
+  # ── AI Runtime ────────────────────────────────────────────────────────────────
+  ai-runtime:
+    build:
+      context: .
+      dockerfile: services/ai-runtime/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      internal_token: ${AI_RUNTIME_TOKEN:-dev-internal-token}
+      ai_provider: ${AI_CLOUD_PROVIDER:-google}
+      # ── Google: Vertex AI auth (preferred) ───────────────────────
+      # When google_use_vertex=true the SDK uses ADC via the bind-mounted
+      # service-account JSON below — google_api_key is ignored. Without
+      # these envs ai-runtime starts with empty creds and crashes on the
+      # first LLM call.
+      google_use_vertex: ${GOOGLE_USE_VERTEX:-false}
+      google_cloud_project: ${GOOGLE_CLOUD_PROJECT:-}
+      google_cloud_location: ${GOOGLE_CLOUD_LOCATION:-us-central1}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/run/secrets/gcp-service-account.json}
+      # Optional: base64-encoded service-account JSON. When set, the SDK
+      # builds credentials in-process and the bind-mounted file path
+      # above is ignored. Useful when mounting a JSON file isn't
+      # ergonomic (CI runners, ephemeral containers, secret stores).
+      google_service_account_base64: ${GOOGLE_SERVICE_ACCOUNT_BASE64:-}
+      # ── Google: Developer-API auth (fallback when Vertex disabled) ───
+      google_api_key: ${GOOGLE_API_KEY:-${GEMINI_API_KEY:-}}
+      # ── Google: model selection ──────────────────────────────────
+      google_inference_model: ${GOOGLE_INFERENCE_MODEL:-gemini-2.5-flash}
+      google_embedding_model: ${GOOGLE_EMBEDDING_MODEL:-gemini-embedding-001}
+      # OpenAI
+      openai_api_key: ${OPENAI_API_KEY:-}
+      openai_inference_model: ${OPENAI_INFERENCE_MODEL:-gpt-4o-mini}
+      openai_embedding_model: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      app_env: ${APP_ENV:-development}
+      log_json: "true"
+    volumes:
+      # Bind-mount the service-account JSON so the path the container
+      # reads matches GOOGLE_APPLICATION_CREDENTIALS. Host path is set
+      # via GCP_SERVICE_ACCOUNT_JSON_HOST_PATH in .env. Compose fails
+      # fast at parse time if the variable is unset — set it, or unset
+      # GOOGLE_USE_VERTEX (Developer API key mode does not need this
+      # mount).
+      - ${GCP_SERVICE_ACCOUNT_JSON_HOST_PATH:?Set GCP_SERVICE_ACCOUNT_JSON_HOST_PATH or unset GOOGLE_USE_VERTEX}:/run/secrets/gcp-service-account.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  chdata:
