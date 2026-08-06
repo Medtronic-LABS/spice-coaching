@@ -39,7 +39,8 @@ def _endpoint_url(endpoint: str | None, *, secure: bool) -> str | None:
         raise ValueError("object storage endpoint must not include a path")
     if not parsed.netloc:
         raise ValueError("object storage endpoint is invalid")
-    scheme = "https" if secure else "http"
+    # Honour an explicit https:// scheme in the endpoint string; fall back to secure flag.
+    scheme = parsed.scheme if parsed.scheme in ("http", "https") else ("https" if secure else "http")
     return f"{scheme}://{parsed.netloc}"
 
 
