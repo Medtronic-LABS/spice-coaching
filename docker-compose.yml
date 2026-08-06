@@ -56,7 +56,7 @@ services:
       MINIO_ROOT_USER: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       MINIO_ROOT_PASSWORD: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -108,7 +108,7 @@ services:
       # Local compose MinIO (host .env may set localhost:19902 for non-compose runs).
       object_storage_backend: minio
       object_storage_endpoint: minio:9000
-      object_storage_presigned_endpoint: minio:9000
+      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT:-minio:9000}
       object_storage_presign_mode: proxy
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
@@ -188,7 +188,7 @@ services:
       chat_feedback_summary_max_negative_offline_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_OFFLINE_SAMPLES:-30}
       object_storage_backend: minio
       object_storage_endpoint: minio:9000
-      object_storage_presigned_endpoint: minio:9000
+      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT:-minio:9000}
       object_storage_presign_mode: proxy
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
@@ -320,8 +320,8 @@ services:
       context: ${ANALYTICS_DASHBOARD_BUILD_CONTEXT:-../micro-learning-analytics-dashboard}
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://agent-qa.beehyv.com/medtronics-api}
-        VITE_ADMIN_API_BASE_URL: ${VITE_ADMIN_API_BASE_URL:-https://agent-qa.beehyv.com/medtronics-api}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://spice-dev-backend.uhis.labsplatform.com/micro-coaching/medtronics-api}
+        VITE_ADMIN_API_BASE_URL: ${VITE_ADMIN_API_BASE_URL:-https://spice-dev-backend.uhis.labsplatform.com/micro-coaching/medtronics-api}
         VITE_USE_MOCK_API: ${VITE_USE_MOCK_API:-true}
         VITE_APP_ROLE: ${VITE_APP_ROLE:-programManager}
     ports:
