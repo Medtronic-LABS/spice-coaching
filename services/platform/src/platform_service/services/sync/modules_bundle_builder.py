@@ -8,7 +8,6 @@ from uuid import UUID
 
 from mc_contracts.enums import ContentDomain
 from mc_contracts.sync import (
-    AssignedModulePayload,
     ModuleFamilySyncPayload,
     ModuleQuizQuestionPayload,
     ModulesSyncBundle,
@@ -176,7 +175,7 @@ class ModulesBundleBuilder:
                 )
             )
 
-        assigned_module_ids: list[AssignedModulePayload] = []
+        assigned_module_ids: list[UUID] = []
         requested_modules: list[RequestedModulePayload] = []
         if user_id is not None:
             assignments_by_module = await resolve_assigned_modules(
@@ -185,12 +184,7 @@ class ModulesBundleBuilder:
                 organization_ids=organization_ids,
             )
             for module_id in sorted(assignments_by_module):
-                assigned_module_ids.append(
-                    AssignedModulePayload(
-                        module_id=module_id,
-                        assigned_at=assignments_by_module[module_id],
-                    )
-                )
+                assigned_module_ids.append(module_id)
             request_rows = await TrainingRequestRepository(self._session).list_for_chw(
                 chw_id=user_id,
                 tenant_id=tenant_id,

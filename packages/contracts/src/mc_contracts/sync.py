@@ -154,7 +154,7 @@ class RequestedModulePayload(BaseModel):
 class ModulesSyncBundle(BaseModel):
     modules: list[ModuleSyncPayload]
     module_families: list[ModuleFamilySyncPayload]
-    assigned_module_ids: list[AssignedModulePayload] = Field(default_factory=list)
+    assigned_module_ids: list[UUID] = Field(default_factory=list)
     requested_modules: list[RequestedModulePayload] = Field(default_factory=list)
     server_time_utc: str
 
