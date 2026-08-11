@@ -199,6 +199,13 @@ class ModulesBundleBuilder:
                 )
                 for row in request_rows
             ]
+        else:
+            # No CHW in session: expose all published modules so the Training tab renders.
+            # Covers unauthenticated dev mode and SDK calls that omit user_id.
+            all_published = await module_repo.list_published_modules_updated_since(
+                datetime(1970, 1, 1, tzinfo=UTC), tenant_id=tenant_id
+            )
+            assigned_module_ids = sorted([m.id for m in all_published])
 
         return ModulesSyncBundle(
             modules=payloads,

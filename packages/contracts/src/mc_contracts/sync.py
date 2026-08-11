@@ -332,3 +332,34 @@ class SourceDocumentThumbnailsPresignResponse(BaseModel):
     urls: list[SourceDocumentThumbnailPresignedUrlPayload]
     missing_ids: list[UUID]
     server_time_utc: str
+
+
+class SourceDocumentDownloadItem(BaseModel):
+    """One source document with inline presigned URLs for the combined SDK sync endpoint.
+
+    ``source_type`` drives isPlayableMedia on the Android SDK (video/audio rows go to
+    Training sub-tab; others go to the Knowledge grid). ``assigned_at`` is set only on
+    rows from ``assigned_documents``; it is null for published (knowledge-grid) rows.
+    """
+
+    source_document_id: UUID
+    source_type: str | None = None
+    title: str | None = None
+    original_filename: str | None = None
+    assigned_at: datetime | None = None
+    presigned_url: str | None = None
+    presigned_expires_seconds: int | None = None
+    thumbnail_presigned_url: str | None = None
+    thumbnail_presigned_expires_seconds: int | None = None
+
+
+class SourceDocumentsSyncBundle(BaseModel):
+    """Combined source-document catalogue expected by the Android SDK at GET /sync/source-documents.
+
+    ``source_documents`` backs the Knowledge grid; ``assigned_documents`` backs the
+    Training sub-tab (SDK filters on isPlayableMedia = source_type in {video, audio}).
+    """
+
+    source_documents: list[SourceDocumentDownloadItem] = Field(default_factory=list)
+    assigned_documents: list[SourceDocumentDownloadItem] = Field(default_factory=list)
+    server_time_utc: str

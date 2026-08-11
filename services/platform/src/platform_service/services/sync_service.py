@@ -21,6 +21,7 @@ from mc_contracts.sync import (
     ModuleThumbnailsPresignResponse,
     PublishedSourceDocumentsBundle,
     SourceDocumentsPresignResponse,
+    SourceDocumentsSyncBundle,
     SourceDocumentThumbnailsPresignResponse,
     TriggersSyncBundle,
 )
@@ -29,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import Settings
 from platform_service.services.sync.assigned_videos_builder import AssignedVideosBuilder
+from platform_service.services.sync.source_documents_bundle_builder import SourceDocumentsBundleBuilder
 from platform_service.services.sync.chat_faqs_bundle_builder import ChatFaqsBundleBuilder
 from platform_service.services.sync.config_bundle_builder import ConfigBundleBuilder
 from platform_service.services.sync.gaps_bundle_builder import GapsBundleBuilder
@@ -48,6 +50,7 @@ class SyncService:
         self._modules = ModulesBundleBuilder(session)
         self._published_source_documents = PublishedSourceDocumentsBuilder(session)
         self._assigned_videos = AssignedVideosBuilder(session)
+        self._source_documents = SourceDocumentsBundleBuilder(session)
         self._triggers = TriggersBundleBuilder(session)
         self._gaps = GapsBundleBuilder(session)
         self._chat_faqs = ChatFaqsBundleBuilder(session)
@@ -129,6 +132,21 @@ class SyncService:
             domain=domain,
             limit=limit,
             offset=offset,
+            settings=settings,
+        )
+
+    async def get_source_documents_bundle(
+        self,
+        *,
+        storage: ObjectStore,
+        user_id: int | None = None,
+        organization_ids: list[int] | None = None,
+        settings: Settings | None = None,
+    ) -> SourceDocumentsSyncBundle:
+        return await self._source_documents.build(
+            storage=storage,
+            user_id=user_id,
+            organization_ids=organization_ids,
             settings=settings,
         )
 

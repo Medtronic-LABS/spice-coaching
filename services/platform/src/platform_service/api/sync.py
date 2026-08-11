@@ -6,6 +6,7 @@ Canonical paths:
   POST /sync/source-documents/presigned-urls → SourceDocumentsPresignResponse
   POST /sync/source-documents/presigned-thumbnails → SourceDocumentThumbnailsPresignResponse
   POST /sync/modules/presigned-thumbnails → ModuleThumbnailsPresignResponse
+  GET  /sync/source-documents              → SourceDocumentsSyncBundle (SDK combined endpoint)
   GET  /sync/source-documents/published   → PublishedSourceDocumentsBundle
   GET  /sync/assigned-videos?user_id=<int> → AssignedVideosBundle
   GET  /sync/chat-faqs?since=<ISO-8601> → ChatFaqsSyncBundle
@@ -28,6 +29,7 @@ from mc_contracts.sync import (
     PublishedSourceDocumentsBundle,
     SourceDocumentsPresignRequest,
     SourceDocumentsPresignResponse,
+    SourceDocumentsSyncBundle,
     SourceDocumentThumbnailsPresignRequest,
     SourceDocumentThumbnailsPresignResponse,
     TriggersSyncBundle,
@@ -116,6 +118,32 @@ async def sync_module_thumbnail_presigned_urls(
         module_ids=body.module_ids,
         storage=storage,
         tenant_id=effective_tenant,
+    )
+
+
+@router.get("/source-documents", response_model=SourceDocumentsSyncBundle)
+async def sync_source_documents(
+    request: Request,
+    since: str = Query(default="1970-01-01T00:00:00Z", description="Ignored — always returns full catalogue."),
+    db: AsyncSession = Depends(get_db),
+    storage: ObjectStore = Depends(get_object_storage_client),
+    settings: Settings = Depends(get_settings),
+) -> SourceDocumentsSyncBundle:
+    """Combined source-document catalogue for the Android SDK.
+
+    Returns all ``sync_published_visible`` documents (Knowledge grid) and the
+    authenticated CHW's assigned audio/video files (Training sub-tab) in one response.
+    The ``since`` parameter is accepted for API compatibility but ignored — presigned
+    URLs expire, so every call returns the full catalogue with fresh URLs.
+    """
+    spice_user = getattr(request.state, "spice_user", None)
+    user_id: int | None = resolve_chw_id_for_device_route(request, None)
+    organization_ids = getattr(spice_user, "organization_ids", None) if spice_user else None
+    return await SyncService(db).get_source_documents_bundle(
+        storage=storage,
+        user_id=user_id,
+        organization_ids=organization_ids,
+        settings=settings,
     )
 
 
