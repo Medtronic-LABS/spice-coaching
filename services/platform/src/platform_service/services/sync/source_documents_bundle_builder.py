@@ -44,17 +44,23 @@ class SourceDocumentsBundleBuilder:
         now_sec = int(datetime.now(UTC).timestamp())
 
         source_documents = await self._build_published(storage=storage, settings=settings, now_sec=now_sec)
-        assigned_documents = (
-            await self._build_assigned(
+        if user_id is not None:
+            assigned_documents = await self._build_assigned(
                 user_id=user_id,
                 organization_ids=organization_ids,
                 storage=storage,
                 settings=settings,
                 now_sec=now_sec,
             )
-            if user_id is not None
-            else []
-        )
+        else:
+            # No CHW session: promote all playable media from published docs into
+            # assigned_documents so the Training sub-tab renders without assignment rows.
+            now = datetime.now(UTC)
+            assigned_documents = [
+                SourceDocumentDownloadItem(**{**item.model_dump(), "assigned_at": now})
+                for item in source_documents
+                if item.source_type in ("video", "audio")
+            ]
 
         return SourceDocumentsSyncBundle(
             source_documents=source_documents,
