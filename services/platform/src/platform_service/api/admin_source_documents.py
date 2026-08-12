@@ -46,6 +46,7 @@ def _summary_from_document(doc: SourceDocument) -> SourceDocumentSummary:
         description=doc.description,
         thumbnail_storage_path=doc.thumbnail_storage_path,
         ingested_at=doc.ingested_at,
+        sync_published_visible=doc.sync_published_visible,
     )
 
 
