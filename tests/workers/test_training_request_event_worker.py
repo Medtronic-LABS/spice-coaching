@@ -15,10 +15,10 @@ from platform_service.db.models.module import Module
 from platform_service.db.models.module_assignment import ModuleAssignment
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.workers import training_request_event_worker
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db
+from tests.conftest import requires_db, truncate_tables
 from tests.helpers.hierarchy_fixtures import SK_ID, seed_basic_hierarchy
 
 pytestmark = [pytest.mark.asyncio, requires_db]
@@ -28,16 +28,15 @@ def _test_chw_id() -> int:
     return uuid4().int % (10**15) + 1
 
 
+_TRAINING_REQUEST_WIPE = (
+    'chw_training_request, module_assignment, module, module_family, "users", district, upazila, user_upazila'
+)
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data(db_session: AsyncSession) -> AsyncIterator[None]:
+    await truncate_tables(db_session, _TRAINING_REQUEST_WIPE)
     yield
-    await db_session.rollback()
-    await db_session.execute(
-        text(
-            "TRUNCATE chw_training_request, module_assignment, module, module_family RESTART IDENTITY CASCADE"
-        )
-    )
-    await db_session.commit()
 
 
 @pytest.fixture

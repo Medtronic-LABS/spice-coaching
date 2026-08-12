@@ -57,16 +57,16 @@ async def _seed_prompt(db_session: AsyncSession) -> AsyncIterator[None]:
         text(
             """
             INSERT INTO prompt_template (
-                id, template_id, version, variant_key, generation_type,
+                id, tenant_id, template_id, version, variant_key, generation_type,
                 system_prompt_template, human_message_template, required_variables,
                 title, description, change_notes, status
             ) VALUES (
-                :id, 'test-admin-prompt', 1, NULL, 'module_gap_classification',
+                :id, 1, 'test-admin-prompt', 1, NULL, 'module_gap_classification',
                 'System {max_associations}', 'Human {module_payload_json}',
                 '["max_associations", "module_payload_json"]'::jsonb,
                 'Test prompt', 'For admin API tests', 'seed', 'active'
             )
-            ON CONFLICT ON CONSTRAINT uq_prompt_template_id_variant_version DO NOTHING
+            ON CONFLICT ON CONSTRAINT uq_prompt_template_tenant_id_variant_version DO NOTHING
             """
         ),
         {"id": UUID(_SEED_ID)},

@@ -134,13 +134,13 @@ async def app(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
     )
 
     @app_obj.middleware("http")
-    async def inject_optional_spice_user(request: Request, call_next):  # type: ignore[no-untyped-def]
+    async def inject_test_request_context(request: Request, call_next):  # type: ignore[no-untyped-def]
         mock_user_id = request.headers.get("x-mock-user-id")
         if mock_user_id:
             request.state.spice_user = SpiceUserContext.model_validate(
                 {"id": int(mock_user_id), "username": request.headers.get("X-Test-Username")}
             )
-            request.state.selected_tenant_id = int(request.headers.get("x-mock-tenant-id", "1"))
+        request.state.selected_tenant_id = int(request.headers.get("x-mock-tenant-id", "1"))
         return await call_next(request)
 
     api_router = APIRouter(prefix=get_settings().api_root_path_normalized)

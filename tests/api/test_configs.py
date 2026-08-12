@@ -53,11 +53,11 @@ async def _wipe_and_seed_data(db_session: AsyncSession) -> AsyncIterator[None]:
     # Seed config before the test starts
     await db_session.execute(
         text(
-            "INSERT INTO config_threshold (version, key, value_json, title, description) VALUES "
-            "(1, 'quiz_reattempt_validity_days', '30'::jsonb, "
+            "INSERT INTO config_threshold (version, tenant_id, key, value_json, title, description) VALUES "
+            "(1, 1, 'quiz_reattempt_validity_days', '30'::jsonb, "
             "'Quiz Reattempt Validity (Days)', "
             "'Configure the number of days from the module assignment date during which users can reattempt a quiz. Users are always allowed their first quiz attempt, even if this period has expired. After the first attempt, reattempts are permitted only until the configured validity period ends.') "
-            "ON CONFLICT (key) DO NOTHING"
+            "ON CONFLICT (tenant_id, key) DO NOTHING"
         )
     )
     await db_session.commit()

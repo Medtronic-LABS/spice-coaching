@@ -61,6 +61,15 @@ def _make_module_obj(
     )
 
 
+def _module_text(m: Module) -> str:
+    cards: list[dict] = []
+    if isinstance(m.module_json, dict):
+        raw = m.module_json.get("cards")
+        if isinstance(raw, list):
+            cards = raw
+    return _module_text_for_embedding(m, cards)
+
+
 class TestModuleTextForEmbedding:
     def test_titles_and_description_in_order(self) -> None:
         m = _make_module_obj(
@@ -68,7 +77,7 @@ class TestModuleTextForEmbedding:
             description_localized={"bn": "bn-desc"},
             cards=[],
         )
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         # Order matters: bn → en → desc.
         idx_bn = text.index("bn-title")
         idx_en = text.index("en-title")
@@ -105,7 +114,7 @@ class TestModuleTextForEmbedding:
                 }
             ],
         )
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         assert "rich-body-bn" in text
         assert "rich-body-en" in text
         assert "'type': 'doc'" not in text
@@ -134,7 +143,7 @@ class TestModuleTextForEmbedding:
                 }
             ],
         )
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         assert "block-list-bn" in text
         assert "block-list-en" in text
         assert "'type': 'paragraph'" not in text
@@ -151,7 +160,7 @@ class TestModuleTextForEmbedding:
                 }
             ],
         )
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         # Field order per the implementation: primary title → body → next_action.
         positions = [
             text.index("card-title-bn"),
@@ -168,7 +177,7 @@ class TestModuleTextForEmbedding:
             description_localized=None,
             cards=[{"title": {"bn": "only-this"}}],
         )
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         # Only the populated field shows up.
         assert text.strip() == "only-this"
 
@@ -178,19 +187,19 @@ class TestModuleTextForEmbedding:
             description_localized=None,
             cards=["not a dict", {"title": {"bn": "ok"}}],  # type: ignore[list-item]
         )
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         assert "ok" in text
         assert "t" in text
 
     def test_handles_null_module_json(self) -> None:
         m = _make_module_obj(title_localized={"bn": "t"}, cards=None)
         m.module_json = None
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         assert "t" in text
 
     def test_returns_empty_string_for_empty_module(self) -> None:
         m = _make_module_obj(title_localized=None, description_localized=None, cards=[])
-        text = _module_text_for_embedding(m)
+        text = _module_text(m)
         assert text == ""
 
     def test_text_concat_is_stable_for_cache_hashability(self) -> None:
@@ -205,7 +214,7 @@ class TestModuleTextForEmbedding:
             title_localized={"bn": "t"},
             cards=[{"title": {"bn": "a"}}, {"title": {"bn": "b"}}],
         )
-        assert _module_text_for_embedding(m1) == _module_text_for_embedding(m2)
+        assert _module_text(m1) == _module_text(m2)
 
 
 # ─── DB-backed: end-to-end with mocked ai-runtime ───────────────────────────

@@ -91,7 +91,13 @@ class TestClampQuizSize:
 
 class TestFormatCardBlock:
     def test_includes_only_populated_fields(self) -> None:
-        block = _format_card_block({"title": {"bn": "T"}, "body": {"bn": "B"}}, idx=1)
+        settings = get_settings()
+        block = _format_card_block(
+            {"title": {"bn": "T"}, "body": {"bn": "B"}},
+            idx=1,
+            primary_locale="bn",
+            settings=settings,
+        )
         assert "### Card 1" in block
         assert "Title (bn): T" in block
         assert "Body (bn): B" in block
@@ -100,6 +106,7 @@ class TestFormatCardBlock:
         assert "Rationale" not in block
 
     def test_includes_all_optional_fields_in_order(self) -> None:
+        settings = get_settings()
         block = _format_card_block(
             {
                 "title": {"bn": "t"},
@@ -110,6 +117,8 @@ class TestFormatCardBlock:
                 "rationale_for_change": {"bn": "r"},
             },
             idx=2,
+            primary_locale="bn",
+            settings=settings,
         )
         # Title before body, body before next, next before previous practice,
         # previous before current, current before rationale.
@@ -124,10 +133,14 @@ class TestFormatCardBlock:
         assert positions == sorted(positions)
 
     def test_card_index_in_header(self) -> None:
-        assert "### Card 7" in _format_card_block({"title": {"bn": "x"}}, idx=7)
+        settings = get_settings()
+        assert "### Card 7" in _format_card_block(
+            {"title": {"bn": "x"}}, idx=7, primary_locale="bn", settings=settings
+        )
 
     def test_empty_card_only_emits_header(self) -> None:
-        block = _format_card_block({}, idx=1)
+        settings = get_settings()
+        block = _format_card_block({}, idx=1, primary_locale="bn", settings=settings)
         assert block.strip() == "### Card 1"
 
 
@@ -224,16 +237,11 @@ def _valid_question(idx: int = 0) -> dict[str, Any]:
 
 @pytest.fixture
 def mock_generate(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
-    """Patch AIRuntimeClient.generate in the worker's namespace."""
+    """Patch the process-scoped ai-runtime client used by the quiz worker."""
     gen_mock = AsyncMock()
-
-    class _StubClient:
-        def __init__(self, *_args: Any, **_kwargs: Any) -> None: ...
-
-        async def generate(self, request: InferenceRequest) -> InferenceResponse:
-            return await gen_mock(request)
-
-    monkeypatch.setattr("platform_service.workers.quiz_generation_worker.AIRuntimeClient", _StubClient)
+    client = AsyncMock()
+    client.generate = gen_mock
+    monkeypatch.setattr("platform_service.workers.quiz_generation_worker.get_ai_client", lambda: client)
     return gen_mock
 
 
