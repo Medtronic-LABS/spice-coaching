@@ -23,7 +23,7 @@ _DEV_AI_RUNTIME_TOKEN = "dev-internal-token"
 _DEV_OBJECT_STORAGE_ACCESS_KEY = "minioadmin"
 _INSECURE_DB_PASSWORDS = frozenset({"postgres"})
 _DEPLOYED_ENVS = frozenset({"production", "staging"})
-_OBJECT_STORAGE_BACKENDS = frozenset({"minio", "s3"})
+_OBJECT_STORAGE_BACKENDS = frozenset({"minio", "s3", "gcs"})
 _OBJECT_STORAGE_PRESIGN_MODES = frozenset({"direct", "proxy"})
 
 
@@ -461,6 +461,19 @@ class Settings(BaseAppSettings):
         if backend == "s3":
             # Never auto-create buckets against AWS from the app.
             self.object_storage_auto_create_bucket = False
+        if backend == "gcs":
+            # GCS S3-interop requires explicit endpoint and HMAC credentials.
+            if not (self.object_storage_endpoint or "").strip():
+                raise ValueError("OBJECT_STORAGE_ENDPOINT is required when OBJECT_STORAGE_BACKEND=gcs")
+            access = self.object_storage_access_key.get_secret_value()
+            secret = self.object_storage_secret_key.get_secret_value()
+            if not access or not secret:
+                raise ValueError(
+                    "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
+                    "when OBJECT_STORAGE_BACKEND=gcs"
+                )
+            self.object_storage_auto_create_bucket = False
+            self.object_storage_secure = True
         return self
 
     @model_validator(mode="after")

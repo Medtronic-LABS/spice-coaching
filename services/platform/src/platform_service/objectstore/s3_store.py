@@ -26,7 +26,7 @@ from mc_foundation.objectstore import (
     safe_basename,
 )
 
-ObjectStorageBackend = Literal["minio", "s3"]
+ObjectStorageBackend = Literal["minio", "s3", "gcs"]
 PresignMode = Literal["direct", "proxy"]
 
 
@@ -120,7 +120,7 @@ class S3ObjectStore:
         self.allowed_prefixes = allowed_prefixes or frozenset({"uploads"})
         self._backend = backend
         self._presign_mode = presign_mode
-        # Auto-create is only allowed for local MinIO; never against AWS.
+        # Auto-create is only allowed for local MinIO; never against AWS or GCS.
         self._auto_create_bucket = auto_create_bucket if backend == "minio" else False
         self._bucket_ready = False
 
@@ -132,8 +132,16 @@ class S3ObjectStore:
                 "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
                 "when OBJECT_STORAGE_BACKEND=minio"
             )
+        if backend == "gcs" and not data_endpoint:
+            raise ValueError("OBJECT_STORAGE_ENDPOINT is required when OBJECT_STORAGE_BACKEND=gcs")
+        if backend == "gcs" and (not access_key or not secret_key):
+            raise ValueError(
+                "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
+                "when OBJECT_STORAGE_BACKEND=gcs"
+            )
 
-        addressing: Literal["auto", "path"] = "path" if backend == "minio" else "auto"
+        # GCS S3-interop uses path-style addressing, same as MinIO.
+        addressing: Literal["auto", "path"] = "path" if backend in {"minio", "gcs"} else "auto"
         self._client = _build_s3_client(
             endpoint_url=data_endpoint,
             region=region,

@@ -16,8 +16,8 @@ def create_object_store(*, settings: Settings | None = None) -> ObjectStore:
     """
     cfg = settings if settings is not None else get_settings()
     backend = cfg.object_storage_backend
-    if backend not in {"minio", "s3"}:
-        raise ValueError(f"unsupported OBJECT_STORAGE_BACKEND={backend!r}; supported: 'minio', 's3'")
+    if backend not in {"minio", "s3", "gcs"}:
+        raise ValueError(f"unsupported OBJECT_STORAGE_BACKEND={backend!r}; supported: 'minio', 's3', 'gcs'")
     return S3ObjectStore(
         bucket_name=cfg.object_storage_bucket_name,
         region=cfg.object_storage_region,

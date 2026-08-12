@@ -106,16 +106,16 @@ services:
       search_metadata_max_search_phrases: ${SEARCH_METADATA_MAX_SEARCH_PHRASES:-10}
       search_metadata_max_synonyms: ${SEARCH_METADATA_MAX_SYNONYMS:-10}
       search_metadata_max_tags: ${SEARCH_METADATA_MAX_TAGS:-10}
-      # Local compose MinIO (host .env may set localhost:19902 for non-compose runs).
-      object_storage_backend: minio
-      object_storage_endpoint: minio:9000
+      # Object storage — defaults to local MinIO; override via .env for S3 or GCS deployments.
+      object_storage_backend: ${OBJECT_STORAGE_BACKEND:-minio}
+      object_storage_endpoint: ${OBJECT_STORAGE_ENDPOINT:-minio:9000}
       object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT:-minio:9000}
-      object_storage_presign_mode: proxy
+      object_storage_presign_mode: ${OBJECT_STORAGE_PRESIGN_MODE:-proxy}
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
       object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-medtronics-storage}
       object_storage_auto_create_bucket: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-true}
-      object_storage_secure: "false"
+      object_storage_secure: ${OBJECT_STORAGE_SECURE:-"false"}
       object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
       admin_file_allowed_prefixes: ${ADMIN_FILE_ALLOWED_PREFIXES:-uploads,source-documents,media,ingest,module-thumbnails}
       admin_file_upload_prefix: ${ADMIN_FILE_UPLOAD_PREFIX:-uploads}
@@ -187,15 +187,15 @@ services:
       chat_feedback_summary_max_positive_offline_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_POSITIVE_OFFLINE_SAMPLES:-10}
       chat_feedback_summary_max_negative_online_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_ONLINE_SAMPLES:-30}
       chat_feedback_summary_max_negative_offline_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_OFFLINE_SAMPLES:-30}
-      object_storage_backend: minio
-      object_storage_endpoint: minio:9000
+      object_storage_backend: ${OBJECT_STORAGE_BACKEND:-minio}
+      object_storage_endpoint: ${OBJECT_STORAGE_ENDPOINT:-minio:9000}
       object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT:-minio:9000}
-      object_storage_presign_mode: proxy
+      object_storage_presign_mode: ${OBJECT_STORAGE_PRESIGN_MODE:-proxy}
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
       object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-medtronics-storage}
       object_storage_auto_create_bucket: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-true}
-      object_storage_secure: "false"
+      object_storage_secure: ${OBJECT_STORAGE_SECURE:-"false"}
       object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
       app_env: ${APP_ENV:-development}
       log_service_name: platform-celery-worker

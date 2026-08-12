@@ -258,7 +258,40 @@ def test_object_storage_s3_forces_auto_create_off() -> None:
 
 def test_object_storage_rejects_unknown_backend() -> None:
     with pytest.raises(ValidationError, match="OBJECT_STORAGE_BACKEND"):
-        Settings(object_storage_backend="gcs")  # type: ignore[call-arg]
+        Settings(object_storage_backend="azure")  # type: ignore[call-arg]
+
+
+def test_object_storage_gcs_accepted() -> None:
+    s = Settings(
+        object_storage_backend="gcs",
+        object_storage_endpoint="storage.googleapis.com",
+        object_storage_access_key="hmac-key",
+        object_storage_secret_key="hmac-secret",
+        object_storage_bucket_name="my-gcs-bucket",
+    )  # type: ignore[call-arg]
+    assert s.object_storage_backend == "gcs"
+    assert s.object_storage_auto_create_bucket is False
+    assert s.object_storage_secure is True
+
+
+def test_object_storage_gcs_requires_endpoint() -> None:
+    with pytest.raises(ValidationError, match="OBJECT_STORAGE_ENDPOINT"):
+        Settings(
+            object_storage_backend="gcs",
+            object_storage_endpoint=None,
+            object_storage_access_key="hmac-key",
+            object_storage_secret_key="hmac-secret",
+        )  # type: ignore[call-arg]
+
+
+def test_object_storage_gcs_requires_credentials() -> None:
+    with pytest.raises(ValidationError, match="OBJECT_STORAGE_ACCESS_KEY"):
+        Settings(
+            object_storage_backend="gcs",
+            object_storage_endpoint="storage.googleapis.com",
+            object_storage_access_key="",
+            object_storage_secret_key="",
+        )  # type: ignore[call-arg]
 
 
 def test_admin_file_upload_prefix_must_be_allowlisted() -> None:
