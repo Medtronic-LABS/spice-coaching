@@ -177,8 +177,8 @@ async def update_source_document_metadata(
     session: AsyncSession = Depends(get_db),
 ) -> SourceDocumentSummary:
     """Update title and/or description without re-ingest."""
-    if body.title is None and "description" not in body.model_fields_set:
-        raise HTTPException(status_code=422, detail="at least one of title or description is required")
+    if body.title is None and "description" not in body.model_fields_set and body.sync_published_visible is None:
+        raise HTTPException(status_code=422, detail="at least one of title, description, or sync_published_visible is required")
     if body.title is not None and not body.title.strip():
         raise HTTPException(status_code=422, detail="title must be a non-empty string")
 
@@ -193,6 +193,7 @@ async def update_source_document_metadata(
         title=body.title.strip() if body.title is not None else None,
         description=description_value,
         update_description=update_description,
+        sync_published_visible=body.sync_published_visible,
     )
     if doc is None:
         raise HTTPException(status_code=404, detail="source document not found")

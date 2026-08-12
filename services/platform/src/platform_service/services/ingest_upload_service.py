@@ -298,6 +298,35 @@ class IngestUploadService:
         return list(override_flags)
 
     @staticmethod
+    def resolve_sync_published_visible_for_files(
+        sync_visible_json: str | None,
+        files: list[UploadFile],
+    ) -> list[bool]:
+        """Map each upload to a sync_published_visible flag (default False when omitted)."""
+        if not files:
+            raise IngestValidationError("at least one file is required")
+        if sync_visible_json is None:
+            return [False] * len(files)
+        try:
+            parsed = json.loads(sync_visible_json)
+        except json.JSONDecodeError as exc:
+            raise IngestValidationError("sync_published_visible must be valid JSON") from exc
+        if not isinstance(parsed, list):
+            raise IngestValidationError("sync_published_visible must be a JSON array")
+        if len(parsed) != len(files):
+            raise IngestValidationError(
+                f"sync_published_visible must have {len(files)} entries (one per file); got {len(parsed)}",
+            )
+        resolved: list[bool] = []
+        for index, entry in enumerate(parsed):
+            if not isinstance(entry, bool):
+                raise IngestValidationError(
+                    f"sync_published_visible[{index}] must be a boolean",
+                )
+            resolved.append(entry)
+        return resolved
+
+    @staticmethod
     def resolve_content_domains_for_files(
         content_domains_json: str | None,
         files: list[UploadFile],
@@ -375,7 +404,9 @@ class IngestUploadService:
         params: IngestUploadParams,
         override_flags: list[bool],
         content_domains: list[str],
+        sync_published_visible_flags: list[bool] | None = None,
     ) -> list[IngestUploadOutcome]:
+        resolved_visible = sync_published_visible_flags or [False] * len(files)
         outcomes: list[IngestUploadOutcome] = []
         for (
             upload,
@@ -383,12 +414,14 @@ class IngestUploadService:
             description,
             override_duplicate,
             content_domain,
+            sync_visible,
         ) in zip(
             files,
             titles,
             descriptions,
             override_flags,
             content_domains,
+            resolved_visible,
             strict=True,
         ):
             outcomes.append(
@@ -399,6 +432,7 @@ class IngestUploadService:
                     params=params,
                     override_duplicate=override_duplicate,
                     content_domain=content_domain,
+                    sync_published_visible=sync_visible,
                 )
             )
         return outcomes
@@ -412,6 +446,7 @@ class IngestUploadService:
         description: str | None = None,
         override_duplicate: bool = False,
         content_domain: str = _DEFAULT_CONTENT_DOMAIN,
+        sync_published_visible: bool = False,
     ) -> IngestUploadOutcome:
         """Upload one file, persist provenance, and create an uploaded source_document."""
         if self._storage is None:
@@ -470,7 +505,7 @@ class IngestUploadService:
                 original_filename=original_filename,
                 uploaded_by=params.uploaded_by,
                 description=description,
-                sync_published_visible=False,
+                sync_published_visible=sync_published_visible,
                 status="uploaded",
             )
             await record_attribution_event(

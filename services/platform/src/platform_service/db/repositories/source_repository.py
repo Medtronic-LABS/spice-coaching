@@ -327,6 +327,7 @@ class SourceRepository:
         title: str | None = None,
         description: str | None = None,
         update_description: bool = False,
+        sync_published_visible: bool | None = None,
     ) -> SourceDocument | None:
         """Update title and/or description without touching ingest status."""
         doc = await self.get_source_document(document_id)
@@ -336,6 +337,8 @@ class SourceRepository:
             doc.title = title
         if update_description:
             doc.description = description
+        if sync_published_visible is not None:
+            doc.sync_published_visible = sync_published_visible
         await self._session.flush()
         return doc
 

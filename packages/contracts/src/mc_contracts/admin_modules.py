@@ -279,6 +279,7 @@ class SourceDocumentMetadataUpdate(BaseModel):
 
     title: str | None = None
     description: str | None = None
+    sync_published_visible: bool | None = None
 
 
 class SourceDocumentListResponse(BaseModel):
