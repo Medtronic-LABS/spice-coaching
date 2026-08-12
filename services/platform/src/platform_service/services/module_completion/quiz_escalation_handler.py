@@ -25,7 +25,7 @@ class QuizEscalationHandler:
         module: Module,
         quiz_id: UUID,
         score_pct: float | None,
-        tenant_uuid: UUID | None,
+        tenant_id: int | None,
         event_id: str | None,
         gap_outcome_kind: str | None,
     ) -> None:
@@ -35,7 +35,7 @@ class QuizEscalationHandler:
             chw_id=chw_id,
             quiz_id=quiz_id,
             module_id=module.id,
-            tenant_id=tenant_uuid,
+            tenant_id=tenant_id,
         )
 
         if score_pct is None:
@@ -59,7 +59,7 @@ class QuizEscalationHandler:
                 chw_id=chw_id,
                 quiz_id=quiz_id,
                 module_id=module.id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
             )
         elif gap_outcome_kind == "correct":
             await quiz_svc.record_correct_attempt(chw_id=chw_id, quiz_id=quiz_id)
@@ -70,5 +70,5 @@ class QuizEscalationHandler:
                 chw_id=chw_id,
                 quiz_id=quiz_id,
                 module_id=module.id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
             )

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +15,7 @@ from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.repositories.module_completion_repository import (
     ModuleCompletionRepository,
 )
+from platform_service.services.module_completion.quiz_coverage import quiz_coverage_count
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +28,21 @@ class QuizProgressHandler:
         self,
         *,
         chw_id: int,
-        tenant_uuid: UUID | None,
+        tenant_id: int | None,
         module: Module,
         quiz_id: UUID,
-    ) -> None:
-        """Persist per-question attempt progress and mark module completed when coverage hits 100%."""
+    ) -> bool:
+        """Persist per-question progress; mark completed when coverage hits 100%.
+
+        Returns True only when this attempt newly completes the module version
+        (coverage crossed from incomplete to complete).
+        """
         if not await self._validate_quiz_belongs_to_module(module=module, quiz_id=quiz_id):
-            return
+            return False
+
+        quiz_ids, covered_before = await quiz_coverage_count(
+            self._session, chw_id=chw_id, module_id=module.id
+        )
 
         # Idempotent upsert: (chw_id, module_id, quiz_id) PK.
         stmt = (
@@ -43,7 +51,7 @@ class QuizProgressHandler:
                 chw_id=chw_id,
                 module_id=module.id,
                 quiz_id=quiz_id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
             )
             .on_conflict_do_nothing(
                 index_elements=[
@@ -55,28 +63,31 @@ class QuizProgressHandler:
         )
         await self._session.execute(stmt)
 
-        quiz_ids, covered_count = await self._quiz_coverage_count(chw_id=chw_id, module=module)
         if not quiz_ids:
-            return
+            return False
 
-        if covered_count >= len(quiz_ids):
-            repo = ModuleCompletionRepository(self._session)
-            comp = await repo.get(chw_id=chw_id, module_family_id=module.module_family_id)
-            if comp is None:
-                self._session.add(
-                    CHWModuleCompletion(
-                        chw_id=chw_id,
-                        module_family_id=module.module_family_id,
-                        tenant_id=tenant_uuid,
-                        attempts_since_last_pass=0,
-                    )
+        _, covered_after = await quiz_coverage_count(self._session, chw_id=chw_id, module_id=module.id)
+        if covered_after < len(quiz_ids):
+            return False
+
+        repo = ModuleCompletionRepository(self._session)
+        comp = await repo.get(chw_id=chw_id, module_family_id=module.module_family_id)
+        if comp is None:
+            self._session.add(
+                CHWModuleCompletion(
+                    chw_id=chw_id,
+                    module_family_id=module.module_family_id,
+                    tenant_id=tenant_id,
+                    attempts_since_last_pass=0,
                 )
-                await self._session.flush()
-            await repo.mark_completed(
-                chw_id=chw_id,
-                module_family_id=module.module_family_id,
-                completed_module_id=module.id,
             )
+            await self._session.flush()
+        await repo.mark_completed(
+            chw_id=chw_id,
+            module_family_id=module.module_family_id,
+            completed_module_id=module.id,
+        )
+        return covered_before < len(quiz_ids)
 
     async def _validate_quiz_belongs_to_module(
         self,
@@ -93,36 +104,3 @@ class QuizProgressHandler:
             )
             return False
         return True
-
-    async def _quiz_coverage_count(
-        self,
-        *,
-        chw_id: int,
-        module: Module,
-    ) -> tuple[list[UUID], int]:
-        quiz_ids = list(
-            (
-                await self._session.execute(
-                    select(ModuleQuizQuestion.id).where(ModuleQuizQuestion.module_id == module.id)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        if not quiz_ids:
-            return quiz_ids, 0
-
-        covered_count = int(
-            (
-                await self._session.execute(
-                    select(func.count())
-                    .select_from(CHWModuleQuizProgress)
-                    .where(
-                        CHWModuleQuizProgress.chw_id == chw_id,
-                        CHWModuleQuizProgress.module_id == module.id,
-                        CHWModuleQuizProgress.quiz_id.in_(quiz_ids),
-                    )
-                )
-            ).scalar_one()
-        )
-        return quiz_ids, covered_count

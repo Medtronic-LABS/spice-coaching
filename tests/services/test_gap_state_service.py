@@ -29,10 +29,7 @@ def _test_chw_id() -> int:
 async def _make_gap(session: AsyncSession) -> BehaviouralGap:
     code = f"gap_state_{uuid4().hex[:8]}"
     gap = BehaviouralGap(
-        gap_code=code,
-        description=code,
-        domain="hypertension",
-        detection_rule_jsonb={},
+        gap_code=code, description=code, domain="hypertension", detection_rule_jsonb={}, tenant_id=1
     )
     session.add(gap)
     await session.flush()
@@ -184,7 +181,7 @@ async def test_telemetry_to_module_surface_e2e(db_session: AsyncSession) -> None
     """End-to-end: 2 observations cross threshold → evaluator says fire →
     module_selector returns the module bound to the trigger."""
     gap = await _make_gap(db_session)
-    family = ModuleFamily(module_code=f"E2E-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"E2E-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
 
@@ -196,6 +193,7 @@ async def test_telemetry_to_module_surface_e2e(db_session: AsyncSession) -> None
         module_type="refresher",
         lifecycle_status="published",
         module_json={"cards": []},
+        tenant_id=1,
     )
     db_session.add(module)
     await db_session.flush()

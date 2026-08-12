@@ -427,6 +427,6 @@ curl -s "$BASE/admin/files/presigned-url?object_name=uploads%2F...&disposition=i
 
 ## 11. Questions / backend contacts
 
-- Attachment schema: `packages/contracts/src/mc_contracts/module_attachments.py`
+- Attachment schema: `packages/contracts/src/mc_contracts/modules.py`
 - Validation errors: `services/platform/src/platform_service/services/module_attachment_validator.py`
-- Module API: `services/platform/src/platform_service/api/admin_modules.py`
+- Module API: `services/platform/src/platform_service/api/modules.py`

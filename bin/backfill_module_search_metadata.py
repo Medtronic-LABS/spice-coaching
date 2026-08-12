@@ -56,7 +56,7 @@ def _title_label(title_localized: dict[str, str] | None) -> str:
 async def _fetch_published_modules(
     *,
     missing_only: bool,
-    tenant_id: UUID | None,
+    tenant_id: int | None,
 ) -> list[ModuleRow]:
     repo = ModuleReadRepository()
     async with SessionLocal() as session:
@@ -91,7 +91,7 @@ async def _run(
     *,
     dry_run: bool,
     missing_only: bool,
-    tenant_id: UUID | None,
+    tenant_id: int | None,
     module_id: UUID | None,
 ) -> int:
     if module_id is not None:
@@ -142,9 +142,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--tenant-id",
-        type=UUID,
+        type=int,
         default=None,
-        help="Restrict bulk backfill to one tenant",
+        help="Restrict bulk backfill to one tenant (SPICE bigint)",
     )
     parser.add_argument(
         "--module-id",

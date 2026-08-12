@@ -21,7 +21,7 @@ def _test_chw_id() -> int:
 
 
 async def _make_family(session: AsyncSession) -> ModuleFamily:
-    family = ModuleFamily(module_code=f"SEL-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"SEL-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     return family
@@ -36,6 +36,7 @@ async def _make_published_module(session: AsyncSession, family: ModuleFamily) ->
         module_type="refresher",
         lifecycle_status="published",
         module_json={"cards": []},
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()
@@ -48,7 +49,6 @@ async def _make_trigger_with_bindings(
     trigger_kind: str = "gap",
     trigger_code: str | None = None,
     bindings: list[tuple[ModuleFamily, int]] | None = None,
-    modules_by_family: dict | None = None,
 ):
     repo = TriggerRepository(session)
     trigger = await repo.create_trigger(
@@ -56,12 +56,8 @@ async def _make_trigger_with_bindings(
         trigger_code=trigger_code or f"trig_{uuid4().hex[:8]}",
         predicate_jsonb={"behavioural_gap_code": "x"} if trigger_kind == "gap" else {},
     )
-    modules_by_family = modules_by_family or {}
     for family, weight in bindings or []:
-        module = modules_by_family.get(family.id)
-        if module is None:
-            module = await _make_published_module(session, family)
-            modules_by_family[family.id] = module
+        module = await _make_published_module(session, family)
         await repo.bind_module_to_trigger(
             module_id=module.id,
             trigger_definition_id=trigger.id,
@@ -124,6 +120,7 @@ async def test_skips_module_in_periodic_refresh_window(db_session: AsyncSession)
             latest_attempt_passed=True,
             completed_at=datetime.now(UTC) - timedelta(days=30),
             reinforcement_due_at=datetime.now(UTC) + timedelta(days=60),
+            tenant_id=1,
         )
     )
     await db_session.flush()
@@ -147,7 +144,8 @@ async def test_module_completion_past_refresh_due_resurfaces(
             module_family_id=fam.id,
             latest_attempt_passed=True,
             completed_at=datetime.now(UTC) - timedelta(days=120),
-            reinforcement_due_at=datetime.now(UTC) - timedelta(days=1),  # past due
+            reinforcement_due_at=datetime.now(UTC) - timedelta(days=1),  # past due,
+            tenant_id=1,
         )
     )
     await db_session.flush()
@@ -169,6 +167,7 @@ async def test_failed_attempt_does_not_suppress(db_session: AsyncSession) -> Non
             module_family_id=fam.id,
             latest_attempt_passed=False,
             latest_attempt_at=datetime.now(UTC) - timedelta(days=1),
+            tenant_id=1,
         )
     )
     await db_session.flush()
@@ -198,10 +197,8 @@ async def test_module_reachable_from_two_triggers_dedupes_by_higher_weight(
     db_session: AsyncSession,
 ) -> None:
     fam = await _make_family(db_session)
-    module = await _make_published_module(db_session, fam)
-    shared = {fam.id: module}
-    t1 = await _make_trigger_with_bindings(db_session, bindings=[(fam, 5)], modules_by_family=shared)
-    t2 = await _make_trigger_with_bindings(db_session, bindings=[(fam, 15)], modules_by_family=shared)
+    t1 = await _make_trigger_with_bindings(db_session, bindings=[(fam, 5)])
+    t2 = await _make_trigger_with_bindings(db_session, bindings=[(fam, 15)])
     selector = ModuleSelector(db_session)
     out = await selector.select_modules_for_chw(
         chw_id=_test_chw_id(),

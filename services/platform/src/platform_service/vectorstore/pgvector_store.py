@@ -4,7 +4,7 @@ Collection ``modules`` maps to ``Module.embedding``. Search filter keys
 (interpreted only here — not in foundation):
 
 - ``lifecycle_status`` (str) — defaults to ``\"published\"`` when omitted
-- ``tenant_id`` (UUID or str) — optional tenant scope
+- ``tenant_id`` (int) — optional tenant scope
 - ``assignable_only`` (bool) — when true, restrict to training module families
 """
 
@@ -86,11 +86,13 @@ class PgVectorStore:
         return [{"id": str(module_id), "distance": float(dist)} for module_id, dist in rows]
 
 
-def _parse_optional_tenant_id(raw: object | None) -> UUID | None:
+def _parse_optional_tenant_id(raw: object | None) -> int | None:
     if raw is None:
         return None
-    if isinstance(raw, UUID):
+    if isinstance(raw, bool):
+        raise ValueError("filters.tenant_id must be an int when provided")
+    if isinstance(raw, int):
         return raw
     if isinstance(raw, str):
-        return UUID(raw)
-    raise ValueError("filters.tenant_id must be a UUID or str when provided")
+        return int(raw)
+    raise ValueError("filters.tenant_id must be an int or str when provided")

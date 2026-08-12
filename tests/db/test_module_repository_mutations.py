@@ -1,4 +1,4 @@
-"""ModuleRepository — edit, review, visibility, retire, count, merge."""
+"""ModuleRepository — edit, review, retire, count, merge."""
 
 from __future__ import annotations
 
@@ -6,16 +6,19 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from asyncpg import Range
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
+from platform_service.db.repositories.module_lifecycle_repository import (
+    ModuleLifecycleError,
+    ModuleLifecycleRepository,
+)
 from platform_service.db.repositories.module_repository import (
     ModuleNotFoundError,
     ModuleRepository,
     ModuleVersionConflictError,
 )
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import requires_db
@@ -161,12 +164,14 @@ class TestEditModule:
             description="a",
             domain="rmnch",
             detection_rule_jsonb={},
+            tenant_id=1,
         )
         gap_b = BehaviouralGap(
             gap_code=f"gap_b_{uuid4().hex[:8]}",
             description="b",
             domain="rmnch",
             detection_rule_jsonb={},
+            tenant_id=1,
         )
         db_session.add_all([gap_a, gap_b])
         await db_session.flush()
@@ -221,114 +226,6 @@ class TestEditModule:
         )
 
         assert v2.thumbnail_storage_path == new_thumb
-
-
-# ─── set_clinically_reviewed: flip + audit ─────────────────────────────────
-
-
-class TestSetClinicallyReviewed:
-    async def test_flip_to_true_populates_audit_fields(self, db_session: AsyncSession) -> None:
-        fam = await _make_family(db_session)
-        m = await _make_module(db_session, family=fam, clinically_reviewed=False)
-
-        reviewer = uuid4()
-        repo = ModuleRepository(db_session)
-        out = await repo.set_clinically_reviewed(m.id, flag=True, reviewer_id=reviewer)
-
-        assert out.clinically_reviewed is True
-        assert out.clinically_reviewed_at is not None
-        assert out.clinically_reviewed_by == reviewer
-        assert out.lifecycle_status == "published"
-        assert out.published_at is not None
-
-    async def test_flip_to_false_clears_audit_fields(self, db_session: AsyncSession) -> None:
-        fam = await _make_family(db_session)
-        m = await _make_module(db_session, family=fam, clinically_reviewed=True)
-        m.clinically_reviewed_at = datetime.now(UTC)
-        m.clinically_reviewed_by = uuid4()
-
-        repo = ModuleRepository(db_session)
-        out = await repo.set_clinically_reviewed(m.id, flag=False)
-
-        assert out.clinically_reviewed is False
-        # Audit fields cleared on flip-to-false to avoid showing stale reviewer attribution.
-        assert out.clinically_reviewed_at is None
-        assert out.clinically_reviewed_by is None
-
-    async def test_set_on_unknown_raises(self, db_session: AsyncSession) -> None:
-        repo = ModuleRepository(db_session)
-        with pytest.raises(ModuleNotFoundError):
-            await repo.set_clinically_reviewed(uuid4(), flag=True)
-
-    async def test_set_on_retired_raises(self, db_session: AsyncSession) -> None:
-        m = await _make_module(
-            db_session,
-            family=await _make_family(db_session),
-            lifecycle_status="retired",
-            set_family_pointer=False,
-        )
-        repo = ModuleRepository(db_session)
-        with pytest.raises(ModuleNotFoundError):
-            await repo.set_clinically_reviewed(m.id, flag=True)
-
-
-# ─── set_visibility_window: asyncpg.Range roundtrip ────────────────────────
-
-
-class TestSetVisibilityWindow:
-    async def test_set_window_with_asyncpg_range(self, db_session: AsyncSession) -> None:
-        m = await _make_module(db_session, family=await _make_family(db_session))
-
-        starts = datetime(2026, 5, 1, tzinfo=UTC)
-        ends = datetime(2026, 5, 15, tzinfo=UTC)
-        window = Range(starts, ends, lower_inc=True, upper_inc=False)
-
-        repo = ModuleRepository(db_session)
-        out = await repo.set_visibility_window(m.id, window=window)
-
-        assert out.visibility_window is not None
-        # Verify the asyncpg.Range roundtripped correctly into the
-        # TSTZRANGE column. Reading via a raw SQL select bypasses the
-        # session's identity-map cache so we know we're seeing actual
-        # DB-side state, not the just-set Python attribute.
-        row = (
-            await db_session.execute(
-                text(
-                    "SELECT lower(visibility_window) AS lo, upper(visibility_window) AS hi FROM module WHERE id = :id"
-                ),
-                {"id": m.id},
-            )
-        ).one()
-        assert row.lo == starts
-        assert row.hi == ends
-
-    async def test_clear_with_none(self, db_session: AsyncSession) -> None:
-        now = datetime.now(UTC)
-        m = await _make_module(
-            db_session,
-            family=await _make_family(db_session),
-            visibility_window=Range(now, now + timedelta(days=7), lower_inc=True, upper_inc=False),
-        )
-
-        repo = ModuleRepository(db_session)
-        out = await repo.set_visibility_window(m.id, window=None)
-        assert out.visibility_window is None
-
-    async def test_set_on_unknown_raises(self, db_session: AsyncSession) -> None:
-        repo = ModuleRepository(db_session)
-        with pytest.raises(ModuleNotFoundError):
-            await repo.set_visibility_window(uuid4(), window=None)
-
-    async def test_set_on_retired_raises(self, db_session: AsyncSession) -> None:
-        m = await _make_module(
-            db_session,
-            family=await _make_family(db_session),
-            lifecycle_status="retired",
-            set_family_pointer=False,
-        )
-        repo = ModuleRepository(db_session)
-        with pytest.raises(ModuleNotFoundError):
-            await repo.set_visibility_window(m.id, window=None)
 
 
 # ─── retire_module: family pointer cascade ─────────────────────────────────
@@ -487,9 +384,10 @@ class TestCountModules:
         reviewed = (
             (
                 await db_session.execute(
-                    select(Module).where(
-                        Module.description_localized["bn"].astext == marker,
-                        Module.clinically_reviewed.is_(True),
+                    select(
+                        ModuleRepository.__init__.__globals__["Module"]
+                    ).where(  # use Module from the repo's namespace
+                        Module.description_localized["bn"] == marker, Module.clinically_reviewed.is_(True)
                     )
                 )
             )
@@ -500,8 +398,7 @@ class TestCountModules:
             (
                 await db_session.execute(
                     select(Module).where(
-                        Module.description_localized["bn"].astext == marker,
-                        Module.clinically_reviewed.is_(False),
+                        Module.description_localized["bn"] == marker, Module.clinically_reviewed.is_(False)
                     )
                 )
             )
@@ -579,7 +476,7 @@ class TestListActiveModulesForMerge:
 
     async def test_excludes_modules_with_empty_cards(self, db_session: AsyncSession) -> None:
         repo = ModuleRepository(db_session)
-        empty_cards_module = await _make_module(
+        await _make_module(
             db_session,
             title_localized={"bn": "no cards"},
             module_json={"cards": []},
@@ -587,7 +484,34 @@ class TestListActiveModulesForMerge:
         )
         await db_session.commit()
         active = await repo.list_active_modules_for_merge()
-        assert empty_cards_module.id not in {module.id for module in active}
+        assert all((m.module_json or {}).get("cards") for m in active)
+
+
+class TestLifecycleRepositoryPublish:
+    async def test_publish_changes_status_and_timestamps(self, db_session: AsyncSession) -> None:
+        fam = await _make_family(db_session)
+        mod = await _make_module(db_session, family=fam, lifecycle_status="draft")
+
+        repo = ModuleLifecycleRepository(db_session)
+        state = await repo.publish(mod.id, reason="Admin manual publish")
+
+        assert state.lifecycle_status == "published"
+        assert state.first_activated_at is not None
+
+        await db_session.refresh(mod)
+        assert mod.lifecycle_status == "published"
+        assert mod.published_at is not None
+
+        await db_session.refresh(fam)
+        assert fam.current_published_module_id == mod.id
+
+    async def test_publish_retired_module_raises_error(self, db_session: AsyncSession) -> None:
+        fam = await _make_family(db_session)
+        mod = await _make_module(db_session, family=fam, lifecycle_status="retired")
+
+        repo = ModuleLifecycleRepository(db_session)
+        with pytest.raises(ModuleLifecycleError):
+            await repo.publish(mod.id)
 
 
 # Suppress unused-import lint when only referenced via select(...)

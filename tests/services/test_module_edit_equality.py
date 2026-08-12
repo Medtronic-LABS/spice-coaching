@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mc_contracts.admin_modules import ModuleEditRequest
+from mc_contracts.modules import ModuleEditRequest
 from platform_service.services.module_edit_equality import (
     is_complete_edit_snapshot,
     resolve_edit_request_quiz,

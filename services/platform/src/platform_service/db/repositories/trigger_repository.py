@@ -6,9 +6,10 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.trigger_definition import (
@@ -32,7 +33,7 @@ class TriggerRepository:
         predicate_jsonb: dict[str, Any],
         description: str | None = None,
         predicate_schema_version: int = 1,
-        tenant_id: UUID | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> TriggerDefinition:
         trigger = TriggerDefinition(
             trigger_kind=trigger_kind,
@@ -59,7 +60,7 @@ class TriggerRepository:
         self,
         *,
         trigger_kind: str | None = None,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> list[TriggerDefinition]:
         stmt = select(TriggerDefinition).where(TriggerDefinition.status == "active")
         if trigger_kind is not None:
@@ -151,7 +152,7 @@ class TriggerRepository:
         self,
         since: datetime,
         *,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> list[TriggerDefinition]:
         stmt = (
             select(TriggerDefinition)
@@ -162,12 +163,7 @@ class TriggerRepository:
             .order_by(TriggerDefinition.updated_at.asc(), TriggerDefinition.id.asc())
         )
         if tenant_id is not None:
-            stmt = stmt.where(
-                or_(
-                    TriggerDefinition.tenant_id.is_(None),
-                    TriggerDefinition.tenant_id == tenant_id,
-                )
-            )
+            stmt = stmt.where(TriggerDefinition.tenant_id == tenant_id)
         return list((await self._session.execute(stmt)).scalars().all())
 
     async def list_bindings_for_trigger_ids(self, trigger_ids: list[UUID]) -> list[ModuleTriggerBinding]:

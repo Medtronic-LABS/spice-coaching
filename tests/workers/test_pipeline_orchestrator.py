@@ -67,21 +67,30 @@ from platform_service.workers.stage_c_identify import (
     StageCResult,
 )
 from platform_service.workers.stage_d_draft import StageDOrchestrator, StageDResult
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "module_quiz_question, module, module_family, module_candidate_draft, content_block, source_page, source_document, ingestion_run_step, ingestion_run",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module_quiz_question, module, module_family, "
+            "module_candidate_draft, content_block, source_page, "
+            "source_document, ingestion_run_step, ingestion_run "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────
 
 
 async def _seed_source_document(session: AsyncSession) -> UUID:
@@ -91,6 +100,7 @@ async def _seed_source_document(session: AsyncSession) -> UUID:
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -169,6 +179,7 @@ async def _seed_candidates(session: AsyncSession, ingestion_run_id: UUID, count:
             estimated_card_count=5,
             estimated_quiz_count=4,
             proposed_module_type="refresher",
+            tenant_id=1,
         )
         session.add(cand)
         await session.flush()

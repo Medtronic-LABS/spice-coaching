@@ -169,6 +169,31 @@ async def test_caching_client_first_call_misses_then_caches(db_session: AsyncSes
 
 @pytest.mark.asyncio
 @requires_db
+async def test_caching_client_isolates_tenants(db_session: AsyncSession) -> None:
+    """Same prompt hash under different ContextVar tenants must not share cache hits."""
+    from platform_service.auth.tenant_context import using_selected_tenant
+
+    inner = AsyncMock()
+    request = _make_request(prompt_text=f"tenant-iso-{uuid4().hex}")
+    inner.generate.side_effect = lambda req: _make_response(req, raw=f"t{inner.generate.call_count}")
+    cli = CachingAIRuntimeClient(session=db_session, inner=inner)
+
+    with using_selected_tenant(11):
+        resp_a = await cli.generate(request)
+    with using_selected_tenant(22):
+        resp_b = await cli.generate(request)
+
+    assert inner.generate.call_count == 2
+    assert resp_a.raw_text != resp_b.raw_text
+
+    with using_selected_tenant(11):
+        resp_a2 = await cli.generate(request)
+    assert resp_a2.raw_text == resp_a.raw_text
+    assert inner.generate.call_count == 2
+
+
+@pytest.mark.asyncio
+@requires_db
 async def test_caching_client_different_inputs_both_hit_inner(db_session: AsyncSession) -> None:
     inner = AsyncMock()
     inner.generate.side_effect = lambda req: _make_response(req, raw=req.prompt.resolved_human_message)

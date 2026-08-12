@@ -21,7 +21,7 @@ class ChatFaqsBundleBuilder:
         self,
         *,
         since: datetime,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> ChatFaqsSyncBundle:
         repo = ChatFaqRepository(self._session)
         computed_at = await repo.max_computed_at(tenant_id=tenant_id)

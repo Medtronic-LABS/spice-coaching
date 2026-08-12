@@ -1,4 +1,4 @@
-"""Middleware enforcing admin vs device API planes from SPICE role suite access."""
+"""Middleware enforcing admin vs device vs shared API planes from SPICE role suite access."""
 
 from __future__ import annotations
 
@@ -11,7 +11,11 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from platform_service.auth.spice_context import SpiceUserContext
-from platform_service.auth.spice_principal import is_admin_principal, is_device_principal
+from platform_service.auth.spice_principal import (
+    is_admin_principal,
+    is_device_principal,
+    is_organizer_principal,
+)
 from platform_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -37,8 +41,16 @@ def _plane_for_path(
     relative: str,
     admin_prefixes: frozenset[str],
     device_prefixes: frozenset[str],
+    shared_prefixes: frozenset[str],
 ) -> str | None:
-    """Return ``admin``, ``device``, or None if the path is not gated."""
+    """Return ``shared``, ``admin``, ``device``, or None if the path is not gated.
+
+    Shared is evaluated first so a path listed in both shared and admin/device
+    cannot fall through to the admin-plane ``client=mob`` denial.
+    """
+    if any(_matches_prefix(relative, p) for p in shared_prefixes):
+        return "shared"
+
     admin_match = any(_matches_prefix(relative, p) for p in admin_prefixes)
     device_match = any(_matches_prefix(relative, p) for p in device_prefixes)
     if admin_match and device_match:
@@ -51,8 +63,15 @@ def _plane_for_path(
     return None
 
 
+def _is_shared_plane_principal(user: SpiceUserContext) -> bool:
+    """Admin principals, or device principals that hold the PO (organizer) role."""
+    if is_admin_principal(user):
+        return True
+    return is_device_principal(user) and is_organizer_principal(user)
+
+
 class SpiceAuthorizationMiddleware(BaseHTTPMiddleware):
-    """When SPICE auth is enabled, restrict paths to admin or device principals."""
+    """When SPICE auth is enabled, restrict paths to admin, device, or shared principals."""
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
         settings = get_settings()
@@ -71,22 +90,54 @@ class SpiceAuthorizationMiddleware(BaseHTTPMiddleware):
             relative,
             settings.spice_admin_path_prefix_set,
             settings.spice_device_path_prefix_set,
+            settings.spice_shared_path_prefix_set,
         )
         if plane is None:
             return await call_next(request)
 
-        if plane == "admin" and not is_admin_principal(user):
-            logger.info(
-                "spice authorization denied plane=admin path=%s user_id=%s",
-                request.url.path,
-                user.id,
-            )
-            return problem_json_response(
-                code=ErrorCode.FORBIDDEN.value,
-                detail=FORBIDDEN_DETAIL,
-                status=403,
-                instance=str(request.url.path),
-            )
+        client = getattr(request.state, "client", None) or getattr(user, "client", None) or ""
+        client_lower = client.strip().lower()
+
+        if plane == "shared":
+            if not _is_shared_plane_principal(user):
+                logger.info(
+                    "spice authorization denied plane=shared path=%s user_id=%s",
+                    request.url.path,
+                    user.id,
+                )
+                return problem_json_response(
+                    code=ErrorCode.FORBIDDEN.value,
+                    detail=FORBIDDEN_DETAIL,
+                    status=403,
+                    instance=str(request.url.path),
+                )
+            return await call_next(request)
+
+        if plane == "admin":
+            if client_lower == "mob":
+                logger.info(
+                    "spice authorization denied plane=admin client=mob path=%s user_id=%s",
+                    request.url.path,
+                    user.id,
+                )
+                return problem_json_response(
+                    code=ErrorCode.FORBIDDEN.value,
+                    detail=FORBIDDEN_DETAIL,
+                    status=403,
+                    instance=str(request.url.path),
+                )
+            if not is_admin_principal(user):
+                logger.info(
+                    "spice authorization denied plane=admin path=%s user_id=%s",
+                    request.url.path,
+                    user.id,
+                )
+                return problem_json_response(
+                    code=ErrorCode.FORBIDDEN.value,
+                    detail=FORBIDDEN_DETAIL,
+                    status=403,
+                    instance=str(request.url.path),
+                )
 
         if plane == "device" and not is_device_principal(user):
             logger.info(

@@ -11,7 +11,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 from mc_foundation.problem import register_problem_handlers
-from platform_service.api.admin_prompts import router as admin_prompts_router
+from platform_service.api.prompts import router as prompts_router
 from platform_service.config import get_settings
 from platform_service.deps import get_db
 from sqlalchemy import text
@@ -33,7 +33,7 @@ async def app(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
         http_exception_type=HTTPException,
     )
     api_router = APIRouter(prefix=get_settings().api_root_path_normalized)
-    api_router.include_router(admin_prompts_router)
+    api_router.include_router(prompts_router)
     app_obj.include_router(api_router)
 
     async def _override_get_db() -> AsyncIterator[AsyncSession]:

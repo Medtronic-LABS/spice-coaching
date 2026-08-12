@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from mc_contracts.admin_modules import (
+from mc_contracts.ingestion_runs import (
     IngestionRunCandidatePayload,
     IngestionRunDetail,
     IngestionRunStepPayload,

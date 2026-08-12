@@ -18,7 +18,7 @@ def test_telemetry_batch_rejects_too_many_events() -> None:
         TelemetryBatch(
             sdk_version="1.0",
             chw_id=1,
-            tenant_id=uuid4(),
+            tenant_id=1,
             events=[
                 TelemetryEvent(
                     id=f"evt-{i}",
@@ -36,7 +36,7 @@ def test_telemetry_batch_accepts_valid_event() -> None:
     batch = TelemetryBatch(
         sdk_version="1.0",
         chw_id=1,
-        tenant_id=uuid4(),
+        tenant_id=1,
         events=[
             TelemetryEvent(
                 id="evt-1",
@@ -54,7 +54,7 @@ def test_telemetry_batch_accepts_module_requested() -> None:
     batch = TelemetryBatch(
         sdk_version="1.0",
         chw_id=1,
-        tenant_id=uuid4(),
+        tenant_id=1,
         events=[
             TelemetryEvent(
                 id="evt-req-1",

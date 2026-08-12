@@ -182,7 +182,7 @@ async def load_cards_by_module_ids(module_ids: list[UUID]) -> dict[UUID, list[di
     return cards_by_module
 
 
-async def load_published_modules(*, tenant_id: UUID | None = None) -> list[Module]:
+async def load_published_modules(*, tenant_id: int | None = None) -> list[Module]:
     async with SessionLocal() as session:
         repo = ModuleReadRepository(session)
         return await repo.list_modules(status="published", limit=10_000, tenant_id=tenant_id)
@@ -211,14 +211,14 @@ def corpus_docs_from_modules(
     return docs
 
 
-async def load_published_corpus(*, tenant_id: UUID | None = None) -> list[CorpusDoc]:
+async def load_published_corpus(*, tenant_id: int | None = None) -> list[CorpusDoc]:
     """Return one searchable document per published module."""
     modules = await load_published_modules(tenant_id=tenant_id)
     cards_by_module = await load_cards_by_module_ids([module.id for module in modules])
     return corpus_docs_from_modules(modules, cards_by_module)
 
 
-async def count_embedded_published_modules(*, tenant_id: UUID | None = None) -> int:
+async def count_embedded_published_modules(*, tenant_id: int | None = None) -> int:
     """Count published modules with a non-null embedding vector."""
     async with SessionLocal() as session:
         stmt = (

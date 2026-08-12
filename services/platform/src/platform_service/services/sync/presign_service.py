@@ -9,8 +9,6 @@ from typing import TypeVar
 from uuid import UUID
 
 from mc_contracts.sync import (
-    ModuleThumbnailPresignedUrlPayload,
-    ModuleThumbnailsPresignResponse,
     SourceDocumentPresignedUrlPayload,
     SourceDocumentsPresignResponse,
     SourceDocumentThumbnailPresignedUrlPayload,
@@ -25,7 +23,6 @@ from mc_foundation.objectstore import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import Settings, get_settings
-from platform_service.db.models.module import Module
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.repositories.module_repository import ModuleRepository
 from platform_service.db.repositories.source_repository import SourceRepository
@@ -46,7 +43,7 @@ class SyncPresignService:
         source_document_ids: list[UUID],
         storage: ObjectStore,
         settings: Settings | None = None,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> SourceDocumentsPresignResponse:
         """Return presigned GET URLs for object-storage-backed source documents.
 
@@ -137,7 +134,7 @@ class SyncPresignService:
         source_document_ids: list[UUID],
         storage: ObjectStore,
         settings: Settings | None = None,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> SourceDocumentThumbnailsPresignResponse:
         """Return presigned GET URLs for source document thumbnails (partial success)."""
         settings = settings or get_settings()
@@ -184,58 +181,12 @@ class SyncPresignService:
             server_time_utc=datetime.now(UTC).isoformat(),
         )
 
-    async def get_module_thumbnail_presigned_urls(
-        self,
-        *,
-        module_ids: list[UUID],
-        storage: ObjectStore,
-        settings: Settings | None = None,
-        tenant_id: UUID | None = None,
-    ) -> ModuleThumbnailsPresignResponse:
-        """Return presigned GET URLs for module thumbnails (partial success)."""
-        settings = settings or get_settings()
-
-        if not module_ids:
-            return ModuleThumbnailsPresignResponse(
-                urls=[],
-                missing_ids=[],
-                server_time_utc=datetime.now(UTC).isoformat(),
-            )
-
-        modules = await ModuleRepository(self._session).list_modules_by_ids(
-            module_ids,
-            tenant_id=tenant_id,
-        )
-        module_by_id = {module.id: module for module in modules}
-
-        urls, missing_ids = await self._presign_thumbnail_batch(
-            entity_ids=module_ids,
-            entity_by_id=module_by_id,
-            get_storage_path=lambda module: module.thumbnail_storage_path,
-            build_payload=lambda module_id, storage_path, presigned_url, expires_seconds: (
-                ModuleThumbnailPresignedUrlPayload(
-                    module_id=module_id,
-                    storage_path=storage_path,
-                    presigned_url=presigned_url,
-                    expires_seconds=expires_seconds,
-                )
-            ),
-            storage=storage,
-            settings=settings,
-        )
-
-        return ModuleThumbnailsPresignResponse(
-            urls=urls,
-            missing_ids=missing_ids,
-            server_time_utc=datetime.now(UTC).isoformat(),
-        )
-
     async def _presign_thumbnail_batch(
         self,
         *,
         entity_ids: list[UUID],
-        entity_by_id: dict[UUID, SourceDocument | Module],
-        get_storage_path: Callable[[SourceDocument | Module], str | None],
+        entity_by_id: dict[UUID, SourceDocument],
+        get_storage_path: Callable[[SourceDocument], str | None],
         build_payload: Callable[[UUID, str, str, int], PayloadT],
         storage: ObjectStore,
         settings: Settings,

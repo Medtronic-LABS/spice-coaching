@@ -8,6 +8,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.ingest_batch import IngestBatch
 from platform_service.db.models.ingestion_run import IngestionRun
 from platform_service.services.run_state.claims import RunClaimMixin
@@ -85,6 +86,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
         cards_per_module: int | None = None,
         quizzes_per_module: int | None = None,
         triggered_by: UUID | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> IngestBatch:
         batch = IngestBatch(
             status=BATCH_QUEUED,
@@ -93,6 +95,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
             cards_per_module=cards_per_module,
             quizzes_per_module=quizzes_per_module,
             triggered_by=triggered_by,
+            tenant_id=tenant_id,
         )
         self._session.add(batch)
         await self._session.flush()

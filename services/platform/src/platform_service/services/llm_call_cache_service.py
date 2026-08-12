@@ -25,7 +25,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.auth.tenant_context import get_context_selected_tenant_id
 from platform_service.db.base import SessionLocal
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.llm_call_cache import LlmCallCache
 from platform_service.deps import get_ai_client
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
@@ -97,9 +99,12 @@ class LlmCallCacheService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get(self, input_hash: str) -> LlmCallCache | None:
+    async def get(self, input_hash: str, *, tenant_id: int = DEFAULT_TENANT_ID) -> LlmCallCache | None:
         result = await self._session.execute(
-            select(LlmCallCache).where(LlmCallCache.input_hash == input_hash)
+            select(LlmCallCache).where(
+                LlmCallCache.input_hash == input_hash,
+                LlmCallCache.tenant_id == tenant_id,
+            )
         )
         return result.scalar_one_or_none()
 
@@ -111,6 +116,7 @@ class LlmCallCacheService:
         response_jsonb: dict[str, Any],
         token_usage: dict[str, Any] | None = None,
         prompt_template_id: UUID | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> LlmCallCache:
         async with SessionLocal() as own_session:
             row = LlmCallCache(
@@ -119,6 +125,7 @@ class LlmCallCacheService:
                 response_jsonb=response_jsonb,
                 token_usage_jsonb=token_usage,
                 prompt_template_id=prompt_template_id,
+                tenant_id=tenant_id,
             )
             own_session.add(row)
             try:
@@ -127,7 +134,7 @@ class LlmCallCacheService:
                 # Concurrent insert — another worker won the race. Discard
                 # our pending add and return the row another writer landed.
                 await own_session.rollback()
-                existing = await self.get(input_hash)
+                existing = await self.get(input_hash, tenant_id=tenant_id)
                 if existing is None:
                     raise
                 return existing
@@ -163,7 +170,8 @@ class CachingAIRuntimeClient:
 
     async def generate(self, request: InferenceRequest) -> InferenceResponse:
         input_hash = compute_input_hash(request)
-        hit = await self._cache.get(input_hash)
+        tenant_id = get_context_selected_tenant_id()
+        hit = await self._cache.get(input_hash, tenant_id=tenant_id)
         if hit is not None and not _stored_response_has_error(hit.response_jsonb):
             logger.info(
                 "llm_call_cache HIT generation_type=%s hash=%s",
@@ -196,6 +204,7 @@ class CachingAIRuntimeClient:
                 "output": response.token_usage.output,
             },
             prompt_template_id=request.prompt.prompt_template_db_id,
+            tenant_id=tenant_id,
         )
         logger.info(
             "llm_call_cache MISS+stored generation_type=%s hash=%s",

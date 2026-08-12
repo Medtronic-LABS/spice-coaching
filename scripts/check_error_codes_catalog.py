@@ -13,7 +13,7 @@ from mc_contracts.errors import ErrorCode
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = REPO_ROOT / "docs" / "error-codes.json"
 
-ALLOWED_DOMAINS = frozenset({"cross_cutting", "ingest", "modules", "auth", "ai", "worker"})
+ALLOWED_DOMAINS = frozenset({"cross_cutting", "ingest", "modules", "hierarchy", "auth", "ai", "worker"})
 ALLOWED_AUDIENCES = frozenset({"client", "operator"})
 REQUIRED_FIELDS = ("title", "description", "typical_status", "domain", "retryable", "audience")
 

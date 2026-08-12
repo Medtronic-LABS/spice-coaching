@@ -39,8 +39,10 @@ from platform_service.db.repositories.module_drafter_repository import (
     ModuleDrafterRepository,
 )
 from platform_service.db.repositories.module_repository import ModuleRepository
+from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.localized import primary_text
 from platform_service.services.card_drafter import CardDrafter
+from platform_service.services.card_image_assigner import CardImageAssigner
 from platform_service.services.card_normalisation import card_row_to_dict
 from platform_service.services.draft_pipeline import DraftPipeline
 from platform_service.services.ingestion_cardinality import resolve_for_candidate
@@ -195,8 +197,10 @@ class StageDOrchestrator:
         source_document_ids: list[UUID],
         enqueue_post_publish: bool,
     ) -> StageDResult:
+        tenant_id = await self._resolve_tenant_id_from_sources(source_document_ids)
         family = await self._drafter_repo.get_or_create_module_family(
-            proposed_title=candidate_dict.get("proposed_title", "Untitled Module")
+            proposed_title=candidate_dict.get("proposed_title", "Untitled Module"),
+            tenant_id=tenant_id,
         )
         module = await self._drafter_repo.create_published_module(
             family=family,
@@ -206,6 +210,10 @@ class StageDOrchestrator:
             quality_flags=candidate.quality_flags_jsonb,
         )
         await self._session.flush()
+        await CardImageAssigner(self._session).assign_for_module(
+            module_id=module.id,
+            source_document_ids=source_document_ids,
+        )
         if enqueue_post_publish:
             await self._enqueue_post_publish(
                 module.id,
@@ -220,6 +228,22 @@ class StageDOrchestrator:
             questions_count=0,
             insufficient_reason=None,
         )
+
+    async def _resolve_tenant_id_from_sources(self, source_document_ids: list[UUID]) -> int:
+        """Resolve a single tenant_id from source documents; fail on conflict or missing."""
+        if not source_document_ids:
+            raise ValueError("Stage D cannot create a module without source_document_ids")
+        docs = await SourceRepository(self._session).list_source_documents_by_ids(source_document_ids)
+        found_ids = {doc.id for doc in docs}
+        missing = [doc_id for doc_id in source_document_ids if doc_id not in found_ids]
+        if missing:
+            raise ValueError(f"source_document(s) not found for Stage D tenant resolution: {missing}")
+        tenants = {doc.tenant_id for doc in docs}
+        if len(tenants) != 1:
+            raise ValueError(
+                f"source documents span multiple tenants {sorted(tenants)}; cannot stamp module family"
+            )
+        return tenants.pop()
 
     async def _persist_dual_path_merge(
         self,
@@ -273,6 +297,12 @@ class StageDOrchestrator:
         secondary.merge_primary_module_id = primary.id
         secondary.merge_source_module_id = matched.id
         await self._session.flush()
+
+        for module_id in (primary.id, secondary.id):
+            await CardImageAssigner(self._session).assign_for_module(
+                module_id=module_id,
+                source_document_ids=source_document_ids,
+            )
 
         if enqueue_post_publish:
             for module_id in (primary.id, secondary.id):

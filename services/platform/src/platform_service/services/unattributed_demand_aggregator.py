@@ -64,7 +64,7 @@ class UnattributedDemandAggregator:
     async def fetch_for_day(
         self,
         *,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
         event_date: date,
     ) -> tuple[list[DedupedEvidence], list[DedupedEvidence]]:
         """Return (questions, requests) deduped by normalized text."""
@@ -74,7 +74,7 @@ class UnattributedDemandAggregator:
             rows = await self._query_coaching_events(tenant_id=tenant_id, event_date=event_date)
         return self._dedupe(rows)
 
-    async def list_tenant_ids_for_day(self, *, event_date: date) -> list[UUID]:
+    async def list_tenant_ids_for_day(self, *, event_date: date) -> list[int]:
         query = """
         SELECT DISTINCT tenant_id
         FROM unattributed_module_demand_events
@@ -97,23 +97,23 @@ class UnattributedDemandAggregator:
               )
             """
             rows = await self._ch.query_rows(query, parameters={"event_date": event_date})
-        out: list[UUID] = []
+        out: list[int] = []
         for row in rows:
-            tid = _to_uuid(row.get("tenant_id"))
-            if tid is not None:
+            tid = _to_int(row.get("tenant_id"), default=-1)
+            if tid >= 0:
                 out.append(tid)
         return out
 
     async def _query_mv(
         self,
         *,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
         event_date: date,
     ) -> list[dict[str, Any]]:
         tenant_clause = ""
         parameters: dict[str, Any] = {"event_date": event_date}
         if tenant_id is not None:
-            tenant_clause = "  AND tenant_id = {tenant_id:UUID}\n"
+            tenant_clause = "  AND tenant_id = {tenant_id:Int64}\n"
             parameters["tenant_id"] = tenant_id
         query = f"""
         SELECT
@@ -133,13 +133,13 @@ class UnattributedDemandAggregator:
     async def _query_coaching_events(
         self,
         *,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
         event_date: date,
     ) -> list[dict[str, Any]]:
         tenant_clause = ""
         parameters: dict[str, Any] = {"event_date": event_date}
         if tenant_id is not None:
-            tenant_clause = "  AND tenant_id = {tenant_id:UUID}\n"
+            tenant_clause = "  AND tenant_id = {tenant_id:Int64}\n"
             parameters["tenant_id"] = tenant_id
         query = f"""
         SELECT

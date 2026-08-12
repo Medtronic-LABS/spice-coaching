@@ -273,9 +273,9 @@ All paths are relative to `API_ROOT_PATH` (default `/medtronics-api`).
 | `/coaching` | Device | `POST /rag-query` |
 | `/telemetry` | Device | `POST /events` |
 | `/sync` | Device | `GET /modules`, `/triggers`, `/gaps`, `/config`; presign batches |
-| `/morning` | Device | `GET /cards` |
-| `/admin` | Admin | `/ingest`, `/modules`, `/trigger-bindings`, `/fusion`, `/files` |
-| `/dashboard` | Admin | `/supervisor/{chw_id}`, `/district/{upazila_id}`, `/llm-quality` |
+| `/morning` | Device | `GET /cards` (authenticated CHW; empty when SPICE auth disabled) |
+| `/admin` | Admin | `/ingest`, `/modules`, `/fusion`, `/files` |
+| `/dashboard` | Admin | `/digital-help-modules`, `/module-creation-suggestions`, `/team-activity`, `/document-usage` |
 | — | Ops | `/ready` |
 
 Full contract: [`README.md`](../README.md#canonical-endpoint-contract).
@@ -480,7 +480,7 @@ sequenceDiagram
 
 ### 7.2 — Coaching RAG Query
 
-CHW asks a question in the app. Platform embeds the question, retrieves similar published modules via `VectorStore.search` (pgvector adapter applies published/tenant/assignable filters in SQL), builds a grounded prompt, and calls ai-runtime for a JSON answer with source attribution.
+CHW asks a question in the app. Greeting / chit-chat / crisis-looking messages may take an early `coaching_chat_route` path (warm or safety reply, no retrieval). Otherwise platform embeds the question, retrieves similar published modules via `VectorStore.search` (pgvector adapter applies published/tenant/assignable filters in SQL), builds a grounded prompt, and calls ai-runtime for a JSON answer with source attribution.
 
 ```mermaid
 sequenceDiagram
@@ -492,6 +492,11 @@ sequenceDiagram
     participant MinIO as MinIO
 
     CHW->>API: POST /coaching/rag-query
+    opt Cheap gate match
+        API->>AI: POST /internal/generate/coaching_chat_route
+        AI-->>API: intent + optional answer
+        API-->>CHW: warm/safety answer empty retrieval
+    end
     API->>AI: POST /internal/embed (question)
     AI-->>API: query vector
     API->>PG: VectorStore.search (modules collection)
@@ -648,7 +653,7 @@ override).
 - ⚠️ Extra network hop and operational surface (two services to deploy/monitor)
 - ⚠️ Platform must assemble fully-resolved `InferenceRequest` objects (more contract surface)
 
-**Alternatives considered**: Monolith with inline SDK calls — rejected to prevent platform from importing `google.generativeai` (see `CLAUDE.md` service boundaries).
+**Alternatives considered**: Monolith with inline SDK calls — rejected to prevent platform from importing `google.generativeai` (see `.cursor/rules/repo-overview.mdc`).
 
 ### 9.2 — Module-Centric Model (Not Scenario-Centric)
 
@@ -672,7 +677,6 @@ override).
 - ✅ Faster time-to-device for new content
 - ✅ Failed candidates are skipped, not partially shipped
 - ⚠️ Unreviewed content can reach devices until admin sets `clinically_reviewed`
-- ⚠️ Requires strong pipeline quality monitoring (`/dashboard/llm-quality`)
 
 ### 9.4 — Unified Internal Generation Endpoint
 
@@ -765,7 +769,7 @@ Headers: `Authorization: Bearer <jwt>`, optional `client` (`web` for admin, `mob
 
 ## Appendix A — Dependency Graph
 
-Allowed import boundaries (enforced by convention; see `CLAUDE.md`):
+Allowed import boundaries (enforced by convention and `.cursor/rules/repo-overview.mdc`):
 
 ```mermaid
 graph LR
@@ -850,7 +854,6 @@ coaching-platform/
 - [ ] **Production deployment topology** — Compose documents local dev; no Terraform/Kubernetes manifests in this repo for prod networking, IAM, or multi-region layout.
 - [ ] **SPICE auth-service internals** — Integration contract is documented in README; auth-service implementation lives outside this repo.
 - [ ] **Android SDK sync client** — Device-side caching and offline behavior are out of scope per `ARCHITECTURE_RESET.md`.
-- [ ] **`GET /dashboard/district/{upazila_id}`** — Returns `501 Not Implemented`; district analytics design TBD.
 - [ ] **Legacy routes** — `POST /coaching/counselling`, quiz-answer, it-help, and scenario-centric admin routes are listed in historical docs but not implemented on platform-api.
 - [ ] **APM / distributed tracing** — Structured logging only; no OpenTelemetry or Datadog integration found in source.
 - [ ] **Rate limiting coverage** — Middleware exists; README notes device-plane rate limiting as recommended future work.

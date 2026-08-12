@@ -1,4 +1,4 @@
-"""Tests for SPICE two-plane authorization (admin vs device suite access)."""
+"""Tests for SPICE authorization planes (admin, device, shared)."""
 
 from __future__ import annotations
 
@@ -12,18 +12,27 @@ from httpx import ASGITransport, AsyncClient
 from platform_service.auth.spice_auth_middleware import SpiceAuthMiddleware
 from platform_service.auth.spice_authorization_middleware import SpiceAuthorizationMiddleware
 from platform_service.auth.spice_context import SpiceContexts, SpiceUserContext
-from platform_service.auth.spice_principal import is_admin_principal, is_device_principal
+from platform_service.auth.spice_principal import (
+    is_admin_principal,
+    is_device_principal,
+    is_organizer_principal,
+)
+from platform_service.auth.tenant_context import HEADER_TENANT_ID
 from platform_service.config import Settings, get_settings
 from platform_service.integrations.spice_auth_client import SpiceAuthClient
 from pydantic_settings import SettingsConfigDict
 
 API_ROOT = "/medtronics-api"
 VALID_TOKEN = "Bearer test.jwt.token"
+AUTH_HEADERS = {"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "1", "client": "web"}
+MOB_AUTH_HEADERS = {"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "1", "client": "mob"}
 
 ADMIN_USER = SpiceUserContext.model_validate(
     {
         "id": 1,
         "username": "region_admin",
+        "organizationIds": [1],
+        "country": {"tenantId": 1},
         "roles": [{"name": "REGION_ADMIN", "suiteAccessName": "admin"}],
     }
 )
@@ -31,13 +40,15 @@ AREA_MANAGER = SpiceUserContext.model_validate(
     {
         "id": 10,
         "username": "am_user",
-        "roles": [{"name": "Area Manager"}],
+        "country": {"tenantId": 1},
+        "roles": [{"name": "AREA_MANAGER"}],
     }
 )
 DIVISION_MANAGER = SpiceUserContext.model_validate(
     {
         "id": 11,
         "username": "dm_user",
+        "country": {"tenantId": 1},
         "roles": [{"name": "Division Manager"}],
     }
 )
@@ -45,6 +56,7 @@ HEAD_OFFICE = SpiceUserContext.model_validate(
     {
         "id": 12,
         "username": "ho_user",
+        "country": {"tenantId": 1},
         "roles": [{"name": "Head Office"}],
     }
 )
@@ -52,6 +64,7 @@ SUPER_ADMIN = SpiceUserContext.model_validate(
     {
         "id": 13,
         "username": "sa_user",
+        "country": {"tenantId": 1},
         "roles": [{"name": "Super Admin"}],
     }
 )
@@ -59,7 +72,18 @@ DEVICE_USER = SpiceUserContext.model_validate(
     {
         "id": 2,
         "username": "chw_user",
-        "roles": [{"name": "CHW", "suiteAccessName": "mob"}],
+        "organizationIds": [1],
+        "country": {"tenantId": 1},
+        "roles": [{"name": "SHASTIYA_KORMI", "suiteAccessName": "mob"}],
+    }
+)
+PO_USER = SpiceUserContext.model_validate(
+    {
+        "id": 5,
+        "username": "po_user",
+        "organizationIds": [1],
+        "country": {"tenantId": 1},
+        "roles": [{"name": "PO", "suiteAccessName": "mob"}],
     }
 )
 SUPER_USER = SpiceUserContext.model_validate(
@@ -67,6 +91,7 @@ SUPER_USER = SpiceUserContext.model_validate(
         "id": 3,
         "username": "super",
         "isSuperUser": True,
+        "country": {"tenantId": 1},
         "roles": [{"name": "SUPER_USER", "suiteAccessName": "admin"}],
     }
 )
@@ -75,6 +100,8 @@ JOB_USER = SpiceUserContext.model_validate(
         "id": 4,
         "username": "job",
         "isJobUser": True,
+        "organizationIds": [1],
+        "country": {"tenantId": 1},
         "roles": [{"name": "JOB_USER", "suiteAccessName": "mob"}],
     }
 )
@@ -91,6 +118,10 @@ def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         Settings,
         "model_config",
         SettingsConfigDict(env_file=None, env_file_encoding="utf-8", extra="ignore"),
+    )
+    monkeypatch.setattr(
+        "platform_service.auth.spice_auth_middleware.enforce_hierarchy_principal",
+        AsyncMock(return_value=None),
     )
     yield
     get_settings.cache_clear()
@@ -153,14 +184,22 @@ def test_is_admin_principal() -> None:
     assert is_admin_principal(HEAD_OFFICE) is True
     assert is_admin_principal(SUPER_ADMIN) is True
     assert is_admin_principal(DEVICE_USER) is False
+    assert is_admin_principal(PO_USER) is False
     assert is_admin_principal(SUPER_USER) is True
 
 
 def test_is_device_principal() -> None:
     assert is_device_principal(DEVICE_USER) is True
+    assert is_device_principal(PO_USER) is True
     assert is_device_principal(ADMIN_USER) is False
     assert is_device_principal(SUPER_USER) is True
     assert is_device_principal(JOB_USER) is True
+
+
+def test_is_organizer_principal() -> None:
+    assert is_organizer_principal(PO_USER) is True
+    assert is_organizer_principal(DEVICE_USER) is False
+    assert is_organizer_principal(ADMIN_USER) is False
 
 
 @pytest.mark.asyncio
@@ -171,10 +210,24 @@ async def test_admin_principal_reaches_admin_path(
     mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(ADMIN_USER))  # type: ignore[method-assign]
     resp = await authz_client.get(
         f"{API_ROOT}/admin/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 200
     assert resp.json() == {"plane": "admin"}
+
+
+@pytest.mark.asyncio
+async def test_mob_client_denied_admin_path(
+    authz_client: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
+    mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(ADMIN_USER))  # type: ignore[method-assign]
+    resp = await authz_client.get(
+        f"{API_ROOT}/admin/probe",
+        headers=MOB_AUTH_HEADERS,
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "insufficient role for this API"
 
 
 @pytest.mark.asyncio
@@ -183,7 +236,7 @@ async def test_device_principal_denied_admin_path(
 ) -> None:
     resp = await authz_client.get(
         f"{API_ROOT}/admin/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 403
     assert resp.json()["detail"] == "insufficient role for this API"
@@ -195,7 +248,7 @@ async def test_device_principal_reaches_device_path(
 ) -> None:
     resp = await authz_client.get(
         f"{API_ROOT}/coaching/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers=MOB_AUTH_HEADERS,
     )
     assert resp.status_code == 200
     assert resp.json() == {"plane": "device"}
@@ -209,7 +262,7 @@ async def test_admin_principal_denied_device_path(
     mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(ADMIN_USER))  # type: ignore[method-assign]
     resp = await authz_client.get(
         f"{API_ROOT}/coaching/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 403
     assert resp.json()["detail"] == "insufficient role for this API"
@@ -221,29 +274,78 @@ async def test_super_user_reaches_both_planes(
     mock_spice_client: SpiceAuthClient,
 ) -> None:
     mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(SUPER_USER))  # type: ignore[method-assign]
-    headers = {"Authorization": VALID_TOKEN}
-    assert (await authz_client.get(f"{API_ROOT}/admin/probe", headers=headers)).status_code == 200
-    assert (await authz_client.get(f"{API_ROOT}/coaching/probe", headers=headers)).status_code == 200
+    assert (await authz_client.get(f"{API_ROOT}/admin/probe", headers=AUTH_HEADERS)).status_code == 200
+    assert (await authz_client.get(f"{API_ROOT}/coaching/probe", headers=MOB_AUTH_HEADERS)).status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_dashboard_requires_admin_plane(
+async def test_dashboard_shared_plane_admin_web(
     authz_client: AsyncClient,
     mock_spice_client: SpiceAuthClient,
 ) -> None:
     mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(ADMIN_USER))  # type: ignore[method-assign]
     resp = await authz_client.get(
         f"{API_ROOT}/dashboard/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 200
+    assert resp.json() == {"plane": "dashboard"}
 
+
+@pytest.mark.asyncio
+async def test_dashboard_shared_plane_area_manager_mob(
+    authz_client: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
+    mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(AREA_MANAGER))  # type: ignore[method-assign]
+    resp = await authz_client.get(
+        f"{API_ROOT}/dashboard/probe",
+        headers=MOB_AUTH_HEADERS,
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"plane": "dashboard"}
+
+
+@pytest.mark.asyncio
+async def test_dashboard_shared_plane_po_device(
+    authz_client: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
+    mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(PO_USER))  # type: ignore[method-assign]
+    resp = await authz_client.get(
+        f"{API_ROOT}/dashboard/probe",
+        headers=MOB_AUTH_HEADERS,
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"plane": "dashboard"}
+
+
+@pytest.mark.asyncio
+async def test_dashboard_shared_plane_sk_denied(
+    authz_client: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
     mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(DEVICE_USER))  # type: ignore[method-assign]
     resp = await authz_client.get(
         f"{API_ROOT}/dashboard/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers=MOB_AUTH_HEADERS,
     )
     assert resp.status_code == 403
+    assert resp.json()["detail"] == "insufficient role for this API"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_shared_plane_job_user_denied(
+    authz_client: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
+    mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(JOB_USER))  # type: ignore[method-assign]
+    resp = await authz_client.get(
+        f"{API_ROOT}/dashboard/probe",
+        headers=MOB_AUTH_HEADERS,
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "insufficient role for this API"
 
 
 @pytest.mark.asyncio
@@ -252,9 +354,8 @@ async def test_job_user_reaches_device_not_admin(
     mock_spice_client: SpiceAuthClient,
 ) -> None:
     mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(JOB_USER))  # type: ignore[method-assign]
-    headers = {"Authorization": VALID_TOKEN}
-    assert (await authz_client.get(f"{API_ROOT}/coaching/probe", headers=headers)).status_code == 200
-    assert (await authz_client.get(f"{API_ROOT}/admin/probe", headers=headers)).status_code == 403
+    assert (await authz_client.get(f"{API_ROOT}/coaching/probe", headers=MOB_AUTH_HEADERS)).status_code == 200
+    assert (await authz_client.get(f"{API_ROOT}/admin/probe", headers=AUTH_HEADERS)).status_code == 403
 
 
 @pytest.mark.asyncio
@@ -263,7 +364,7 @@ async def test_admin_ingest_requires_admin_role(
     mock_spice_client: SpiceAuthClient,
 ) -> None:
     mock_spice_client.authenticate = AsyncMock(return_value=_contexts_for(ADMIN_USER))  # type: ignore[method-assign]
-    headers = {"Authorization": VALID_TOKEN}
+    headers = AUTH_HEADERS
     resp = await authz_client.get(f"{API_ROOT}/admin/ingest-probe", headers=headers)
     assert resp.status_code == 200
     assert resp.json() == {"plane": "admin_ingest"}
@@ -296,6 +397,7 @@ async def test_auth_disabled_skips_authorization(monkeypatch: pytest.MonkeyPatch
 def test_path_prefix_settings_defaults() -> None:
     s = Settings()
     assert "admin" in s.spice_admin_path_prefix_set
-    assert "dashboard" in s.spice_admin_path_prefix_set
+    assert "dashboard" not in s.spice_admin_path_prefix_set
+    assert "dashboard" in s.spice_shared_path_prefix_set
     assert "coaching" in s.spice_device_path_prefix_set
     assert "telemetry" in s.spice_device_path_prefix_set

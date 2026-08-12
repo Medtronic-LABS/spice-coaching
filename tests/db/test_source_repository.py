@@ -21,18 +21,25 @@ import pytest_asyncio
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.models.source_page import SourcePage
 from platform_service.db.repositories.source_repository import SourceRepository
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "content_block, source_page, source_document")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text("TRUNCATE content_block, source_page, source_document RESTART IDENTITY CASCADE")
+    )
+    await db_session.commit()
+
+
+# ─── Helpers ───────────────────────────────────────────────────────────────
 
 
 async def _seed_doc(session: AsyncSession) -> UUID:
@@ -42,6 +49,7 @@ async def _seed_doc(session: AsyncSession) -> UUID:
         primary_language="bn",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -276,10 +284,33 @@ class TestListDuplicateCandidatesByContentSha256:
                     original_storage_path=f"/tmp/{status}.pdf",
                     content_sha256=digest,
                     status=status,
+                    tenant_id=1,
                 )
             )
         await db_session.flush()
 
-        matches = await repo.list_duplicate_candidates_by_content_sha256(digest)
+        matches = await repo.list_duplicate_candidates_by_content_sha256(digest, tenant_id=1)
         assert {m.status for m in matches} == {"uploaded", "ingested"}
         assert all(m.content_sha256 == digest for m in matches)
+
+    async def test_scopes_matches_to_tenant(self, db_session: AsyncSession) -> None:
+        repo = SourceRepository(db_session)
+        digest = "tenant-scoped-digest"
+        for tenant_id in (1, 2):
+            db_session.add(
+                SourceDocument(
+                    title=f"tenant-{tenant_id}",
+                    source_type="pdf",
+                    primary_language="bn",
+                    content_domain="clinical",
+                    original_storage_path=f"/tmp/t{tenant_id}.pdf",
+                    content_sha256=digest,
+                    status="uploaded",
+                    tenant_id=tenant_id,
+                )
+            )
+        await db_session.flush()
+
+        matches = await repo.list_duplicate_candidates_by_content_sha256(digest, tenant_id=1)
+        assert len(matches) == 1
+        assert matches[0].tenant_id == 1

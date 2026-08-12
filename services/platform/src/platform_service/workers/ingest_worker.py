@@ -17,6 +17,7 @@ from uuid import UUID
 
 from mc_contracts.errors import ErrorCode
 
+from platform_service.auth.tenant_context import DEFAULT_SELECTED_TENANT_ID, using_selected_tenant
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal
 from platform_service.db.repositories.source_repository import SourceRepository
@@ -30,6 +31,7 @@ from platform_service.services.run_state_service import (
 )
 from platform_service.services.source_thumbnail_service import source_type_supports_thumbnail
 from platform_service.workers.pipeline_orchestrator import PipelineOrchestrator
+from platform_service.workers.tenant_binding import source_document_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -100,58 +102,60 @@ async def _mark_active_ingest_failed(source_document_id: UUID) -> None:
 async def run_pipeline_for_source_job(job: IngestJob) -> None:
     """Run the full A→B→C→D pipeline for one source_document."""
     logger.info("Running pipeline for source_document_id=%s", job.source_document_id)
-    try:
-        result = await PipelineOrchestrator.run_staged(
-            source_document_id=job.source_document_id,
-            source_path=job.source_path,
-            source_type=job.source_type,
-            primary_language=job.primary_language,
-            run_id=job.run_id,
-            identify_chunk_ids=list(job.identify_chunk_ids) or None,
-        )
-        async with SessionLocal() as session:
-            await record_attribution_event(
-                session,
-                event_type="ingest_completed",
-                actor="system",
+    tenant_id = await source_document_tenant_id(job.source_document_id)
+    with using_selected_tenant(tenant_id):
+        try:
+            result = await PipelineOrchestrator.run_staged(
                 source_document_id=job.source_document_id,
-                payload={"final_status": result.final_status, "run_id": str(result.run_id)},
+                source_path=job.source_path,
+                source_type=job.source_type,
+                primary_language=job.primary_language,
+                run_id=job.run_id,
+                identify_chunk_ids=list(job.identify_chunk_ids) or None,
             )
-            if job.batch_id is not None:
-                await RunStateService(session).refresh_batch_status(job.batch_id)
-            await session.commit()
-        logger.info(
-            "Pipeline finished run_id=%s final_status=%s candidates=%d drafts=%d",
-            result.run_id,
-            result.final_status,
-            result.candidates_emitted,
-            result.drafts_produced,
-        )
-    except ConcurrentRunError:
-        logger.warning(
-            "Skipping ingest for source_document_id=%s — another worker owns the active run",
-            job.source_document_id,
-        )
-        return
-    except Exception:
-        logger.exception("Pipeline crashed for source_document_id=%s", job.source_document_id)
-        try:
-            await _mark_active_ingest_failed(job.source_document_id)
-        except Exception:
-            logger.exception("Failed to mark ingestion run failed for %s", job.source_document_id)
-        try:
-            async with SessionLocal() as failure_session:
+            async with SessionLocal() as session:
                 await record_attribution_event(
-                    failure_session,
-                    event_type="ingest_failed",
+                    session,
+                    event_type="ingest_completed",
                     actor="system",
                     source_document_id=job.source_document_id,
-                    payload={"detail": "pipeline crashed"},
+                    payload={"final_status": result.final_status, "run_id": str(result.run_id)},
                 )
-                await failure_session.commit()
+                if job.batch_id is not None:
+                    await RunStateService(session).refresh_batch_status(job.batch_id)
+                await session.commit()
+            logger.info(
+                "Pipeline finished run_id=%s final_status=%s candidates=%d drafts=%d",
+                result.run_id,
+                result.final_status,
+                result.candidates_emitted,
+                result.drafts_produced,
+            )
+        except ConcurrentRunError:
+            logger.warning(
+                "Skipping ingest for source_document_id=%s — another worker owns the active run",
+                job.source_document_id,
+            )
+            return
         except Exception:
-            logger.exception("Failed to record ingest_failed for %s", job.source_document_id)
-        raise
+            logger.exception("Pipeline crashed for source_document_id=%s", job.source_document_id)
+            try:
+                await _mark_active_ingest_failed(job.source_document_id)
+            except Exception:
+                logger.exception("Failed to mark ingestion run failed for %s", job.source_document_id)
+            try:
+                async with SessionLocal() as failure_session:
+                    await record_attribution_event(
+                        failure_session,
+                        event_type="ingest_failed",
+                        actor="system",
+                        source_document_id=job.source_document_id,
+                        payload={"detail": "pipeline crashed"},
+                    )
+                    await failure_session.commit()
+            except Exception:
+                logger.exception("Failed to record ingest_failed for %s", job.source_document_id)
+            raise
 
 
 async def run_cross_source_fusion_job(payload: dict[str, Any]) -> None:
@@ -161,38 +165,44 @@ async def run_cross_source_fusion_job(payload: dict[str, Any]) -> None:
     ingest_batch_id = UUID(str(batch_raw)) if batch_raw else None
     fusion_raw = payload.get("fusion_run_id")
     fusion_run_id = UUID(str(fusion_raw)) if fusion_raw else None
-    try:
-        summary = await CrossSourceFusionRunner.run_staged(
-            source_document_ids,
-            ingest_batch_id=ingest_batch_id,
-            reuse_fusion_run_id=fusion_run_id,
-        )
-        if ingest_batch_id is not None:
-            async with SessionLocal() as session:
-                await RunStateService(session).refresh_batch_status(ingest_batch_id)
-                await session.commit()
-        logger.info(
-            "Fusion run %s finished: input=%d groups=%d published=%d failed=%d coverage_warnings=%d retired=%d",
-            summary.fusion_run_id,
-            summary.input_candidate_count,
-            summary.fusion_group_count,
-            summary.fused_modules_published,
-            summary.fused_modules_failed,
-            summary.fused_modules_with_coverage_warning,
-            summary.constituents_retired,
-        )
-    except (ConcurrentRunError, ConcurrentFusionRunError) as exc:
-        logger.warning(
-            "Skipping fusion for source_document_ids=%s — %s",
-            [str(d) for d in source_document_ids],
-            exc,
-        )
-    except Exception:
-        logger.exception(
-            "Fusion run crashed for source_document_ids=%s",
-            [str(d) for d in source_document_ids],
-        )
-        raise
+    tenant_id = (
+        await source_document_tenant_id(source_document_ids[0])
+        if source_document_ids
+        else DEFAULT_SELECTED_TENANT_ID
+    )
+    with using_selected_tenant(tenant_id):
+        try:
+            summary = await CrossSourceFusionRunner.run_staged(
+                source_document_ids,
+                ingest_batch_id=ingest_batch_id,
+                reuse_fusion_run_id=fusion_run_id,
+            )
+            if ingest_batch_id is not None:
+                async with SessionLocal() as session:
+                    await RunStateService(session).refresh_batch_status(ingest_batch_id)
+                    await session.commit()
+            logger.info(
+                "Fusion run %s finished: input=%d groups=%d published=%d failed=%d coverage_warnings=%d retired=%d",
+                summary.fusion_run_id,
+                summary.input_candidate_count,
+                summary.fusion_group_count,
+                summary.fused_modules_published,
+                summary.fused_modules_failed,
+                summary.fused_modules_with_coverage_warning,
+                summary.constituents_retired,
+            )
+        except (ConcurrentRunError, ConcurrentFusionRunError) as exc:
+            logger.warning(
+                "Skipping fusion for source_document_ids=%s — %s",
+                [str(d) for d in source_document_ids],
+                exc,
+            )
+        except Exception:
+            logger.exception(
+                "Fusion run crashed for source_document_ids=%s",
+                [str(d) for d in source_document_ids],
+            )
+            raise
 
 
 async def _wait_for_thumbnail_ready(job: IngestJob) -> None:

@@ -8,6 +8,7 @@ import pytest
 from platform_service.services.ingest_errors import IngestValidationError
 from platform_service.services.ingest_upload_service import (
     IngestUploadService,
+    _StagedIngestUpload,
     stream_upload_to_path,
 )
 
@@ -107,9 +108,59 @@ def test_resolve_descriptions_rejects_length_mismatch() -> None:
     assert exc_info.value.status_code == 400
 
 
-def test_resolve_override_duplicates_defaults_to_false() -> None:
-    uploads = [_FakeUpload("a.pdf"), _FakeUpload("b.pdf")]
-    assert IngestUploadService.resolve_override_duplicates_for_files(None, uploads) == [False, False]
+def test_reject_within_batch_duplicate_digests() -> None:
+    staged = [
+        _StagedIngestUpload(
+            staging_path=Path("/tmp/a"),
+            content_sha256="same-digest",
+            original_filename="a.pdf",
+            source_type="pdf",
+            title="A",
+            description=None,
+            override_duplicate=False,
+            content_domain="clinical",
+        ),
+        _StagedIngestUpload(
+            staging_path=Path("/tmp/b"),
+            content_sha256="same-digest",
+            original_filename="b.pdf",
+            source_type="pdf",
+            title="B",
+            description=None,
+            override_duplicate=True,
+            content_domain="clinical",
+        ),
+    ]
+    with pytest.raises(IngestValidationError) as exc_info:
+        IngestUploadService._reject_within_batch_duplicate_digests(staged)
+    assert exc_info.value.status_code == 422
+    assert "duplicate file content in the same request" in exc_info.value.message
+
+
+def test_reject_within_batch_allows_distinct_digests() -> None:
+    staged = [
+        _StagedIngestUpload(
+            staging_path=Path("/tmp/a"),
+            content_sha256="digest-a",
+            original_filename="a.pdf",
+            source_type="pdf",
+            title="A",
+            description=None,
+            override_duplicate=False,
+            content_domain="clinical",
+        ),
+        _StagedIngestUpload(
+            staging_path=Path("/tmp/b"),
+            content_sha256="digest-b",
+            original_filename="b.pdf",
+            source_type="pdf",
+            title="B",
+            description=None,
+            override_duplicate=False,
+            content_domain="clinical",
+        ),
+    ]
+    IngestUploadService._reject_within_batch_duplicate_digests(staged)
 
 
 def test_resolve_override_duplicates_parses_json_array() -> None:

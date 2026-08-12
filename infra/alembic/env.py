@@ -12,7 +12,10 @@ from alembic import context
 from platform_service.db.base import Base
 from platform_service.db.models import (  # noqa: F401 — register all models
     AttributionEvent,
+    Badge,
+    BadgeModule,
     BehaviouralGap,
+    CHWBadge,
     CHWBehaviouralGapState,
     CHWLearningPointEvent,
     CHWModuleCompletion,
@@ -20,7 +23,9 @@ from platform_service.db.models import (  # noqa: F401 — register all models
     CHWTrainingRequest,
     ConfigThreshold,
     ContentBlock,
+    District,
     FileUpload,
+    HierarchyUser,
     IngestBatch,
     IngestionRun,
     IngestionRunStep,

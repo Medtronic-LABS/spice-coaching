@@ -22,22 +22,26 @@ def _require_binary(name: str) -> str:
     return path
 
 
-def render_video_frame_to_png(source_path: Path, *, dest_path: Path) -> None:
-    """Extract the first decodable video frame to ``dest_path``."""
+def render_video_frame_to_png(
+    source_path: Path,
+    *,
+    dest_path: Path,
+    timestamp_ms: int | None = None,
+) -> None:
+    """Extract one video frame to ``dest_path``.
+
+    When ``timestamp_ms`` is None (thumbnail path), take the first decodable
+    frame. Otherwise seek to that wall-clock offset before grabbing a frame.
+    """
     ffmpeg = _require_binary("ffmpeg")
-    cmd = [
-        ffmpeg,
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        str(source_path),
-        "-vf",
-        "select=eq(n\\,0)",
-        "-vframes",
-        "1",
-        str(dest_path),
-    ]
+    cmd: list[str] = [ffmpeg, "-loglevel", "error", "-y"]
+    if timestamp_ms is not None and timestamp_ms > 0:
+        # Input seek for speed; exactness is good enough for sampled vision frames.
+        cmd.extend(["-ss", f"{timestamp_ms / 1000.0:.3f}"])
+    cmd.extend(["-i", str(source_path)])
+    if timestamp_ms is None:
+        cmd.extend(["-vf", "select=eq(n\\,0)"])
+    cmd.extend(["-vframes", "1", str(dest_path)])
     try:
         completed = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120)
     except subprocess.CalledProcessError as exc:

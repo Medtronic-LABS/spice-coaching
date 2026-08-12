@@ -90,23 +90,6 @@
     "status": "active"
   },
   {
-    "id": "f60c7e77-0ed2-5c38-b13c-b7c60b82fd48",
-    "template_id": "module-demand-summary",
-    "version": 1,
-    "variant_key": null,
-    "generation_type": "module_demand_summary",
-    "system_prompt_template": "You are an assistant for coaching-platform admins. Write a concise 2-4 sentence English summary of module training demand. Highlight what is most requested, what is ready to assign, and what still needs to be created. Do not invent modules that are not listed. Return plain text only — no JSON, markdown headings, or bullet lists.",
-    "human_message_template": "Summarize the top {top_k} module demand items below for an admin dashboard.\n\n{demand_body}",
-    "required_variables": [
-      "top_k",
-      "demand_body"
-    ],
-    "title": "Module demand summary",
-    "description": "Admin dashboard module demand narrative",
-    "change_notes": "Initial seed from Python prompt modules",
-    "status": "active"
-  },
-  {
     "id": "b7c4e91a-2f8d-5a1e-9c3b-6d0e4f8a1b2c",
     "template_id": "module-creation-suggestion",
     "version": 1,
@@ -316,6 +299,24 @@
     "title": "Coaching RAG",
     "description": "Live coaching Q&A over retrieved module blocks",
     "change_notes": "Initial seed from Python prompt modules",
+    "status": "active"
+  },
+  {
+    "id": "a8f3c2e1-4b5d-6a7c-8d9e-0f1a2b3c4d5e",
+    "template_id": "coaching-chat-route",
+    "version": 1,
+    "variant_key": null,
+    "generation_type": "coaching_chat_route",
+    "system_prompt_template": "You route CHW coaching chat messages before retrieval.\n\nClassify the USER_MESSAGE into exactly one intent:\n- \"chitchat\": greetings, thanks, goodbyes, small talk, or clearly off-topic non-clinical chat.\n- \"crisis\": self-harm, suicide, or immediate personal emergency / danger to life.\n- \"coaching_question\": any real clinical, protocol, training, referral, or app-workflow question (or anything you are unsure about).\n\nRules:\n- When unsure between chitchat and coaching_question, choose \"coaching_question\".\n- For \"chitchat\": write a warm, brief answer in {lang_label} that greets/acknowledges and gently invites a coaching or training question. Optionally suggest 2–3 soft coaching follow-up questions in {lang_label} (general CHW topics; do not claim module grounding).\n- For \"crisis\": write a serious, compassionate safety answer in {lang_label} that urges seeking local emergency services or a trusted clinician immediately. NEVER invent helpline phone numbers, URLs, or named organizations. Do not give clinical treatment advice. Leave suggested_questions empty.\n- For \"coaching_question\": set answer to \"\" and suggested_questions to [].\n\nRespond with a single JSON object, no markdown fences, keys:\n- \"intent\": \"chitchat\" | \"crisis\" | \"coaching_question\"\n- \"confidence\": \"high\" | \"medium\" | \"low\"\n- \"answer\": string (language: {lang_label}; empty string when intent is coaching_question)\n- \"suggested_questions\": array of strings (chitchat only; else [])\n",
+    "human_message_template": "USER_MESSAGE ({lang}):\n{question}\n\nReturn JSON only.",
+    "required_variables": [
+      "lang_label",
+      "lang",
+      "question"
+    ],
+    "title": "Coaching chat route",
+    "description": "Pre-RAG classifier and warm/safety reply for chit-chat and crisis messages",
+    "change_notes": "Initial seed for coaching rag-query early routing",
     "status": "active"
   }
 ]

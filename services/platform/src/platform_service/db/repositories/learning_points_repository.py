@@ -30,7 +30,7 @@ class LearningPointsRepository:
         *,
         event_id: uuid.UUID,
         chw_id: int,
-        tenant_id: uuid.UUID | None,
+        tenant_id: int,
         delta: int,
         now: datetime | None = None,
     ) -> bool:

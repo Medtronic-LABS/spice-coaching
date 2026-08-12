@@ -34,20 +34,29 @@ from platform_service.workers.stage_a_extract import (
     Stage1RecoveryFailedError,
     StageAExtractor,
 )
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session, "content_block, source_page, source_document, ingestion_run_step, ingestion_run"
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE content_block, source_page, source_document, "
+            "ingestion_run_step, ingestion_run "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────
 
 
 async def _seed_source_document(session: AsyncSession) -> UUID:
@@ -57,6 +66,7 @@ async def _seed_source_document(session: AsyncSession) -> UUID:
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -116,6 +126,7 @@ class TestMediaTranscriptPath:
             primary_language="bn",
             content_domain="clinical",
             original_storage_path="/tmp/audio.mp3",
+            tenant_id=1,
         )
         db_session.add(sd)
         await db_session.flush()
@@ -137,8 +148,8 @@ class TestMediaTranscriptPath:
                 index=0,
                 start_ms=0,
                 end_ms=60_000,
-                payload_bytes=b"fake-audio",
-                mime_type="audio/mpeg",
+                payload_bytes=b"f" * 4096,
+                mime_type="audio/mp3",
             )
         ]
         result = await stage_a.run(
@@ -164,6 +175,7 @@ class TestMediaTranscriptPath:
             primary_language="bn",
             content_domain="clinical",
             original_storage_path="/tmp/silent.mp3",
+            tenant_id=1,
         )
         db_session.add(sd)
         await db_session.flush()
@@ -179,8 +191,8 @@ class TestMediaTranscriptPath:
                 index=0,
                 start_ms=0,
                 end_ms=60_000,
-                payload_bytes=b"fake-audio",
-                mime_type="audio/mpeg",
+                payload_bytes=b"f" * 4096,
+                mime_type="audio/mp3",
             )
         ]
         with pytest.raises(Stage1DocumentEmptyError, match="The document is empty"):

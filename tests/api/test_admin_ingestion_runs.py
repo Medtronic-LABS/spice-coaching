@@ -38,6 +38,7 @@ class TestIngestionRunEndpoints:
             content_domain="clinical",
             original_storage_path="/tmp/test.pdf",
             original_filename=original_filename,
+            tenant_id=1,
         )
         session.add(sd)
         await session.flush()

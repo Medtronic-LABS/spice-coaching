@@ -86,7 +86,7 @@ class GapStateService:
         chw_id: int,
         behavioural_gap_id: UUID,
         predicate: dict[str, Any] | None = None,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         now: datetime | None = None,
     ) -> ObservationOutcome:
         """Record one telemetry observation of the gap pattern.
@@ -131,7 +131,7 @@ class GapStateService:
         *,
         chw_id: int,
         behavioural_gap_id: UUID,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         now: datetime | None = None,
     ) -> CHWBehaviouralGapState:
         """Record a failed quiz attempt and (if threshold crossed within

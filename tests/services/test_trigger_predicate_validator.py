@@ -127,7 +127,9 @@ async def test_reference_gap_predicate_resolves_existing_active_gap(
 ) -> None:
     code = f"ref_test_{uuid4().hex[:8]}"
     db_session.add(
-        BehaviouralGap(gap_code=code, description=code, domain="hypertension", detection_rule_jsonb={})
+        BehaviouralGap(
+            gap_code=code, description=code, domain="hypertension", detection_rule_jsonb={}, tenant_id=1
+        )
     )
     await db_session.flush()
     await validate_predicate_references(
@@ -162,6 +164,7 @@ async def test_reference_gap_predicate_inactive_gap_rejected(
             domain="hypertension",
             detection_rule_jsonb={},
             status="deprecated",
+            tenant_id=1,
         )
     )
     await db_session.flush()
@@ -177,7 +180,7 @@ async def test_reference_gap_predicate_inactive_gap_rejected(
 async def test_reference_content_push_resolves_existing_family(
     db_session: AsyncSession,
 ) -> None:
-    family = ModuleFamily(module_code=f"PUSH-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"PUSH-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
     await validate_predicate(

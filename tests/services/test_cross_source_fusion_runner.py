@@ -19,20 +19,26 @@ from platform_service.services.cross_source_fuser import CrossSourceFuser, Cross
 from platform_service.services.cross_source_fusion_runner import CrossSourceFusionRunner, FusionRunSummary
 from platform_service.services.run_state_service import RUN_SUCCEEDED
 from platform_service.workers.stage_d_draft import StageDOrchestrator, StageDResult
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "module, module_family, module_candidate_draft, ingestion_run_step, ingestion_run, source_document",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module, module_family, module_candidate_draft, "
+            "ingestion_run_step, ingestion_run, source_document "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 async def _seed_source_doc(session: AsyncSession, *, title: str = "doc") -> SourceDocument:
@@ -42,6 +48,7 @@ async def _seed_source_doc(session: AsyncSession, *, title: str = "doc") -> Sour
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -74,6 +81,7 @@ async def _seed_succeeded_run_with_candidate(
         estimated_card_count=5,
         estimated_quiz_count=4,
         proposed_module_type="initial_training",
+        tenant_id=1,
     )
     session.add(candidate)
     await session.flush()
@@ -86,7 +94,7 @@ async def _seed_published_module(
     title: str,
     source_document_id: UUID,
 ) -> Module:
-    family = ModuleFamily(module_code=f"family-{uuid.uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"family-{uuid.uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     module = Module(
@@ -99,6 +107,7 @@ async def _seed_published_module(
         lifecycle_status="published",
         source_document_ids=[source_document_id],
         module_json={"cards": []},
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()

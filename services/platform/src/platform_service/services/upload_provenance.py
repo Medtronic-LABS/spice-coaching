@@ -5,6 +5,8 @@ metadata at ``put_object`` time. ``record_file_upload`` persists the same
 fields to the ``file_upload`` audit table when ingest uploads complete.
 """
 
+from urllib.parse import unquote
+
 from platform_service.db.models.file_upload import FileUpload
 from platform_service.db.repositories.file_upload_repository import FileUploadRepository
 
@@ -21,7 +23,11 @@ def build_upload_metadata(*, content_sha256: str, original_filename: str) -> dic
 
 
 def parse_upload_metadata(raw: dict[str, str] | None) -> tuple[str | None, str | None]:
-    """Normalise S3/MinIO stat metadata keys to (content_sha256, original_filename)."""
+    """Normalise S3/MinIO stat metadata keys to (content_sha256, original_filename).
+
+    ``original-filename`` may be percent-encoded on the wire when non-ASCII
+    (see ``S3ObjectStore`` metadata sanitisation).
+    """
     if not raw:
         return None, None
     normalised: dict[str, str] = {}
@@ -30,7 +36,11 @@ def parse_upload_metadata(raw: dict[str, str] | None) -> tuple[str | None, str |
         if k.startswith("x-amz-meta-"):
             k = k.removeprefix("x-amz-meta-")
         normalised[k] = value
-    return normalised.get(META_SHA256), normalised.get(META_FILENAME)
+    sha = normalised.get(META_SHA256)
+    filename = normalised.get(META_FILENAME)
+    if filename is not None:
+        filename = unquote(filename)
+    return sha, filename
 
 
 async def record_file_upload(
@@ -44,6 +54,7 @@ async def record_file_upload(
     content_type: str | None,
     size_bytes: int,
     uploaded_by: str | None,
+    tenant_id: int = 0,
 ) -> FileUpload:
     return await file_upload_repo.upsert(
         bucket_name=bucket_name,
@@ -54,4 +65,5 @@ async def record_file_upload(
         content_type=content_type,
         size_bytes=size_bytes,
         uploaded_by=uploaded_by,
+        tenant_id=tenant_id,
     )

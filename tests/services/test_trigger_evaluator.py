@@ -26,6 +26,7 @@ def _state(
         last_observed_at=last_observed_at,
         severity_current=severity_current,
         status=status,
+        tenant_id=1,
     )
 
 

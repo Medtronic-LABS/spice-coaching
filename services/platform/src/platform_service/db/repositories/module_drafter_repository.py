@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import get_settings
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
@@ -85,7 +86,7 @@ class ModuleDrafterRepository:
         self._session = session
 
     async def get_or_create_module_family(
-        self, *, proposed_title: str, created_by: UUID | None = None
+        self, *, proposed_title: str, created_by: UUID | None = None, tenant_id: int = DEFAULT_TENANT_ID
     ) -> ModuleFamily:
         """Look up by derived module_code; create if absent.
 
@@ -99,11 +100,18 @@ class ModuleDrafterRepository:
         attempt = 0
         while True:
             existing = await self._session.execute(
-                select(ModuleFamily).where(ModuleFamily.module_code == candidate_code)
+                select(ModuleFamily).where(
+                    ModuleFamily.module_code == candidate_code,
+                    ModuleFamily.tenant_id == tenant_id,
+                )
             )
             row = existing.scalar_one_or_none()
             if row is None:
-                fam = ModuleFamily(module_code=candidate_code, created_by=created_by)
+                fam = ModuleFamily(
+                    module_code=candidate_code,
+                    created_by=created_by,
+                    tenant_id=tenant_id,
+                )
                 self._session.add(fam)
                 await self._session.flush()
                 return fam
@@ -154,7 +162,7 @@ class ModuleDrafterRepository:
             module_family_id=family.id,
             version=version,
             title_localized=title_localized,
-            description_localized=candidate_description_localized(candidate),
+            description_localized=candidate.get("description_localized"),
             domain=candidate.get("domain") or get_settings().default_module_domain,
             sub_domain=candidate.get("sub_domain"),
             module_type=candidate.get("proposed_module_type", "refresher"),
@@ -168,6 +176,7 @@ class ModuleDrafterRepository:
             lifecycle_status="draft",
             clinically_reviewed=False,
             published_at=None,
+            tenant_id=family.tenant_id,
         )
         self._session.add(module)
         await self._session.flush()
@@ -271,6 +280,7 @@ class ModuleDrafterRepository:
             severity_default="moderate",
             detection_rule_jsonb={},
             status="active",
+            tenant_id=module.tenant_id,
         )
         self._session.add(gap)
         await self._session.flush()

@@ -362,12 +362,7 @@ class CardSearchMetadataGenerator:
         *,
         card_index: int,
     ) -> CardSearchMetadataResult:
-        padded_cards: list[dict[str, Any]] = [{} for _ in range(card_index)] + [card]
-        batch_result = await self.generate_for_module(
-            module,
-            [card_index],
-            cards=padded_cards,
-        )
+        batch_result = await self.generate_for_module(module, [card_index])
         metadata = batch_result.metadata_by_index.get(card_index)
         if metadata is not None:
             return CardSearchMetadataResult(metadata=metadata)

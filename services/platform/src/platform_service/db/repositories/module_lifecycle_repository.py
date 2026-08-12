@@ -1,4 +1,4 @@
-"""Module admin lifecycle — deactivate, reactivate, lifecycle history."""
+"""Module admin lifecycle — deactivate, reactivate, publish."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.module_lifecycle_event import ModuleLifecycleEvent
 from platform_service.db.module_availability import LIFECYCLE_DEACTIVATED, LIFECYCLE_PUBLISHED
 
@@ -125,13 +125,41 @@ class ModuleLifecycleRepository:
         await self._session.flush()
         return self._to_state(module)
 
-    async def list_lifecycle_events(self, module_id: UUID) -> list[ModuleLifecycleEvent]:
-        result = await self._session.execute(
-            select(ModuleLifecycleEvent)
-            .where(ModuleLifecycleEvent.module_id == module_id)
-            .order_by(ModuleLifecycleEvent.occurred_at.asc(), ModuleLifecycleEvent.id.asc())
-        )
-        return list(result.scalars().all())
+    async def publish(
+        self,
+        module_id: UUID,
+        *,
+        actor_id: UUID | None = None,
+        reason: str | None = None,
+    ) -> ModuleLifecycleState:
+        module = await self._session.get(Module, module_id)
+        if module is None:
+            raise ModuleNotFoundError(module_id)
+        if module.lifecycle_status == "retired":
+            raise ModuleLifecycleError("retired modules cannot be published")
+
+        ts = datetime.now(UTC)
+        if module.lifecycle_status != LIFECYCLE_PUBLISHED:
+            module.lifecycle_status = LIFECYCLE_PUBLISHED
+            if module.published_at is None:
+                module.published_at = ts
+            if module.first_activated_at is None:
+                module.first_activated_at = ts
+
+            family = await self._session.get(ModuleFamily, module.module_family_id)
+            if family is not None:
+                family.current_published_module_id = module.id
+
+            await self._append_event(
+                module_id=module_id,
+                event_type="published",
+                occurred_at=ts,
+                actor_id=actor_id,
+                reason=reason,
+            )
+            await self._session.flush()
+
+        return self._to_state(module)
 
     async def _append_event(
         self,

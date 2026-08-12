@@ -1,3 +1,8 @@
+-- Accumulated ClickHouse schema for fresh installs and clickhouse-init.
+-- End-state of all ClickHouse DDL (MVs + event tables). Does not include
+-- one-time ops backfills. DROP coaching_events below resets that table on
+-- re-run against a populated volume (local docker only).
+
 DROP TABLE IF EXISTS coaching_events;
 
 CREATE TABLE IF NOT EXISTS coaching_events (
@@ -9,7 +14,7 @@ CREATE TABLE IF NOT EXISTS coaching_events (
     patient_track_id        Nullable(String),
     patient_id_hash         Nullable(String),
     chw_id                  Int64,
-    tenant_id               UUID,
+    tenant_id               Int64,
     village_id              Nullable(String),
     upazila_id              Nullable(String),
     event_family            LowCardinality(String),
@@ -97,7 +102,7 @@ GROUP BY tenant_id, event_date;
 
 CREATE TABLE IF NOT EXISTS unattributed_module_demand_events (
     id                      String,
-    tenant_id               UUID,
+    tenant_id               Int64,
     chw_id                  Int64,
     event_date              Date,
     source                  LowCardinality(String),

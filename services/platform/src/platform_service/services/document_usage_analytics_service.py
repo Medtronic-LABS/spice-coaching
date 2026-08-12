@@ -13,10 +13,13 @@ from mc_contracts.dashboard import (
     DocumentUsageResponse,
     DocumentUsageTopItem,
 )
+from mc_contracts.errors import ErrorCode
+from mc_foundation.problem import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.clickhouse.client import ClickHouseClient
 from platform_service.db.repositories.source_repository import SourceRepository
+from platform_service.services.dashboard_hierarchy import is_team_activity_descendant
 from platform_service.services.document_usage_hierarchy import (
     OrgUser,
     apply_document_usage_filters,
@@ -33,11 +36,9 @@ _DEFAULT_TOP_LIMIT = 10
 class DocumentUsageFilter:
     from_date: date
     to_date: date
-    tenant_id: UUID | None = None
+    tenant_id: int = 0
     upazila: str | None = None
     district: str | None = None
-    po_id: int | None = None
-    sk_id: int | None = None
     user_id: int | None = None
     document_id: UUID | None = None
     viewer_id: int | None = None
@@ -81,18 +82,39 @@ class DocumentUsageAnalyticsService:
         self._ch = ch_client
         self._session = session
 
-    def _resolved_chw_ids(self, filters: DocumentUsageFilter) -> frozenset[int] | None:
-        visible = resolve_visible_chw_ids(
+    async def _resolved_chw_ids(self, filters: DocumentUsageFilter) -> frozenset[int] | None:
+        if self._session is None:
+            if filters.unrestricted_viewer:
+                return None
+            return frozenset()
+
+        users = await org_user_index(self._session, tenant_id=filters.tenant_id)
+        if filters.user_id is not None and not is_team_activity_descendant(
+            users,
             filters.viewer_id,
+            filters.user_id,
+            unrestricted=filters.unrestricted_viewer,
+        ):
+            raise AppError(
+                ErrorCode.FORBIDDEN.value,
+                "user_id is outside the caller's team hierarchy",
+                status=403,
+            )
+
+        visible = await resolve_visible_chw_ids(
+            self._session,
+            filters.viewer_id,
+            tenant_id=filters.tenant_id,
             unrestricted=filters.unrestricted_viewer,
         )
-        return apply_document_usage_filters(
+        return await apply_document_usage_filters(
+            self._session,
             visible,
-            po_id=filters.po_id,
-            sk_id=filters.sk_id,
+            tenant_id=filters.tenant_id,
             user_id=filters.user_id,
             district=filters.district,
             upazila=filters.upazila,
+            index=users,
         )
 
     def _mv_where(
@@ -104,14 +126,13 @@ class DocumentUsageAnalyticsService:
             "event_date >= {from_date:Date}",
             "event_date <= {to_date:Date}",
             "source_document_id != ''",
+            "tenant_id = {tenant_id:Int64}",
         ]
         params: dict[str, Any] = {
             "from_date": filters.from_date,
             "to_date": filters.to_date,
+            "tenant_id": filters.tenant_id,
         }
-        if filters.tenant_id is not None:
-            clauses.append("tenant_id = {tenant_id:UUID}")
-            params["tenant_id"] = filters.tenant_id
         if filters.document_id is not None:
             clauses.append("source_document_id = {document_id:String}")
             params["document_id"] = str(filters.document_id)
@@ -130,15 +151,14 @@ class DocumentUsageAnalyticsService:
             "event_date >= {from_date:Date}",
             "event_date <= {to_date:Date}",
             "JSONExtractString(payload_json, 'source_document_id') != ''",
+            "tenant_id = {tenant_id:Int64}",
         ]
         params: dict[str, Any] = {
             "event_type": _DOCUMENT_VIEWED,
             "from_date": filters.from_date,
             "to_date": filters.to_date,
+            "tenant_id": filters.tenant_id,
         }
-        if filters.tenant_id is not None:
-            clauses.append("tenant_id = {tenant_id:UUID}")
-            params["tenant_id"] = filters.tenant_id
         if filters.document_id is not None:
             clauses.append("JSONExtractString(payload_json, 'source_document_id') = {document_id:String}")
             params["document_id"] = str(filters.document_id)
@@ -190,7 +210,7 @@ class DocumentUsageAnalyticsService:
         events_offset: int = 0,
     ) -> DocumentUsageResponse:
         """Return KPIs, per-document rows, and event drill-down under one filter set."""
-        chw_ids = self._resolved_chw_ids(filters)
+        chw_ids = await self._resolved_chw_ids(filters)
         if chw_ids is not None and len(chw_ids) == 0:
             return self._empty_response(
                 filters,
@@ -340,7 +360,10 @@ class DocumentUsageAnalyticsService:
             )
         )
         titles = await self._title_map([d for d in title_ids if d is not None])
-        users: dict[int, OrgUser] = org_user_index()
+        if self._session is None:
+            users: dict[int, OrgUser] = {}
+        else:
+            users = await org_user_index(self._session, tenant_id=filters.tenant_id)
 
         top_documents: list[DocumentUsageTopItem] = []
         for row in top_rows:

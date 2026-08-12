@@ -10,16 +10,15 @@ from uuid import UUID, uuid4
 import pytest
 import pytest_asyncio
 from asyncpg import Range
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 from mc_foundation.objectstore import ObjectNotFoundError, PresignedObjectUrl
 from mc_foundation.problem import register_problem_handlers
-from platform_service.api.admin_ingestion_runs import router as admin_ingestion_runs_router
-from platform_service.api.admin_module_analytics import router as admin_module_analytics_router
-from platform_service.api.admin_modules import router as admin_modules_router
-from platform_service.api.admin_source_documents import router as admin_source_documents_router
-from platform_service.api.admin_trigger_bindings import router as admin_trigger_bindings_router
+from platform_service.api.ingestion_runs import router as ingestion_runs_router
+from platform_service.api.modules import router as modules_router
+from platform_service.api.source_documents import router as source_documents_router
+from platform_service.auth.spice_context import SpiceUserContext
 from platform_service.config import get_settings
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
@@ -43,13 +42,15 @@ _PRESIGNED_URL = "https://minio.example/presigned"
 
 _API_WIPE_TABLES = (
     "module_lifecycle_event, module_behavioural_gap, module_card, module_quiz_question, "
-    "chw_module_assignment, chw_module_completion, chw_training_request, "
-    "chw_behavioural_gap_state, chw_video_assignment, chw_video_progress, "
-    "attribution_event, module_demand_summary, module_creation_suggestion, "
+    "module_assignment, chw_module_completion, chw_training_request, "
+    "chw_behavioural_gap_state, chw_video_progress, "
+    "attribution_event, module_creation_suggestion, "
     "module_trigger_binding, trigger_definition, chat_frequent_question, "
     "module, module_family, behavioural_gap, module_candidate_draft, "
     "ingestion_run_step, ingestion_run, ingest_batch, content_block, source_page, "
-    "source_document, llm_call_cache, file_upload"
+    "document_assignment, source_document, source_image, llm_call_cache, file_upload, "
+    "chw_badge, badge_module, badge, "
+    '"users", district, upazila, user_upazila'
 )
 
 
@@ -113,7 +114,6 @@ class _FakeAttachmentStorage:
         object_name: str,
         expires_seconds: int,
         disposition: str = "auto",
-        download_filename: str | None = None,
     ) -> PresignedObjectUrl:
         return PresignedObjectUrl(
             url=f"https://minio.test/{object_name}?exp={expires_seconds}",
@@ -132,12 +132,21 @@ async def app(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
         validation_error_type=RequestValidationError,
         http_exception_type=HTTPException,
     )
+
+    @app_obj.middleware("http")
+    async def inject_optional_spice_user(request: Request, call_next):  # type: ignore[no-untyped-def]
+        mock_user_id = request.headers.get("x-mock-user-id")
+        if mock_user_id:
+            request.state.spice_user = SpiceUserContext.model_validate(
+                {"id": int(mock_user_id), "username": request.headers.get("X-Test-Username")}
+            )
+            request.state.selected_tenant_id = int(request.headers.get("x-mock-tenant-id", "1"))
+        return await call_next(request)
+
     api_router = APIRouter(prefix=get_settings().api_root_path_normalized)
-    api_router.include_router(admin_modules_router)
-    api_router.include_router(admin_module_analytics_router)
-    api_router.include_router(admin_trigger_bindings_router)
-    api_router.include_router(admin_ingestion_runs_router)
-    api_router.include_router(admin_source_documents_router)
+    api_router.include_router(modules_router)
+    api_router.include_router(ingestion_runs_router)
+    api_router.include_router(source_documents_router)
     app_obj.include_router(api_router)
     fake_storage = _FakeAttachmentStorage()
 
@@ -189,6 +198,7 @@ async def _seed_source_document(
         original_storage_path=storage_path,
         original_filename=original_filename,
         sync_published_visible=sync_published_visible,
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()
@@ -216,7 +226,7 @@ async def _seed_module(
     created_at: datetime | None = None,
     published_at: datetime | None = None,
 ) -> Module:
-    family = ModuleFamily(module_code=f"f-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"f-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     if module_json is None:
@@ -248,6 +258,7 @@ async def _seed_module(
             else (datetime.now(UTC) if lifecycle_status == "published" else None)
         ),
         created_at=created_at or datetime.now(UTC),
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from mc_contracts.admin_modules import (
+from mc_contracts.modules import (
     ModuleSourceDocumentRef,
     ModuleSummary,
     QuizQuestionPayload,
@@ -32,7 +32,7 @@ from platform_service.services.card_provenance import (
     resolve_source_pages_for_blocks,
 )
 from platform_service.services.source_thumbnail_service import presign_thumbnail
-from platform_service.services.sync_service import SyncService
+from platform_service.services.sync.presign_service import SyncPresignService
 
 # Re-export provenance helpers for existing callers and tests.
 __all__ = [
@@ -163,7 +163,7 @@ async def source_documents_for_module(
     if not doc_ids:
         return []
 
-    presign = await SyncService(session).get_source_document_presigned_urls(
+    presign = await SyncPresignService(session).get_source_document_presigned_urls(
         source_document_ids=doc_ids,
         storage=storage,
     )

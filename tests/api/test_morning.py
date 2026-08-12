@@ -1,31 +1,38 @@
 """Morning cards API endpoint tests.
 
 Verifies:
-- GET /morning/cards returns recently added published modules (fallback-only)
-- GET /morning/cards?chw_id= uses gap-driven suggestions when available
+- GET /morning/cards with auth disabled returns an empty card list
+- GET /morning/cards with auth enabled uses the authenticated CHW id
+- GET /morning/cards with auth enabled and no principal returns 401
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
+from mc_foundation.problem import register_problem_handlers
 from platform_service.api.morning import router as morning_router
-from platform_service.config import get_settings
+from platform_service.config import Settings, get_settings
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.chw_behavioural_gap_state import CHWBehaviouralGapState
+from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
+from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
 from platform_service.deps import get_db
+from pydantic_settings import SettingsConfigDict
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import platform_path, requires_db, truncate_tables
+from tests.conftest import platform_path, requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -34,15 +41,53 @@ def _test_chw_id() -> int:
     return uuid4().int % (10**15) + 1
 
 
+@pytest.fixture(autouse=True)
+def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        Settings,
+        "model_config",
+        SettingsConfigDict(env_file=None, env_file_encoding="utf-8", extra="ignore"),
+    )
+    yield
+    get_settings.cache_clear()
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "chw_behavioural_gap_state, behavioural_gap, module, module_family")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE chw_behavioural_gap_state, chw_quiz_question_state, "
+            "behavioural_gap, module_quiz_question, module, module_family "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture
 async def app(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
     app_obj = FastAPI()
+    register_problem_handlers(
+        app_obj,
+        validation_error_type=RequestValidationError,
+        http_exception_type=HTTPException,
+    )
+
+    @app_obj.middleware("http")
+    async def mock_auth_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
+        mock_user_id = request.headers.get("x-mock-user-id")
+        if mock_user_id:
+
+            class MockSpiceUser:
+                id = int(mock_user_id)
+
+            request.state.spice_user = MockSpiceUser()
+        request.state.selected_tenant_id = 0
+        return await call_next(request)
+
     api_router = APIRouter(prefix=get_settings().api_root_path_normalized)
     api_router.include_router(morning_router)
     app_obj.include_router(api_router)
@@ -63,7 +108,7 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 
 async def _make_family(session: AsyncSession) -> ModuleFamily:
-    fam = ModuleFamily(module_code=f"MF-{uuid4().hex[:8]}")
+    fam = ModuleFamily(module_code=f"MF-{uuid4().hex[:8]}", tenant_id=1)
     session.add(fam)
     await session.flush()
     return fam
@@ -73,7 +118,7 @@ async def _make_published_module(
     session: AsyncSession,
     *,
     family: ModuleFamily,
-    tenant_id: UUID | None,
+    tenant_id: int | None,
     primary_gap_id: UUID | None = None,
     created_at: datetime | None = None,
     set_family_pointer: bool = True,
@@ -109,6 +154,7 @@ async def _make_gap(session: AsyncSession) -> BehaviouralGap:
         description="d",
         domain="rmnch",
         detection_rule_jsonb={},
+        tenant_id=1,
     )
     session.add(gap)
     await session.flush()
@@ -116,49 +162,51 @@ async def _make_gap(session: AsyncSession) -> BehaviouralGap:
 
 
 class TestMorningCardsEndpoint:
-    async def test_without_chw_id_returns_recent_modules(
-        self, client: AsyncClient, db_session: AsyncSession
+    async def test_auth_disabled_returns_empty_cards(
+        self, client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        tenant = UUID(int=0)
+        monkeypatch.setenv("SPICE_AUTH_ENABLED", "false")
+        get_settings.cache_clear()
+
+        tenant = 0
         base = datetime.now(UTC) - timedelta(days=10)
-        modules: list[Module] = []
-        for i in range(6):
+        for i in range(3):
             fam = await _make_family(db_session)
-            m = await _make_published_module(
+            await _make_published_module(
                 db_session,
                 family=fam,
                 tenant_id=tenant,
                 primary_gap_id=None,
                 created_at=base + timedelta(hours=i),
             )
-            modules.append(m)
 
-        http_client = client
-        resp = await http_client.get(platform_path("/morning/cards"))
+        resp = await client.get(platform_path("/morning/cards"))
         assert resp.status_code == 200
         data = resp.json()
-        assert "items" in data
-        items = data["items"]
-        assert len(items) == 5
-        assert all(x["source"] == "fallback" for x in items)
-        expected_ids = {
-            str(modules[5].id),
-            str(modules[4].id),
-            str(modules[3].id),
-            str(modules[2].id),
-            str(modules[1].id),
-        }
-        assert {x["module_id"] for x in items} == expected_ids
+        assert data["items"] == []
+        assert data["total_points"] == 0
 
-    async def test_with_chw_id_uses_gap_suggestions_when_available(
+    async def test_auth_enabled_without_user_returns_401(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SPICE_AUTH_ENABLED", "true")
+        get_settings.cache_clear()
+
+        resp = await client.get(platform_path("/morning/cards"))
+        assert resp.status_code == 401
+
+    async def test_auth_enabled_uses_gap_suggestions_for_principal(
         self, client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.setenv("SPICE_AUTH_ENABLED", "true")
+        get_settings.cache_clear()
         monkeypatch.setattr(
             get_settings(),
             "telemetry_behavioural_gap_state_enabled",
             True,
         )
-        tenant = UUID(int=0)
+
+        tenant = 0
         chw_id = _test_chw_id()
         gap = await _make_gap(db_session)
         db_session.add(
@@ -181,8 +229,10 @@ class TestMorningCardsEndpoint:
             primary_gap_id=gap.id,
         )
 
-        http_client = client
-        resp = await http_client.get(platform_path("/morning/cards"), params={"chw_id": chw_id})
+        resp = await client.get(
+            platform_path("/morning/cards"),
+            headers={"x-mock-user-id": str(chw_id)},
+        )
         assert resp.status_code == 200
         items = resp.json()["items"]
         assert len(items) == 1
@@ -191,13 +241,13 @@ class TestMorningCardsEndpoint:
         assert items[0]["source"] == "gap"
         assert items[0]["behavioural_gap_id"] == str(gap.id)
 
-    async def test_with_chw_id_uses_quiz_suggestions_when_quiz_state_active(
-        self, client: AsyncClient, db_session: AsyncSession
+    async def test_auth_enabled_uses_quiz_suggestions_for_principal(
+        self, client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
-        from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
+        monkeypatch.setenv("SPICE_AUTH_ENABLED", "true")
+        get_settings.cache_clear()
 
-        tenant = UUID(int=0)
+        tenant = 0
         chw_id = _test_chw_id()
         fam = await _make_family(db_session)
         mod = await _make_published_module(
@@ -231,7 +281,10 @@ class TestMorningCardsEndpoint:
         )
         await db_session.commit()
 
-        resp = await client.get(platform_path("/morning/cards"), params={"chw_id": chw_id})
+        resp = await client.get(
+            platform_path("/morning/cards"),
+            headers={"x-mock-user-id": str(chw_id)},
+        )
         assert resp.status_code == 200
         items = resp.json()["items"]
         assert len(items) == 1

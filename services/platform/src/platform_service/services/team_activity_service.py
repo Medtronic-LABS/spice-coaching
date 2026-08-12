@@ -1,4 +1,4 @@
-"""Team activity dashboard — organizer-scoped engagement and completion reporting."""
+"""Team activity dashboard — hierarchy-scoped engagement and completion reporting."""
 
 from __future__ import annotations
 
@@ -7,24 +7,35 @@ from typing import Any
 from uuid import UUID
 
 from mc_contracts.dashboard import (
+    TeamActivityMemberDetail,
     TeamActivityResponse,
     TeamActivitySummary,
-    TeamMemberActivityDetail,
     TeamMemberChatbotModuleUsage,
     TeamMemberModuleActivity,
     TeamMemberQuestionItem,
     TeamMemberQuestionsResponse,
 )
+from mc_contracts.enums import HierarchyRole
 from mc_contracts.errors import ErrorCode
 from mc_foundation.problem import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.auth.spice_identity import TeamActivityScope
 from platform_service.clickhouse.client import ClickHouseClient
 from platform_service.clickhouse.question_sql import QUESTION_EXTRACT_SQL, QUESTION_NORMALIZE_KEY_SQL
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.repositories.module_completion_repository import ModuleCompletionRepository
 from platform_service.db.repositories.module_repository import ModuleRepository
+from platform_service.services.dashboard_hierarchy import (
+    OrgUser,
+    descendants_with_role,
+    is_team_activity_descendant,
+    member_role_at_depth,
+    org_user_index,
+    sks_under_focus,
+    sks_under_member,
+)
 from platform_service.services.sync.module_assignment_resolver import resolve_assigned_module_ids
-from platform_service.services.user_service import get_all_sk_users, get_team_members_for_organizer
 
 _DIGITAL_HELP_EVENT = "digital_help_used"
 
@@ -99,22 +110,114 @@ def _count_refreshers(
         if not outcome_str:
             continue
 
+        bucket = out.setdefault(chw_id, {"generated": 0, "completed": 0})
+        open_quizzes = open_by_chw.setdefault(chw_id, set())
+
         if outcome_str == "incorrect":
-            bucket = out.setdefault(chw_id, {"generated": 0, "completed": 0})
-            open_quizzes = open_by_chw.setdefault(chw_id, set())
             if quiz_id not in open_quizzes:
                 open_quizzes.add(quiz_id)
                 bucket["generated"] += 1
         elif outcome_str == "correct":
-            bucket = out.get(chw_id)
-            open_quizzes = open_by_chw.get(chw_id)
-            if bucket is None or open_quizzes is None:
-                continue
             if quiz_id in open_quizzes:
                 open_quizzes.remove(quiz_id)
                 bucket["completed"] += 1
 
     return out
+
+
+def _max_datetime(*values: datetime | None) -> datetime | None:
+    present = [v for v in values if v is not None]
+    if not present:
+        return None
+    return max(present)
+
+
+def _aggregate_member_from_sks(
+    *,
+    user_id: int,
+    name: str,
+    role: str,
+    sk_details: list[TeamActivityMemberDetail],
+) -> TeamActivityMemberDetail:
+    """Roll AM/PO activity metrics up from descendant SK details (no self events)."""
+    can_drill_down = role != HierarchyRole.SHASTIYA_KORMI.value
+    if not sk_details:
+        return TeamActivityMemberDetail(
+            user_id=user_id,
+            name=name,
+            role=role,
+            can_drill_down=can_drill_down,
+            is_active=False,
+            is_chatbot_engaged=False,
+            last_chat_at=None,
+            last_active_at=None,
+            has_completed_module_in_range=False,
+            assigned_modules=[],
+            chatbot_query_count=0,
+            chatbot_unattributed_query_count=0,
+            chatbot_modules=[],
+            refreshers_generated=0,
+            refreshers_completed=0,
+        )
+
+    assigned_by_id: dict[UUID, TeamMemberModuleActivity] = {}
+    for sk in sk_details:
+        for mod in sk.assigned_modules:
+            existing = assigned_by_id.get(mod.module_id)
+            if existing is None:
+                assigned_by_id[mod.module_id] = TeamMemberModuleActivity(
+                    module_id=mod.module_id,
+                    title=mod.title,
+                    completed_in_range=mod.completed_in_range,
+                    completed_at=mod.completed_at,
+                )
+                continue
+            completed_in_range = existing.completed_in_range or mod.completed_in_range
+            completed_at = _max_datetime(existing.completed_at, mod.completed_at)
+            assigned_by_id[mod.module_id] = TeamMemberModuleActivity(
+                module_id=mod.module_id,
+                title=existing.title if existing.title is not None else mod.title,
+                completed_in_range=completed_in_range,
+                completed_at=completed_at,
+            )
+
+    chatbot_by_id: dict[UUID, TeamMemberChatbotModuleUsage] = {}
+    for sk in sk_details:
+        for usage in sk.chatbot_modules:
+            existing = chatbot_by_id.get(usage.module_id)
+            if existing is None:
+                chatbot_by_id[usage.module_id] = TeamMemberChatbotModuleUsage(
+                    module_id=usage.module_id,
+                    title=usage.title,
+                    query_count=usage.query_count,
+                )
+            else:
+                chatbot_by_id[usage.module_id] = TeamMemberChatbotModuleUsage(
+                    module_id=usage.module_id,
+                    title=existing.title if existing.title is not None else usage.title,
+                    query_count=existing.query_count + usage.query_count,
+                )
+
+    return TeamActivityMemberDetail(
+        user_id=user_id,
+        name=name,
+        role=role,
+        can_drill_down=can_drill_down,
+        is_active=any(sk.is_active for sk in sk_details),
+        is_chatbot_engaged=any(sk.is_chatbot_engaged for sk in sk_details),
+        last_chat_at=_max_datetime(*(sk.last_chat_at for sk in sk_details)),
+        last_active_at=_max_datetime(*(sk.last_active_at for sk in sk_details)),
+        has_completed_module_in_range=any(sk.has_completed_module_in_range for sk in sk_details),
+        assigned_modules=sorted(assigned_by_id.values(), key=lambda m: str(m.module_id)),
+        chatbot_query_count=sum(sk.chatbot_query_count for sk in sk_details),
+        chatbot_unattributed_query_count=sum(sk.chatbot_unattributed_query_count for sk in sk_details),
+        chatbot_modules=sorted(
+            chatbot_by_id.values(),
+            key=lambda item: (-item.query_count, str(item.module_id)),
+        ),
+        refreshers_generated=sum(sk.refreshers_generated for sk in sk_details),
+        refreshers_completed=sum(sk.refreshers_completed for sk in sk_details),
+    )
 
 
 class TeamActivityService:
@@ -129,24 +232,157 @@ class TeamActivityService:
     async def get_team_activity(
         self,
         *,
-        organizer_id: int | None,
+        scope: TeamActivityScope,
+        focus_user_id: int | None,
         from_date: date,
         to_date: date,
         limit: int,
         offset: int,
-        tenant_id: UUID | None,
-        organization_ids: list[int] | None,
+        tenant_id: int | None,
+        depth: int = 0,
     ) -> TeamActivityResponse:
-        raw_members = (
-            get_all_sk_users() if organizer_id is None else get_team_members_for_organizer(organizer_id)
-        )
-        members = sorted(raw_members, key=lambda u: u["name"])
-        total_users = len(members)
-        total_pages = (total_users + limit - 1) // limit if total_users > 0 else 0
-        paged_members = members[offset : offset + limit]
-        all_chw_ids = [int(m["id"]) for m in members]
+        hierarchy_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
+        by_id = await org_user_index(self._session, tenant_id=hierarchy_tenant)
 
+        focus_id, focus_role = self._resolve_focus(
+            by_id,
+            scope=scope,
+            focus_user_id=focus_user_id,
+        )
+        member_role = member_role_at_depth(focus_role, depth)
+        if member_role is None and not (focus_role == HierarchyRole.SHASTIYA_KORMI.value and depth == 0):
+            # depth=0 on SK focus → empty members (valid). Any other miss → illegal depth.
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR.value,
+                f"depth={depth} is not valid for the effective focus role",
+                status=422,
+            )
+        children = (
+            []
+            if member_role is None
+            else sorted(
+                descendants_with_role(by_id, focus_id, focus_role, member_role),
+                key=lambda u: u.name,
+            )
+        )
+        total_members = len(children)
+        total_pages = (total_members + limit - 1) // limit if total_members > 0 else 0
+        paged_children = children[offset : offset + limit]
+
+        all_sks = sks_under_focus(by_id, focus_id, focus_role)
+        all_sk_members = [{"id": u.id, "name": u.name} for u in sorted(all_sks, key=lambda u: u.name)]
+        all_chw_ids = [int(m["id"]) for m in all_sk_members]
+
+        detail_chw_ids: list[int] = []
+        sks_by_member: dict[int, list[int]] = {}
+        if member_role == HierarchyRole.SHASTIYA_KORMI.value:
+            detail_chw_ids = [u.id for u in paged_children]
+        elif member_role is None:
+            # SK focus: no members; still build summary for that one SK.
+            detail_chw_ids = []
+        else:
+            for member in paged_children:
+                member_sks = sks_under_member(by_id, member)
+                sk_ids = [u.id for u in member_sks]
+                sks_by_member[member.id] = sk_ids
+                detail_chw_ids.extend(sk_ids)
+
+        summary, details_by_id = await self._build_sk_activity(
+            members=all_sk_members,
+            detail_chw_ids=detail_chw_ids,
+            all_chw_ids=all_chw_ids,
+            from_date=from_date,
+            to_date=to_date,
+            tenant_id=tenant_id,
+            hierarchy_tenant=hierarchy_tenant,
+        )
+
+        members: list[TeamActivityMemberDetail]
+        if member_role == HierarchyRole.SHASTIYA_KORMI.value:
+            members = [details_by_id[u.id] for u in paged_children if u.id in details_by_id]
+        elif member_role is None:
+            members = []
+        else:
+            members = [
+                _aggregate_member_from_sks(
+                    user_id=member.id,
+                    name=member.name,
+                    role=member.role,
+                    sk_details=[
+                        details_by_id[sk_id]
+                        for sk_id in sks_by_member.get(member.id, [])
+                        if sk_id in details_by_id
+                    ],
+                )
+                for member in paged_children
+            ]
+
+        return TeamActivityResponse(
+            from_date=from_date,
+            to_date=to_date,
+            summary=summary,
+            members=members,
+            focus_user_id=focus_user_id,
+            total_users=len(all_sk_members),
+            total_members=total_members,
+            total_pages=total_pages,
+            limit=limit,
+            offset=offset,
+            server_time_utc=datetime.now(UTC).isoformat(),
+        )
+
+    @staticmethod
+    def _resolve_focus(
+        by_id: dict[int, OrgUser],
+        *,
+        scope: TeamActivityScope,
+        focus_user_id: int | None,
+    ) -> tuple[int | None, str | None]:
+        """Return (effective_focus_id, focus_role). Synthetic Admin root → (None, None)."""
+        if focus_user_id is not None:
+            if not is_team_activity_descendant(
+                by_id,
+                scope.viewer_id,
+                focus_user_id,
+                unrestricted=scope.unrestricted,
+            ):
+                raise AppError(
+                    ErrorCode.FORBIDDEN.value,
+                    "user_id is outside the caller's team hierarchy",
+                    status=403,
+                )
+            focus = by_id[focus_user_id]
+            return focus.id, focus.role
+
+        if scope.unrestricted:
+            return None, None
+
+        if scope.viewer_id is None:
+            raise AppError(ErrorCode.FORBIDDEN.value, "authenticated user has no id", status=403)
+
+        viewer = by_id.get(scope.viewer_id)
+        if viewer is None:
+            raise AppError(
+                ErrorCode.FORBIDDEN.value,
+                "caller is not present in the tenant hierarchy",
+                status=403,
+            )
+        return viewer.id, viewer.role
+
+    async def _build_sk_activity(
+        self,
+        *,
+        members: list[dict[str, Any]],
+        detail_chw_ids: list[int],
+        all_chw_ids: list[int],
+        from_date: date,
+        to_date: date,
+        tenant_id: int | None,
+        hierarchy_tenant: int,
+    ) -> tuple[TeamActivitySummary, dict[int, TeamActivityMemberDetail]]:
+        """Compute SK summary over all members; full detail rows for detail_chw_ids only."""
         from_ts, to_ts = _utc_range_bounds(from_date, to_date)
+        total_users = len(members)
 
         daily_by_chw = await self._fetch_daily_summary(
             chw_ids=all_chw_ids,
@@ -154,7 +390,6 @@ class TeamActivityService:
             to_date=to_date,
             tenant_id=tenant_id,
         )
-
         completions = await ModuleCompletionRepository(self._session).list_completed_in_range_for_chws(
             chw_ids=all_chw_ids,
             from_ts=from_ts,
@@ -172,7 +407,7 @@ class TeamActivityService:
             assigned_ids = await resolve_assigned_module_ids(
                 self._session,
                 user_id=chw_id,
-                organization_ids=organization_ids,
+                tenant_id=hierarchy_tenant,
             )
             assigned_by_chw[chw_id] = assigned_ids
             if assigned_ids:
@@ -207,19 +442,21 @@ class TeamActivityService:
             users_chatbot_engaged=users_chatbot_engaged,
         )
 
-        page_chw_ids = [int(m["id"]) for m in paged_members]
+        if not detail_chw_ids:
+            return summary, {}
+
         chatbot_by_chw = await self._fetch_digital_help(
-            chw_ids=page_chw_ids,
+            chw_ids=detail_chw_ids,
             from_date=from_date,
             to_date=to_date,
             tenant_id=tenant_id,
         )
         last_activity_by_chw = await self._fetch_last_activity_timestamps(
-            chw_ids=page_chw_ids,
+            chw_ids=detail_chw_ids,
             tenant_id=tenant_id,
         )
         quiz_attempts = await self._fetch_quiz_attempts(
-            chw_ids=page_chw_ids,
+            chw_ids=detail_chw_ids,
             from_date=from_date,
             to_date=to_date,
             tenant_id=tenant_id,
@@ -227,7 +464,7 @@ class TeamActivityService:
         refreshers_by_chw = _count_refreshers(quiz_attempts)
 
         all_module_ids: set[UUID] = set()
-        for chw_id in page_chw_ids:
+        for chw_id in detail_chw_ids:
             all_module_ids.update(assigned_by_chw.get(chw_id, set()))
             for module_id, _count in chatbot_by_chw.get(chw_id, {}).get("by_module", {}).items():
                 if module_id is not None:
@@ -241,9 +478,10 @@ class TeamActivityService:
             )
             title_by_module = {mod.id: mod for mod in modules}
 
-        users: list[TeamMemberActivityDetail] = []
-        for member in paged_members:
-            chw_id = int(member["id"])
+        name_by_id = {int(m["id"]): str(m["name"]) for m in members}
+        details_by_id: dict[int, TeamActivityMemberDetail] = {}
+        sk_role = HierarchyRole.SHASTIYA_KORMI.value
+        for chw_id in detail_chw_ids:
             daily = daily_by_chw.get(chw_id, {})
             assigned_ids = assigned_by_chw.get(chw_id, set())
             member_completions = completions_by_chw.get(chw_id, {})
@@ -282,53 +520,48 @@ class TeamActivityService:
                 )
 
             assigned_families = family_ids_by_chw.get(chw_id, set())
-            users.append(
-                TeamMemberActivityDetail(
-                    user_id=chw_id,
-                    name=str(member["name"]),
-                    is_active=bool(daily.get("is_active")),
-                    is_chatbot_engaged=bool(daily.get("is_chatbot_engaged")),
-                    last_chat_at=last_activity.get("last_chat_at"),
-                    last_active_at=last_activity.get("last_active_at"),
-                    has_completed_module_in_range=bool(assigned_families & member_completions.keys()),
-                    assigned_modules=assigned_modules,
-                    chatbot_query_count=_to_int(chatbot.get("total")),
-                    chatbot_unattributed_query_count=_to_int(chatbot.get("unattributed")),
-                    chatbot_modules=chatbot_modules,
-                    refreshers_generated=_to_int(refreshers.get("generated")),
-                    refreshers_completed=_to_int(refreshers.get("completed")),
-                )
+            details_by_id[chw_id] = TeamActivityMemberDetail(
+                user_id=chw_id,
+                name=name_by_id.get(chw_id, str(chw_id)),
+                role=sk_role,
+                can_drill_down=False,
+                is_active=bool(daily.get("is_active")),
+                is_chatbot_engaged=bool(daily.get("is_chatbot_engaged")),
+                last_chat_at=last_activity.get("last_chat_at"),
+                last_active_at=last_activity.get("last_active_at"),
+                has_completed_module_in_range=bool(assigned_families & member_completions.keys()),
+                assigned_modules=assigned_modules,
+                chatbot_query_count=_to_int(chatbot.get("total")),
+                chatbot_unattributed_query_count=_to_int(chatbot.get("unattributed")),
+                chatbot_modules=chatbot_modules,
+                refreshers_generated=_to_int(refreshers.get("generated")),
+                refreshers_completed=_to_int(refreshers.get("completed")),
             )
 
-        return TeamActivityResponse(
-            from_date=from_date,
-            to_date=to_date,
-            summary=summary,
-            users=users,
-            total_users=total_users,
-            total_pages=total_pages,
-            limit=limit,
-            offset=offset,
-            server_time_utc=datetime.now(UTC).isoformat(),
-        )
+        return summary, details_by_id
 
     async def get_member_questions(
         self,
         *,
-        organizer_id: int,
+        scope: TeamActivityScope,
         user_id: int,
         from_date: date,
         to_date: date,
         limit: int,
         offset: int,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
     ) -> TeamMemberQuestionsResponse:
-        members = get_team_members_for_organizer(organizer_id)
-        member_ids = {int(m["id"]) for m in members}
-        if user_id not in member_ids:
+        hierarchy_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
+        by_id = await org_user_index(self._session, tenant_id=hierarchy_tenant)
+        if not is_team_activity_descendant(
+            by_id,
+            scope.viewer_id,
+            user_id,
+            unrestricted=scope.unrestricted,
+        ):
             raise AppError(
                 ErrorCode.FORBIDDEN.value,
-                "user is not a member of this organizer's team",
+                "user_id is outside the caller's team hierarchy",
                 status=403,
             )
 
@@ -376,10 +609,10 @@ class TeamActivityService:
             server_time_utc=datetime.now(UTC).isoformat(),
         )
 
-    def _tenant_clause(self, tenant_id: UUID | None) -> tuple[str, dict[str, Any]]:
+    def _tenant_clause(self, tenant_id: int | None) -> tuple[str, dict[str, Any]]:
         if tenant_id is None:
             return "", {}
-        return "  AND tenant_id = {tenant_id:UUID}\n", {"tenant_id": tenant_id}
+        return "  AND tenant_id = {tenant_id:Int64}\n", {"tenant_id": tenant_id}
 
     async def _count_member_questions(
         self,
@@ -387,7 +620,7 @@ class TeamActivityService:
         chw_id: int,
         from_date: date,
         to_date: date,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
     ) -> int:
         tenant_clause, tenant_params = self._tenant_clause(tenant_id)
         query = f"""
@@ -424,7 +657,7 @@ class TeamActivityService:
         chw_id: int,
         from_date: date,
         to_date: date,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
         limit: int,
         offset: int,
     ) -> list[dict[str, Any]]:
@@ -468,7 +701,7 @@ class TeamActivityService:
         chw_ids: list[int],
         from_date: date,
         to_date: date,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
     ) -> dict[int, dict[str, Any]]:
         if not chw_ids:
             return {}
@@ -510,7 +743,7 @@ class TeamActivityService:
         chw_ids: list[int],
         from_date: date,
         to_date: date,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
     ) -> dict[int, dict[str, Any]]:
         if not chw_ids:
             return {}
@@ -555,7 +788,7 @@ class TeamActivityService:
         self,
         *,
         chw_ids: list[int],
-        tenant_id: UUID | None,
+        tenant_id: int | None,
     ) -> dict[int, dict[str, datetime | None]]:
         if not chw_ids:
             return {}
@@ -606,7 +839,7 @@ class TeamActivityService:
         chw_ids: list[int],
         from_date: date,
         to_date: date,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
     ) -> list[dict[str, Any]]:
         if not chw_ids:
             return []

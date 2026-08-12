@@ -334,21 +334,6 @@ def aggregate_chat_faqs_task() -> None:
 
 
 @celery_app.task(
-    name="platform.refresh_module_demand_summary",
-    autoretry_for=(OperationalError, DBAPIError, *CELERY_TRANSIENT_ERRORS),
-    max_retries=2,
-    default_retry_delay=300,
-)
-def refresh_module_demand_summary_task() -> None:
-    """Daily refresh of the cached admin module-demand summary snapshot."""
-    from platform_service.workers.module_demand_summary_worker import (
-        refresh_module_demand_summaries_job,
-    )
-
-    _run(refresh_module_demand_summaries_job())
-
-
-@celery_app.task(
     name="platform.refresh_module_creation_suggestions",
     autoretry_for=(OperationalError, DBAPIError, *CELERY_TRANSIENT_ERRORS),
     max_retries=2,

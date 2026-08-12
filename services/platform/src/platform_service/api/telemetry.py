@@ -41,6 +41,7 @@ from mc_contracts.enums import CoachingEventType
 from mc_contracts.telemetry import TelemetryAckResponse, TelemetryBatch, TelemetryEvent
 
 from platform_service.auth.spice_identity import require_chw_id_for_telemetry
+from platform_service.auth.spice_user import get_selected_tenant_id
 from platform_service.celery_tasks import (
     process_module_event_task,
     process_training_request_event_task,
@@ -123,7 +124,7 @@ def _event_to_row(
     e: TelemetryEvent,
     sdk_version: str,
     chw_id: int,
-    tenant_id: UUID | None,
+    tenant_id: int | None,
     synced_at_ms: int,
 ) -> list:
     """Convert TelemetryEvent to ClickHouse coaching_events column order.
@@ -190,6 +191,7 @@ async def ingest_events(
 
     synced_at_ms = int(time.time() * 1000)
     request_id = getattr(request.state, "request_id", None)
+    selected_tenant_id = get_selected_tenant_id(request)
     _ch_client = get_clickhouse_client()
     gap_state_enabled = get_settings().telemetry_behavioural_gap_state_enabled
 
@@ -204,7 +206,7 @@ async def ingest_events(
                     e=event,
                     sdk_version=batch.sdk_version,
                     chw_id=chw_id,
-                    tenant_id=batch.tenant_id,
+                    tenant_id=selected_tenant_id,
                     synced_at_ms=synced_at_ms,
                 )
             )
@@ -218,7 +220,7 @@ async def ingest_events(
                 if event.module_id is not None or requested_name:
                     training_job: dict = {
                         "chw_id": chw_id,
-                        "tenant_id": batch.tenant_id,
+                        "tenant_id": selected_tenant_id,
                         "event_id": event.id,
                         "event_type": event_type_value,
                         "module_id": str(event.module_id) if event.module_id is not None else None,
@@ -239,7 +241,7 @@ async def ingest_events(
                 if source_document_id is not None:
                     video_job: dict = {
                         "chw_id": chw_id,
-                        "tenant_id": batch.tenant_id,
+                        "tenant_id": selected_tenant_id,
                         "event_id": event.id,
                         "event_type": event_type_value,
                         "payload_json": event.payload_json or {},
@@ -259,7 +261,7 @@ async def ingest_events(
                 if event_type_value in _MODULE_EVENT_TYPES and event.module_id is not None:
                     job: dict = {
                         "chw_id": chw_id,
-                        "tenant_id": batch.tenant_id,
+                        "tenant_id": selected_tenant_id,
                         "event_id": event.id,
                         "event_type": event_type_value,
                         "module_id": str(event.module_id),
@@ -275,7 +277,7 @@ async def ingest_events(
                 elif event_type_value == CoachingEventType.SPICE_ACTION_OBSERVED.value:
                     spice_job: dict = {
                         "chw_id": chw_id,
-                        "tenant_id": batch.tenant_id,
+                        "tenant_id": selected_tenant_id,
                         "event_id": event.id,
                         "event_type": event_type_value,
                         "outcome": _as_ch_value(event.outcome),
@@ -290,7 +292,7 @@ async def ingest_events(
             ):
                 quiz_job: dict = {
                     "chw_id": chw_id,
-                    "tenant_id": batch.tenant_id,
+                    "tenant_id": selected_tenant_id,
                     "event_id": event.id,
                     "event_type": event_type_value,
                     "module_id": str(event.module_id),

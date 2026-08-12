@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.config_threshold import ConfigThreshold
 
 
@@ -27,20 +28,28 @@ class ConfigThresholdRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_value(self, key: str) -> Any | None:
-        stmt = select(ConfigThreshold.value_json).where(ConfigThreshold.key == key)
+    async def get_value(self, key: str, *, tenant_id: int = DEFAULT_TENANT_ID) -> Any | None:
+        stmt = select(ConfigThreshold.value_json).where(
+            ConfigThreshold.key == key,
+            ConfigThreshold.tenant_id == tenant_id,
+        )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
-    async def get_int(self, key: str, default: int) -> int:
-        value = await self.get_value(key)
+    async def get_int(self, key: str, default: int, *, tenant_id: int = DEFAULT_TENANT_ID) -> int:
+        value = await self.get_value(key, tenant_id=tenant_id)
         return _coerce_json_to_int(value, default)
 
-    async def get_int_for_keys(self, defaults: dict[str, int]) -> dict[str, int]:
+    async def get_int_for_keys(
+        self, defaults: dict[str, int], *, tenant_id: int = DEFAULT_TENANT_ID
+    ) -> dict[str, int]:
         """Return a copy of `defaults` with any matching `config_threshold` rows overriding values."""
         if not defaults:
             return {}
         keys = tuple(defaults.keys())
-        stmt = select(ConfigThreshold.key, ConfigThreshold.value_json).where(ConfigThreshold.key.in_(keys))
+        stmt = select(ConfigThreshold.key, ConfigThreshold.value_json).where(
+            ConfigThreshold.key.in_(keys),
+            ConfigThreshold.tenant_id == tenant_id,
+        )
         rows = (await self.session.execute(stmt)).all()
         out = dict(defaults)
         for row_key, value_json in rows:
@@ -48,12 +57,17 @@ class ConfigThresholdRepository:
                 out[row_key] = _coerce_json_to_int(value_json, out[row_key])
         return out
 
-    async def list_all(self) -> list[ConfigThreshold]:
+    async def list_all(self, *, tenant_id: int | None = None) -> list[ConfigThreshold]:
         stmt = select(ConfigThreshold)
+        if tenant_id is not None:
+            stmt = stmt.where(ConfigThreshold.tenant_id == tenant_id)
         return list((await self.session.execute(stmt)).scalars().all())
 
-    async def get_by_key(self, key: str) -> ConfigThreshold | None:
-        stmt = select(ConfigThreshold).where(ConfigThreshold.key == key)
+    async def get_by_key(self, key: str, *, tenant_id: int = DEFAULT_TENANT_ID) -> ConfigThreshold | None:
+        stmt = select(ConfigThreshold).where(
+            ConfigThreshold.key == key,
+            ConfigThreshold.tenant_id == tenant_id,
+        )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def update_config(

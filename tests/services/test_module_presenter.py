@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from mc_contracts.admin_modules import CardSourcePageRef
+from mc_contracts.modules import CardSourcePageRef
 from platform_service.db.models.content_block import ContentBlock
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.models.source_page import SourcePage
@@ -39,6 +39,7 @@ async def _seed_page_with_block(
         primary_language="bn",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()
@@ -78,6 +79,7 @@ async def _seed_second_block_on_new_page(
             primary_language="bn",
             content_domain="clinical",
             original_storage_path="/tmp/y.pdf",
+            tenant_id=1,
         )
         session.add(doc)
         await session.flush()
@@ -237,6 +239,7 @@ class TestCardsWithSourcePages:
             primary_language="bn",
             content_domain="clinical",
             original_storage_path="/tmp/x.pdf",
+            tenant_id=1,
         )
         db_session.add(doc)
         await db_session.flush()
@@ -331,7 +334,7 @@ class TestCardsWithSourcePages:
         doc, block = await _seed_page_with_block(db_session, page_number=4)
         storage = AsyncMock()
         with patch(
-            "platform_service.services.module_presenter.SyncService.get_source_document_presigned_urls",
+            "platform_service.services.card_provenance.SyncPresignService.get_source_document_presigned_urls",
             new_callable=AsyncMock,
         ) as mock_presign:
             out = await cards_with_source_pages(

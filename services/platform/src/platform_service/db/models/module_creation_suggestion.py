@@ -10,9 +10,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class ModuleCreationSuggestion(Base):
+class ModuleCreationSuggestion(TenantMixin, Base):
     __tablename__ = "module_creation_suggestion"
     __table_args__ = (
         Index("ix_module_creation_suggestion_tenant_date", "tenant_id", "suggestion_date"),
@@ -21,7 +22,6 @@ class ModuleCreationSuggestion(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     suggestion_date: Mapped[date] = mapped_column(Date, nullable=False)
     # matched_draft | proposed_topic
     suggestion_kind: Mapped[str] = mapped_column(Text, nullable=False)

@@ -17,9 +17,10 @@ from platform_service.api.knowledge import router as knowledge_router
 from platform_service.config import get_settings
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.deps import get_db, get_object_storage_client
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import platform_path, requires_db, truncate_tables
+from tests.conftest import platform_path, requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -28,8 +29,10 @@ _BUCKET = "medtronics-storage"
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_tables(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "source_document")
     yield
+    await db_session.rollback()
+    await db_session.execute(text("TRUNCATE source_document RESTART IDENTITY CASCADE"))
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture
@@ -81,6 +84,7 @@ async def _seed_doc(
         original_filename="manual.pdf",
         sync_published_visible=sync_published_visible,
         status=status,
+        tenant_id=1,
     )
     session.add(doc)
     await session.commit()

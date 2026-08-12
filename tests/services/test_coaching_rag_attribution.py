@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from mc_contracts.coaching_rag import SourcePageRef
+from mc_contracts.coaching import SourcePageRef
 from platform_service.config import Settings
 from platform_service.db.models.module import Module
 from platform_service.db.models.source_document import SourceDocument
@@ -28,6 +28,7 @@ def _module(*, module_id, source_document_ids: list, cards: list[dict] | None = 
         lifecycle_status="published",
         source_document_ids=source_document_ids,
         module_json={"cards": cards or []},
+        tenant_id=1,
     )
 
 

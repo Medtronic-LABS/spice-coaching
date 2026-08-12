@@ -7,9 +7,11 @@ from uuid import UUID
 
 from mc_contracts.errors import ErrorCode
 from mc_foundation.problem import AppError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.module_availability import (
     LIFECYCLE_DRAFT,
     LIFECYCLE_RETIRED,
@@ -98,10 +100,33 @@ class IngestMergeOverrideService:
                 status=404,
             ) from exc
 
+        family_id = secondary.module_family_id
+        expected_version = secondary.version
+        next_version = await self._modules.next_version_in_family(family_id)
+        secondary.version = next_version
         secondary.lifecycle_status = LIFECYCLE_DRAFT
         secondary.supersedes_module_id = source.id
-        await self._session.flush()
-        await self._session.commit()
+
+        family = await self._session.get(ModuleFamily, family_id)
+        if family is not None:
+            family.current_published_module_id = secondary.id
+
+        try:
+            await self._session.flush()
+            await self._session.commit()
+        except IntegrityError as exc:
+            await self._session.rollback()
+            tip = await self._modules.latest_module_in_family(family_id)
+            raise AppError(
+                ErrorCode.MODULE_VERSION_CONFLICT.value,
+                "module family version conflict during merge override; refetch and retry",
+                status=409,
+                extensions={
+                    "expected_version": expected_version,
+                    "current_version": tip.version,
+                    "latest_module_id": str(tip.id),
+                },
+            ) from exc
 
         return IngestMergeOverrideResult(
             primary_module_id=primary.id,

@@ -12,12 +12,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
-from platform_service.db.repositories.module_lifecycle_repository import ModuleLifecycleRepository
 from platform_service.db.repositories.module_repository_helpers import (
     THUMBNAIL_UNSET,
     ModuleNotFoundError,
@@ -46,6 +46,7 @@ class ModuleWriteRepository:
         behavioural_gap_ids: list[UUID] | None = None,
         primary_gap_id: UUID | None = None,
         chatbot_faqs_only: bool = False,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> Module:
         if chatbot_faqs_only and behavioural_gap_ids:
             raise ValueError("chatbot_faqs_only modules cannot be linked to behavioural gaps")
@@ -56,13 +57,17 @@ class ModuleWriteRepository:
         attempt = 0
         while True:
             existing = await self._session.execute(
-                select(ModuleFamily).where(ModuleFamily.module_code == candidate_code)
+                select(ModuleFamily).where(
+                    ModuleFamily.module_code == candidate_code,
+                    ModuleFamily.tenant_id == tenant_id,
+                )
             )
             row = existing.scalar_one_or_none()
             if row is None:
                 family = ModuleFamily(
                     module_code=candidate_code,
                     created_by=creator_id,
+                    tenant_id=tenant_id,
                 )
                 self._session.add(family)
                 await self._session.flush()
@@ -85,6 +90,7 @@ class ModuleWriteRepository:
             clinically_reviewed=False,
             published_at=None,
             chatbot_faqs_only=chatbot_faqs_only,
+            tenant_id=tenant_id,
         )
         self._session.add(new_module)
         await self._session.flush()
@@ -108,6 +114,7 @@ class ModuleWriteRepository:
                     severity_default="moderate",
                     detection_rule_jsonb={},
                     status="active",
+                    tenant_id=tenant_id,
                 )
                 self._session.add(gap)
                 await self._session.flush()
@@ -123,6 +130,21 @@ class ModuleWriteRepository:
             .limit(1)
         )
         return result.scalar_one()
+
+    async def latest_module_in_family(self, module_family_id: UUID) -> Module:
+        """Return the highest-version module row in the family."""
+        return await self._latest_module_in_family(module_family_id)
+
+    async def next_version_in_family(self, module_family_id: UUID) -> int:
+        """Return ``max(version) + 1`` for the family (or ``1`` if empty)."""
+        result = await self._session.execute(
+            select(Module.version)
+            .where(Module.module_family_id == module_family_id)
+            .order_by(Module.version.desc())
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        return (row or 0) + 1
 
     def _version_conflict(
         self,
@@ -232,58 +254,6 @@ class ModuleWriteRepository:
             family.current_published_module_id = new_module.id
         await self._session.flush()
         return new_module
-
-    async def set_clinically_reviewed(
-        self,
-        module_id: UUID,
-        *,
-        flag: bool,
-        reviewer_id: UUID | None = None,
-    ) -> Module:
-        module = await self._session.get(Module, module_id)
-        if module is None or module.lifecycle_status == "retired":
-            raise ModuleNotFoundError(module_id)
-        module.clinically_reviewed = flag
-        module.clinically_reviewed_at = datetime.now(UTC) if flag else None
-        module.clinically_reviewed_by = reviewer_id if flag else None
-
-        if flag:
-            module.lifecycle_status = "published"
-            module.published_at = datetime.now(UTC)
-
-            family = await self._session.get(ModuleFamily, module.module_family_id)
-            if family is not None:
-                family.current_published_module_id = module.id
-                await ModuleLifecycleRepository(self._session).record_first_activation(
-                    module.id,
-                    actor_id=reviewer_id,
-                )
-
-            stmt = select(Module).where(
-                Module.module_family_id == module.module_family_id,
-                Module.id != module.id,
-                Module.lifecycle_status != "retired",
-            )
-            older_modules = (await self._session.execute(stmt)).scalars().all()
-            for old_mod in older_modules:
-                old_mod.lifecycle_status = "retired"
-                old_mod.deprecated_at = datetime.now(UTC)
-
-        await self._session.flush()
-        return module
-
-    async def set_visibility_window(
-        self,
-        module_id: UUID,
-        *,
-        window: Any | None,
-    ) -> Module:
-        module = await self._session.get(Module, module_id)
-        if module is None or module.lifecycle_status == "retired":
-            raise ModuleNotFoundError(module_id)
-        module.visibility_window = window
-        await self._session.flush()
-        return module
 
     async def retire_module(self, module_id: UUID) -> Module:
         module = await self._session.get(Module, module_id)

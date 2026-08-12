@@ -67,7 +67,7 @@ async def _make_module(
     primary_gap_id=None,
     version: int = 1,
 ) -> Module:
-    family = ModuleFamily(module_code=f"WRK-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"WRK-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     module = Module(
@@ -80,6 +80,7 @@ async def _make_module(
         estimated_minutes=5,
         difficulty_level="basic",
         primary_gap_id=primary_gap_id,
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()
@@ -94,6 +95,7 @@ async def _make_gap(session: AsyncSession) -> BehaviouralGap:
         description="x",
         domain="hypertension",
         detection_rule_jsonb={},
+        tenant_id=1,
     )
     session.add(gap)
     await session.flush()

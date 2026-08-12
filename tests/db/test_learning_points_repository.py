@@ -26,7 +26,7 @@ async def test_insert_award_row_and_sum_total(db_session: AsyncSession) -> None:
     ok = await repo.try_claim_and_increment(
         event_id=eid,
         chw_id=chw,
-        tenant_id=None,
+        tenant_id=1,
         delta=7,
     )
     assert ok is True
@@ -39,8 +39,8 @@ async def test_same_event_id_second_call_is_no_op(db_session: AsyncSession) -> N
     chw = _chw()
     eid = uuid4()
     repo = LearningPointsRepository(db_session)
-    assert await repo.try_claim_and_increment(event_id=eid, chw_id=chw, tenant_id=None, delta=10) is True
-    assert await repo.try_claim_and_increment(event_id=eid, chw_id=chw, tenant_id=None, delta=99) is False
+    assert await repo.try_claim_and_increment(event_id=eid, chw_id=chw, tenant_id=1, delta=10) is True
+    assert await repo.try_claim_and_increment(event_id=eid, chw_id=chw, tenant_id=1, delta=99) is False
     assert await repo.get_total_points(chw_id=chw) == 10
 
 
@@ -50,7 +50,7 @@ async def test_delta_zero_skips_insert(db_session: AsyncSession) -> None:
     chw = _chw()
     eid = uuid4()
     repo = LearningPointsRepository(db_session)
-    assert await repo.try_claim_and_increment(event_id=eid, chw_id=chw, tenant_id=None, delta=0) is False
+    assert await repo.try_claim_and_increment(event_id=eid, chw_id=chw, tenant_id=1, delta=0) is False
     r = await db_session.execute(select(func.count()).select_from(CHWLearningPointEvent))
     assert int(r.scalar_one()) == 0
 
@@ -68,6 +68,6 @@ async def test_multiple_events_sum(db_session: AsyncSession) -> None:
     chw = _chw()
     repo = LearningPointsRepository(db_session)
     e1, e2 = uuid4(), uuid4()
-    assert await repo.try_claim_and_increment(event_id=e1, chw_id=chw, tenant_id=None, delta=3) is True
-    assert await repo.try_claim_and_increment(event_id=e2, chw_id=chw, tenant_id=None, delta=5) is True
+    assert await repo.try_claim_and_increment(event_id=e1, chw_id=chw, tenant_id=1, delta=3) is True
+    assert await repo.try_claim_and_increment(event_id=e2, chw_id=chw, tenant_id=1, delta=5) is True
     assert await repo.get_total_points(chw_id=chw) == 8

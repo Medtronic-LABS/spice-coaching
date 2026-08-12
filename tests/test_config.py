@@ -386,21 +386,21 @@ def test_deployed_env_rejects_insecure_defaults(
 
 
 @pytest.mark.parametrize("app_env", ["production", "staging"])
-def test_deployed_env_requires_spice_tenant_id_map(
+def test_deployed_env_does_not_require_spice_tenant_id_map(
     monkeypatch: pytest.MonkeyPatch,
     app_env: str,
 ) -> None:
     monkeypatch.setenv("APP_ENV", app_env)
     monkeypatch.setenv("SPICE_AUTH_ENABLED", "true")
     monkeypatch.setenv("CORS_ALLOW_ORIGINS", "https://app.example.com")
-    with pytest.raises(ValidationError, match="SPICE_TENANT_ID_MAP"):
-        Settings(
-            database_password="secure-password",
-            ai_runtime_token="prod-token",
-            object_storage_access_key="prod-access",
-            object_storage_secret_key="prod-secret",
-            spice_tenant_id_map="",
-        )
+    settings = Settings(
+        database_password="secure-password",
+        ai_runtime_token="prod-token",
+        object_storage_access_key="prod-access",
+        object_storage_secret_key="prod-secret",
+    )
+    assert settings.spice_auth_enabled is True
+    assert not hasattr(settings, "spice_tenant_id_map")
 
 
 @pytest.mark.parametrize(

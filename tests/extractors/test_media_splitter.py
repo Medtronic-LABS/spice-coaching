@@ -9,20 +9,31 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from platform_service.workers.extractors.media_splitter import (
+    MIN_TRANSCRIBABLE_CHUNK_BYTES,
     MediaSplitterError,
+    iter_media_time_windows,
     split_into_chunks,
 )
+
+_VALID_PAYLOAD = b"m" * MIN_TRANSCRIBABLE_CHUNK_BYTES
 
 
 def _fake_run(
     duration_seconds: float,
     *,
-    encode_payload: bytes = b"mp3-bytes",
+    encode_payload: bytes = _VALID_PAYLOAD,
+    encode_payloads_by_call: list[bytes] | None = None,
 ) -> MagicMock:
-    """A subprocess.run replacement that fakes ffprobe + ffmpeg calls."""
+    """A subprocess.run replacement that fakes ffprobe + ffmpeg calls.
+
+    When ``encode_payloads_by_call`` is set, the Nth ffmpeg write uses that
+    list entry (falling back to ``encode_payload`` if the list is short).
+    """
     chunk_writes: list[Path] = []
+    encode_call = 0
 
     def runner(cmd: list[str], **kwargs):
+        nonlocal encode_call
         result = MagicMock()
         result.returncode = 0
         result.stderr = ""
@@ -31,8 +42,13 @@ def _fake_run(
         else:
             # ffmpeg: write fake payload to the destination path (last arg).
             dest = Path(cmd[-1])
-            dest.write_bytes(encode_payload)
+            if encode_payloads_by_call is not None and encode_call < len(encode_payloads_by_call):
+                payload = encode_payloads_by_call[encode_call]
+            else:
+                payload = encode_payload
+            dest.write_bytes(payload)
             chunk_writes.append(dest)
+            encode_call += 1
             result.stdout = ""
         return result
 
@@ -59,8 +75,8 @@ def test_short_source_produces_single_chunk(tmp_path: Path, monkeypatch: pytest.
     assert chunks[0].index == 0
     assert chunks[0].start_ms == 0
     assert chunks[0].end_ms == 30_000
-    assert chunks[0].mime_type == "audio/mpeg"
-    assert chunks[0].payload_bytes == b"mp3-bytes"
+    assert chunks[0].mime_type == "audio/mp3"
+    assert chunks[0].payload_bytes == _VALID_PAYLOAD
 
 
 def test_long_source_chunks_with_overlap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,6 +98,37 @@ def test_long_source_chunks_with_overlap(tmp_path: Path, monkeypatch: pytest.Mon
         (210_000, 300_000),
     ]
     assert [c.index for c in chunks] == [0, 1, 2]
+
+
+def test_undersized_trailing_chunk_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Near-empty encode (e.g. seek past real audio) must not be returned."""
+    _patch_binaries(monkeypatch)
+    source = tmp_path / "v.mp4"
+    source.write_bytes(b"x")
+    # Two windows for ~210s with default step; second encode is junk (425 B).
+    fake, _ = _fake_run(
+        duration_seconds=210.0,
+        encode_payloads_by_call=[_VALID_PAYLOAD, b"x" * 425],
+    )
+
+    with patch("platform_service.workers.extractors.media_splitter.subprocess.run", fake):
+        chunks = split_into_chunks(source, source_type="video")
+
+    assert len(chunks) == 1
+    assert chunks[0].index == 0
+    assert chunks[0].start_ms == 0
+    assert chunks[0].end_ms == 120_000
+
+
+def test_all_undersized_chunks_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_binaries(monkeypatch)
+    source = tmp_path / "tiny.mp3"
+    source.write_bytes(b"x")
+    fake, _ = _fake_run(duration_seconds=0.05, encode_payload=b"x" * 425)
+
+    with patch("platform_service.workers.extractors.media_splitter.subprocess.run", fake):
+        with pytest.raises(MediaSplitterError, match="no transcribable audio chunks"):
+            split_into_chunks(source, source_type="audio")
 
 
 def test_video_source_passes_vn_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -152,3 +199,25 @@ def test_unsupported_source_type_raises(tmp_path: Path) -> None:
 def test_chunk_duration_must_exceed_overlap() -> None:
     with pytest.raises(ValueError, match="must be greater than overlap"):
         split_into_chunks("/tmp/x", source_type="audio", chunk_duration_ms=60_000, overlap_ms=60_000)
+
+
+def test_iter_media_time_windows_short_source() -> None:
+    assert iter_media_time_windows(30_000) == [(0, 30_000)]
+
+
+def test_iter_media_time_windows_matches_split_overlap() -> None:
+    assert iter_media_time_windows(300_000) == [
+        (0, 120_000),
+        (105_000, 225_000),
+        (210_000, 300_000),
+    ]
+
+
+def test_iter_media_time_windows_non_positive_is_empty() -> None:
+    assert iter_media_time_windows(0) == []
+    assert iter_media_time_windows(-1) == []
+
+
+def test_iter_media_time_windows_rejects_bad_overlap() -> None:
+    with pytest.raises(ValueError, match="must be greater than overlap"):
+        iter_media_time_windows(60_000, chunk_duration_ms=60_000, overlap_ms=60_000)

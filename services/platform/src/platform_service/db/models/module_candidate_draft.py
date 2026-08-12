@@ -19,9 +19,10 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class ModuleCandidateDraft(Base):
+class ModuleCandidateDraft(TenantMixin, Base):
     __tablename__ = "module_candidate_draft"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

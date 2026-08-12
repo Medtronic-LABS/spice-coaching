@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.chw_training_request import CHWTrainingRequest
 from platform_service.db.tenant_scope import tenant_scope_filter
 
@@ -27,7 +28,7 @@ class TrainingRequestRepository:
         module_id: UUID | None,
         requested_module_name: str | None,
         reason: str | None,
-        tenant_id: UUID | None,
+        tenant_id: int = DEFAULT_TENANT_ID,
         submitted_at: datetime | None = None,
     ) -> CHWTrainingRequest:
         row = CHWTrainingRequest(
@@ -66,7 +67,7 @@ class TrainingRequestRepository:
         self,
         *,
         chw_id: int,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[CHWTrainingRequest]:
@@ -88,7 +89,7 @@ class TrainingRequestRepository:
     async def list_all(
         self,
         *,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> list[CHWTrainingRequest]:
         """Return all training requests, optionally scoped to a tenant."""
         stmt = select(CHWTrainingRequest).order_by(CHWTrainingRequest.submitted_at.desc())
@@ -96,32 +97,7 @@ class TrainingRequestRepository:
             stmt = stmt.where(CHWTrainingRequest.tenant_id == tenant_id)
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def distinct_tenant_ids(self) -> list[UUID]:
-        """Distinct non-null tenant_ids that have training requests."""
-        stmt = (
-            select(CHWTrainingRequest.tenant_id).where(CHWTrainingRequest.tenant_id.is_not(None)).distinct()
-        )
-        return [tid for (tid,) in (await self._session.execute(stmt)).all() if tid is not None]
-
-    async def list_for_module_demand(
-        self,
-        *,
-        module_id: UUID,
-        matched_names: list[str] | None = None,
-        tenant_id: UUID | None = None,
-    ) -> list[CHWTrainingRequest]:
-        """Requests targeting ``module_id`` or free-text names that match it."""
-        clauses = [CHWTrainingRequest.module_id == module_id]
-        if matched_names:
-            normalized = [n.strip().casefold() for n in matched_names if n and n.strip()]
-            if normalized:
-                clauses.append(
-                    (CHWTrainingRequest.module_id.is_(None))
-                    & (func.lower(func.trim(CHWTrainingRequest.requested_module_name)).in_(normalized))
-                )
-        stmt = (
-            select(CHWTrainingRequest).where(or_(*clauses)).order_by(CHWTrainingRequest.submitted_at.desc())
-        )
-        if tenant_id is not None:
-            stmt = stmt.where(CHWTrainingRequest.tenant_id == tenant_id)
-        return list((await self._session.execute(stmt)).scalars().all())
+    async def distinct_tenant_ids(self) -> list[int]:
+        """Distinct tenant_ids that have training requests."""
+        stmt = select(CHWTrainingRequest.tenant_id).distinct()
+        return [tid for (tid,) in (await self._session.execute(stmt)).all()]

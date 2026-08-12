@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from uuid import UUID
 
-from mc_contracts.coaching_rag import CoachingRagRequest, CoachingRagResponse
+from mc_contracts.coaching import CoachingRagRequest, CoachingRagResponse
 from mc_contracts.internal_ai import InferenceRequest, InferenceResponse
 from mc_foundation.objectstore import ObjectNotFoundError
 from platform_service.db.base import SessionLocal
@@ -138,7 +138,7 @@ class RagQueryRunner:
     def __init__(
         self,
         *,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         base_url: str | None = None,
         token: str | None = None,
         cards_by_module: dict[UUID, list[CardCorpusDoc]] | None = None,

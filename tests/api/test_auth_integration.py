@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from unittest.mock import AsyncMock
-from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -18,6 +17,7 @@ from platform_service.auth.rate_limit_middleware import RateLimitMiddleware
 from platform_service.auth.spice_auth_middleware import SpiceAuthMiddleware
 from platform_service.auth.spice_authorization_middleware import SpiceAuthorizationMiddleware
 from platform_service.auth.spice_context import SpiceContexts, SpiceUserContext
+from platform_service.auth.tenant_context import HEADER_TENANT_ID
 from platform_service.config import Settings, get_settings
 from platform_service.integrations.spice_auth_client import SpiceAuthClient
 from pydantic_settings import SettingsConfigDict
@@ -26,13 +26,14 @@ from tests.conftest import platform_path
 
 API_ROOT = "/medtronics-api"
 VALID_TOKEN = "Bearer test.jwt.token"
-TENANT_UUID = uuid4()
 
 DEVICE_USER = SpiceUserContext.model_validate(
     {
         "id": 42,
         "username": "chw_user",
         "tenantId": 7,
+        "organizationIds": [7],
+        "country": {"tenantId": 7},
         "roles": [{"name": "CHW", "suiteAccessName": "mob"}],
     }
 )
@@ -49,6 +50,10 @@ def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         Settings,
         "model_config",
         SettingsConfigDict(env_file=None, env_file_encoding="utf-8", extra="ignore"),
+    )
+    monkeypatch.setattr(
+        "platform_service.auth.spice_auth_middleware.enforce_hierarchy_principal",
+        AsyncMock(return_value=None),
     )
     yield
     get_settings.cache_clear()
@@ -69,7 +74,6 @@ async def integration_client(
     monkeypatch.setenv("SPICE_AUTH_ENABLED", "true")
     monkeypatch.setenv("API_ROOT_PATH", API_ROOT)
     monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
-    monkeypatch.setenv("SPICE_TENANT_ID_MAP", f'{{"7": "{TENANT_UUID}"}}')
     get_settings.cache_clear()
 
     app = FastAPI()
@@ -97,7 +101,7 @@ async def test_device_user_cannot_query_other_chw_id(
     resp = await integration_client.get(
         platform_path("/morning/cards"),
         params={"chw_id": 99},
-        headers={"Authorization": VALID_TOKEN},
+        headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
     assert resp.status_code == 403
 
@@ -114,7 +118,7 @@ async def test_device_user_can_query_own_chw_id(
     resp = await integration_client.get(
         platform_path("/morning/cards"),
         params={"chw_id": 42},
-        headers={"Authorization": VALID_TOKEN},
+        headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
     assert resp.status_code == 200
 

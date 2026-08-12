@@ -37,20 +37,23 @@ async def app() -> AsyncIterator[FastAPI]:
         validation_error_type=RequestValidationError,
         http_exception_type=HTTPException,
     )
-    api_router = APIRouter(prefix=get_settings().api_root_path_normalized)
-    api_router.include_router(dashboard_router)
-    app_obj.include_router(api_router)
+    # Auth-off: hierarchy viewer is unrestricted without a spice_user on the request.
+    auth_off = get_settings().model_copy(update={"spice_auth_enabled": False})
+    with patch("platform_service.api.dashboard.get_settings", return_value=auth_off):
+        api_router = APIRouter(prefix=auth_off.api_root_path_normalized)
+        api_router.include_router(dashboard_router)
+        app_obj.include_router(api_router)
 
-    ch_mock = MagicMock()
-    ch_mock.query_rows = AsyncMock(return_value=[])
-    app_obj.dependency_overrides[get_clickhouse_client] = lambda: ch_mock
+        ch_mock = MagicMock()
+        ch_mock.query_rows = AsyncMock(return_value=[])
+        app_obj.dependency_overrides[get_clickhouse_client] = lambda: ch_mock
 
-    async def _override_get_db() -> AsyncIterator[MagicMock]:
-        yield MagicMock()
+        async def _override_get_db() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
 
-    app_obj.dependency_overrides[get_db] = _override_get_db
-    yield app_obj
-    app_obj.dependency_overrides.clear()
+        app_obj.dependency_overrides[get_db] = _override_get_db
+        yield app_obj
+        app_obj.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
@@ -124,6 +127,40 @@ class TestDigitalHelpModuleUsageRoute:
         assert mock_get.await_args.kwargs["to_date"] == date(2026, 1, 31)
         assert mock_get.await_args.kwargs["limit"] == 10
         assert mock_get.await_args.kwargs["offset"] == 0
+        assert mock_get.await_args.kwargs["chw_ids"] is None
+
+    @patch(
+        "platform_service.api.dashboard._resolve_dashboard_chw_ids",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "platform_service.api.dashboard.DashboardAnalyticsService.get_digital_help_module_usage",
+        new_callable=AsyncMock,
+    )
+    async def test_digital_help_modules_passes_hierarchy_chw_ids(
+        self,
+        mock_get: AsyncMock,
+        mock_resolve: AsyncMock,
+        client: AsyncClient,
+    ) -> None:
+        mock_resolve.return_value = frozenset({3001, 3002})
+        mock_get.return_value = DigitalHelpModuleUsageResponse(
+            from_date=date(2026, 1, 1),
+            to_date=date(2026, 1, 31),
+            total_digital_help=0,
+            total_module_requested=0,
+            total_modules=0,
+            limit=20,
+            offset=0,
+            modules=[],
+        )
+        resp = await client.get(
+            platform_path("/dashboard/digital-help-modules?from_date=2026-01-01&to_date=2026-01-31")
+        )
+        assert resp.status_code == 200
+        mock_resolve.assert_awaited_once()
+        assert mock_resolve.await_args.kwargs["include_self"] is False
+        assert mock_get.await_args.kwargs["chw_ids"] == frozenset({3001, 3002})
 
     @patch(
         "platform_service.api.dashboard.DashboardAnalyticsService.get_digital_help_module_usage",
@@ -319,6 +356,37 @@ class TestModuleCreationSuggestionsRoutes:
         assert data["suggestions"][0]["id"] == str(suggestion_id)
         assert data["suggestions"][0]["suggestion_kind"] == "proposed_topic"
         mock_service.list_suggestions.assert_awaited_once()
+        assert mock_service.list_suggestions.await_args.kwargs["visible_chw_ids"] is None
+
+    @patch("platform_service.api.dashboard._resolve_dashboard_chw_ids", new_callable=AsyncMock)
+    @patch("platform_service.api.dashboard.ModuleCreationSuggestionService")
+    async def test_list_suggestions_passes_visible_chw_ids(
+        self,
+        mock_service_cls: MagicMock,
+        mock_resolve: AsyncMock,
+        client: AsyncClient,
+    ) -> None:
+        from mc_contracts.dashboard import ModuleCreationSuggestionListResponse
+
+        mock_resolve.return_value = frozenset({3001})
+        mock_service = MagicMock()
+        mock_service.list_suggestions = AsyncMock(
+            return_value=ModuleCreationSuggestionListResponse(
+                from_date=date(2026, 7, 1),
+                to_date=date(2026, 7, 31),
+                suggestions=[],
+                total_suggestions=0,
+                total_pages=0,
+                limit=20,
+                offset=0,
+            )
+        )
+        mock_service_cls.return_value = mock_service
+        resp = await client.get(
+            platform_path("/dashboard/module-creation-suggestions?from_date=2026-07-01&to_date=2026-07-31")
+        )
+        assert resp.status_code == 200
+        assert mock_service.list_suggestions.await_args.kwargs["visible_chw_ids"] == frozenset({3001})
 
     @patch("platform_service.api.dashboard.ModuleCreationSuggestionService")
     async def test_list_invalid_date_range_returns_422(

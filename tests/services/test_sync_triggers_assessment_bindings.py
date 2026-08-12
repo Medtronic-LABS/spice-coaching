@@ -19,7 +19,7 @@ pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 async def test_triggers_bundle_includes_assessment_due_binding(db_session: AsyncSession) -> None:
-    family = ModuleFamily(module_code=f"sync-trig-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"sync-trig-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
 
@@ -38,6 +38,7 @@ async def test_triggers_bundle_includes_assessment_due_binding(db_session: Async
         module_type="refresher",
         lifecycle_status="published",
         module_json={"cards": []},
+        tenant_id=1,
     )
     db_session.add(module)
     await db_session.flush()

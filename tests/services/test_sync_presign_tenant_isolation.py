@@ -1,4 +1,4 @@
-"""Tenant isolation for device sync presign endpoints."""
+"""Tenant isolation for sync presign helpers."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from platform_service.config import Settings
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.source_document import SourceDocument
-from platform_service.services.sync_service import SyncService
+from platform_service.services.sync.presign_service import SyncPresignService
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import requires_db
@@ -20,8 +20,8 @@ from tests.conftest import requires_db
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 _BUCKET = "medtronics-storage"
-_TENANT_A = UUID("11111111-1111-1111-1111-111111111111")
-_TENANT_B = UUID("22222222-2222-2222-2222-222222222222")
+_TENANT_A = 1111
+_TENANT_B = 2222
 _STORAGE_PATH = f"{_BUCKET}/source-documents/tenant-test.pdf"
 _THUMB_PATH = f"{_BUCKET}/ingest/thumbnails/tenant-test.png"
 
@@ -49,6 +49,7 @@ async def _seed_source_document(session: AsyncSession) -> SourceDocument:
         original_storage_path=_STORAGE_PATH,
         thumbnail_storage_path=_THUMB_PATH,
         status="ingested",
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()
@@ -58,11 +59,11 @@ async def _seed_source_document(session: AsyncSession) -> SourceDocument:
 async def _seed_module(
     session: AsyncSession,
     *,
-    tenant_id: UUID,
+    tenant_id: int,
     source_document_ids: list[UUID] | None = None,
     thumbnail_storage_path: str | None = _THUMB_PATH,
 ) -> Module:
-    family = ModuleFamily(module_code=f"tenant-iso-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"tenant-iso-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     module = Module(
@@ -90,7 +91,7 @@ async def test_presign_source_document_rejects_other_tenant(db_session: AsyncSes
     storage = _mock_storage()
     settings = Settings(object_storage_bucket_name=_BUCKET)
 
-    resp = await SyncService(db_session).get_source_document_presigned_urls(
+    resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc.id],
         storage=storage,
         settings=settings,
@@ -110,7 +111,7 @@ async def test_presign_source_document_allows_own_tenant(db_session: AsyncSessio
     storage = _mock_storage()
     settings = Settings(object_storage_bucket_name=_BUCKET)
 
-    resp = await SyncService(db_session).get_source_document_presigned_urls(
+    resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc.id],
         storage=storage,
         settings=settings,
@@ -125,28 +126,6 @@ async def test_presign_source_document_allows_own_tenant(db_session: AsyncSessio
 
 @pytest.mark.asyncio
 @requires_db
-async def test_presign_module_thumbnail_rejects_other_tenant(db_session: AsyncSession) -> None:
-    module = await _seed_module(db_session, tenant_id=_TENANT_A)
-    storage = _mock_storage()
-
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(
-            "platform_service.services.source_thumbnail_service.presign_thumbnail",
-            AsyncMock(return_value=("https://minio.example/thumb", 600)),
-        )
-        resp = await SyncService(db_session).get_module_thumbnail_presigned_urls(
-            module_ids=[module.id],
-            storage=storage,
-            settings=Settings(object_storage_bucket_name=_BUCKET),
-            tenant_id=_TENANT_B,
-        )
-
-    assert resp.urls == []
-    assert resp.missing_ids == [module.id]
-
-
-@pytest.mark.asyncio
-@requires_db
 async def test_presign_source_document_thumbnail_rejects_other_tenant(db_session: AsyncSession) -> None:
     doc = await _seed_source_document(db_session)
     await _seed_module(db_session, tenant_id=_TENANT_A, source_document_ids=[doc.id])
@@ -157,7 +136,7 @@ async def test_presign_source_document_thumbnail_rejects_other_tenant(db_session
             "platform_service.services.source_thumbnail_service.presign_thumbnail",
             AsyncMock(return_value=("https://minio.example/thumb", 600)),
         )
-        resp = await SyncService(db_session).get_source_document_thumbnail_presigned_urls(
+        resp = await SyncPresignService(db_session).get_source_document_thumbnail_presigned_urls(
             source_document_ids=[doc.id],
             storage=storage,
             settings=Settings(object_storage_bucket_name=_BUCKET),

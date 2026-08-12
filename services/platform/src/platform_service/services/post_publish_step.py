@@ -23,7 +23,8 @@ async def finish_post_publish_step(
 ) -> None:
     """Complete or fail a post-publish step and maybe finalize the ingestion run.
 
-    When ``step_id`` is None (manual regenerate from admin), this is a no-op.
+    When ``step_id`` is None (standalone enqueue without an ingestion step),
+    this is a no-op.
     ``error_code``/``error_message`` are required in practice for failures —
     callers should pass an :class:`ErrorCode` value and a short technical
     message; the fallbacks below only guard against missed call sites.

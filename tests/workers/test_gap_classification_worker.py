@@ -20,15 +20,21 @@ from platform_service.workers.gap_classification_worker import classify_module_g
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "module_behavioural_gap, module, module_family, behavioural_gap")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module_behavioural_gap, module, module_family, behavioural_gap RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 async def _seed_gap(
@@ -44,6 +50,7 @@ async def _seed_gap(
         severity_default="moderate",
         detection_rule_jsonb={},
         status="active",
+        tenant_id=1,
     )
     session.add(gap)
     await session.flush()
@@ -56,7 +63,7 @@ async def _seed_module_with_primary(session: AsyncSession) -> tuple[Module, Beha
         gap_code=f"module_primary_gap_{uuid4().hex}",
         domain="hypertension",
     )
-    fam = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}")
+    fam = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}", tenant_id=1)
     session.add(fam)
     await session.flush()
     module = Module(
@@ -76,6 +83,7 @@ async def _seed_module_with_primary(session: AsyncSession) -> tuple[Module, Beha
             ]
         },
         lifecycle_status="draft",
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()
@@ -141,7 +149,7 @@ class TestClassifyModuleGapsWorker:
         client.generate = AsyncMock(return_value=_inference_response(gap_codes=["referral_cbs"]))
 
         with patch(
-            "platform_service.services.module_gap_classifier.get_ai_client",
+            "platform_service.services.module_gap_classifier.AIRuntimeClient",
             return_value=client,
         ):
             count = await classify_module_gaps_for_module(module.id)

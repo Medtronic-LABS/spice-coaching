@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+import unicodedata
 import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, Literal
@@ -28,6 +30,46 @@ from mc_foundation.objectstore import (
 
 ObjectStorageBackend = Literal["minio", "s3"]
 PresignMode = Literal["direct", "proxy"]
+
+_UNSAFE_KEY_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+_ASCII_EXT = re.compile(r"^[A-Za-z0-9]{1,10}$")
+
+
+def _ascii_safe_object_basename(name: str) -> str:
+    """Basename safe for S3 object keys and SigV4 HTTP headers (ASCII only)."""
+    base = safe_basename(name)
+    stem, dot, ext = base.rpartition(".")
+    if not stem or not dot or not _ASCII_EXT.fullmatch(ext):
+        stem, ext = base, ""
+    else:
+        ext = f".{ext}"
+
+    normalised = unicodedata.normalize("NFKD", stem)
+    ascii_stem = normalised.encode("ascii", "ignore").decode("ascii")
+    ascii_stem = _UNSAFE_KEY_CHARS.sub("_", ascii_stem).strip("._") or "file"
+    ascii_ext = ext.encode("ascii", "ignore").decode("ascii")
+    ascii_ext = re.sub(r"[^A-Za-z0-9.]", "", ascii_ext)
+    return f"{ascii_stem}{ascii_ext}"
+
+
+def _ascii_safe_object_key(object_name: str) -> str:
+    """Keep path prefixes; ASCII-sanitise only the final key segment."""
+    parts = object_name.split("/")
+    parts[-1] = _ascii_safe_object_basename(parts[-1])
+    return "/".join(parts)
+
+
+def _ascii_safe_metadata(metadata: dict[str, str]) -> dict[str, str]:
+    """Percent-encode non-ASCII metadata values (S3 user metadata is ASCII-only)."""
+    out: dict[str, str] = {}
+    for key, value in metadata.items():
+        text = str(value)
+        try:
+            text.encode("ascii")
+        except UnicodeEncodeError:
+            text = quote(text, safe="")
+        out[str(key)] = text
+    return out
 
 
 def _endpoint_url(endpoint: str | None, *, secure: bool) -> str | None:
@@ -253,7 +295,7 @@ class S3ObjectStore:
         prefix: str,
         max_bytes: int | None,
     ) -> StoredObject:
-        safe_filename = safe_basename(filename)
+        safe_filename = _ascii_safe_object_basename(filename)
         normalised_prefix = normalise_prefix(prefix)
         if normalised_prefix.split("/", maxsplit=1)[0] not in self.allowed_prefixes:
             raise ValueError(f"unsupported prefix {prefix!r}; accepted: {sorted(self.allowed_prefixes)}")
@@ -303,12 +345,14 @@ class S3ObjectStore:
             raise ValueError(
                 f"unsupported object prefix {parts[0]!r}; accepted: {sorted(self.allowed_prefixes)}"
             )
+        object_name = _ascii_safe_object_key(object_name)
         try:
             self._ensure_bucket()
             extra: dict[str, Any] = {"ContentType": content_type}
             if metadata:
                 # boto3 expects Metadata values as strings without the x-amz-meta- prefix.
-                extra["Metadata"] = {str(k): str(v) for k, v in metadata.items()}
+                # Values must be ASCII; non-ASCII (e.g. Unicode filenames) are percent-encoded.
+                extra["Metadata"] = _ascii_safe_metadata({str(k): str(v) for k, v in metadata.items()})
             self._client.upload_file(
                 local_path,
                 self.bucket_name,

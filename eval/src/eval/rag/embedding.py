@@ -39,7 +39,7 @@ class EmbeddingRetriever:
     def __init__(
         self,
         *,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         client: AIRuntimeClient | None = None,
         base_url: str | None = None,
         token: str | None = None,

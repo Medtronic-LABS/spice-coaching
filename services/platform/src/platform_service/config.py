@@ -9,15 +9,12 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Self
-from uuid import UUID
 
 from mc_contracts.localized import LocaleConfig
 from mc_foundation.config import BaseAppSettings
 from mc_foundation.locale import get_supported_locales
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
-
-from platform_service.tenant_mapping import parse_spice_tenant_id_map
 
 _DEV_AI_RUNTIME_TOKEN = "dev-internal-token"
 _DEV_OBJECT_STORAGE_ACCESS_KEY = "minioadmin"
@@ -77,14 +74,14 @@ class Settings(BaseAppSettings):
     spice_auth_base_url: str = "https://spice-dev-backend.uhis.labsplatform.com/auth-service/"
     spice_auth_timeout_seconds: float = 5.0
     # Fallback ``client`` header when the caller omits it (SPICE mobile = mob).
-    spice_auth_default_client: str = "mob"
+    spice_auth_default_client: str = "web"
     # Comma-separated path suffixes exempt from auth (under api_root_path).
-    spice_auth_exempt_paths: str = "ready"
+    spice_auth_exempt_paths: str = "ready,docs,openapi.json,auth/session"
     # Comma-separated relative path prefixes (under api_root_path) per authorization plane.
-    spice_admin_path_prefixes: str = "admin,dashboard"
+    spice_admin_path_prefixes: str = "admin"
     spice_device_path_prefixes: str = "telemetry,sync,morning,coaching"
-    # JSON ``{"1": "<uuid>", ...}`` or comma-separated ``1=<uuid>,2=<uuid>``.
-    spice_tenant_id_map: str = ""
+    # Shared plane: admin principals or device organizers (PO); client=mob allowed.
+    spice_shared_path_prefixes: str = "dashboard"
 
     # ── Rate limiting (Redis sliding window per client IP) ─────
     rate_limit_enabled: bool = True
@@ -148,6 +145,10 @@ class Settings(BaseAppSettings):
         return f"{self.spice_auth_base_url.rstrip('/')}/authenticate"
 
     @property
+    def spice_auth_session_url(self) -> str:
+        return f"{self.spice_auth_base_url.rstrip('/')}/session"
+
+    @property
     def spice_auth_exempt_path_set(self) -> frozenset[str]:
         root = self.api_root_path_normalized
         paths: set[str] = set()
@@ -168,6 +169,10 @@ class Settings(BaseAppSettings):
     def spice_device_path_prefix_set(self) -> frozenset[str]:
         return self._spice_path_prefix_set(self.spice_device_path_prefixes)
 
+    @property
+    def spice_shared_path_prefix_set(self) -> frozenset[str]:
+        return self._spice_path_prefix_set(self.spice_shared_path_prefixes)
+
     def _spice_path_prefix_set(self, raw: str) -> frozenset[str]:
         prefixes: set[str] = set()
         for item in raw.split(","):
@@ -175,13 +180,6 @@ class Settings(BaseAppSettings):
             if clean:
                 prefixes.add(clean)
         return frozenset(prefixes)
-
-    @property
-    def spice_tenant_uuid_by_id(self) -> dict[int, UUID]:
-        try:
-            return parse_spice_tenant_id_map(self.spice_tenant_id_map)
-        except ValueError as exc:
-            raise ValueError(f"invalid SPICE_TENANT_ID_MAP: {exc}") from exc
 
     # ── Stage 1 — quality heuristic thresholds ──────────────────
     extraction_quality_text_empty_min_chars: int = 50
@@ -256,13 +254,32 @@ class Settings(BaseAppSettings):
     # Max characters for optional admin ingestion steering text (Stage C).
     ingestion_instructions_max_length: int = 2000
 
+    # ── Stage 1 — embedded figure extraction ─────────────────────
+    # Native PDF/PPTX/DOCX image extract into object storage + source_image.
+    ingest_source_image_extraction_enabled: bool = False
+    ingest_source_image_min_edge_px: int = 64
+    ingest_source_image_min_bytes: int = 2048
+    ingest_source_image_max_aspect_ratio: float = 12.0
+    ingest_source_image_min_strip_edge_px: int = 32
+
+    # ── Stage 1 — video visual extraction ────────────────────────
+    # Sample frames from video, vision-extract, append markdown + source_image.
+    # Soft-fail; does not block transcript Stage A. Defaults off.
+    ingest_video_visual_extraction_enabled: bool = True
+    ingest_video_frame_interval_ms: int = 30_000
+    ingest_video_max_frames_per_document: int = 40
+
     # ── Stage 2-draft — bilingual card drafting ─────────────────
     # Cardinality bounds. Quiz bounds also apply to the post-publish quiz
     # generation worker.
-    quiz_min_questions: int = 3
+    quiz_min_questions: int = 1
     quiz_max_questions: int = 10
-    card_min_count: int = 3
+    card_min_count: int = 1
     card_max_count: int = 10
+    # Post-draft hybrid (proximity → embedding) image → card assignment.
+    ingest_card_image_assignment_enabled: bool = False
+    ingest_card_image_max_per_card: int = 5
+    ingest_card_image_min_cosine: float = 0.35
 
     # ── Post-publish — behavioural gap classification ───────────
     post_publish_gap_classification_enabled: bool = False
@@ -295,9 +312,6 @@ class Settings(BaseAppSettings):
     chat_faq_cluster_candidate_limit: int = 100
     chat_faq_weekly_hour_utc: int = 2
     chat_faq_weekly_day_of_week: int = 0  # 0=Sunday (Celery crontab convention)
-
-    # ── Module demand summary (daily Celery beat) ────────────────
-    module_demand_summary_daily_hour_utc: int = 3
 
     # ── Module creation suggestions (daily Celery beat) ──────────
     module_creation_suggestions_daily_hour_utc: int = 4
@@ -486,8 +500,6 @@ class Settings(BaseAppSettings):
             )
         if not self.spice_auth_enabled:
             errors.append("SPICE_AUTH_ENABLED must be true in production")
-        if not self.spice_tenant_id_map.strip():
-            errors.append("SPICE_TENANT_ID_MAP must be configured in production")
         if "*" in self.cors_allow_origins_list:
             errors.append("CORS_ALLOW_ORIGINS must not include '*' in production")
         if errors:

@@ -14,6 +14,7 @@ from platform_service.db.models.module import Module
 from platform_service.db.repositories.trigger_repository import TriggerRepository
 from platform_service.services.assessment_topic_classifier import AssessmentTopicClassifier
 from platform_service.services.post_publish_step import finish_post_publish_step
+from platform_service.workers.tenant_binding import with_module_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ def _enqueue_embedding(module_id: UUID, embedding_step_id: UUID | None) -> None:
     generate_module_embedding_task.delay(str(module_id), str(embedding_step_id))
 
 
+@with_module_tenant
 async def bind_assessment_triggers_for_module(
     module_id: UUID,
     *,

@@ -41,6 +41,30 @@ def test_render_video_frame_writes_png(tmp_path: Path, monkeypatch: pytest.Monke
     assert dest.read_bytes() == fake_png
 
 
+def test_render_video_frame_with_timestamp_seeks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_binaries(monkeypatch)
+    dest = tmp_path / "frame.png"
+    captured: list[list[str]] = []
+
+    def runner(cmd: list[str], **kwargs):
+        captured.append(cmd)
+        result = MagicMock()
+        result.returncode = 0
+        result.stderr = ""
+        Path(cmd[-1]).write_bytes(b"\x89PNG\r\n\x1a\n")
+        return result
+
+    monkeypatch.setattr(
+        "platform_service.workers.extractors.media_thumbnail.subprocess.run",
+        MagicMock(side_effect=runner),
+    )
+    render_video_frame_to_png(tmp_path / "video.mp4", dest_path=dest, timestamp_ms=30_000)
+    assert captured
+    assert "-ss" in captured[0]
+    assert "30.000" in captured[0]
+    assert "select=eq(n\\,0)" not in captured[0]
+
+
 def test_render_audio_waveform_writes_png(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_binaries(monkeypatch)
     dest = tmp_path / "wave.png"

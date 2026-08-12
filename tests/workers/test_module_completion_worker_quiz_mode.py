@@ -83,6 +83,7 @@ async def test_passing_quiz_resolves_quiz_question_state(
             module_id=module.id,
             failed_attempts_count=2,
             status="active",
+            tenant_id=1,
         )
     )
     await db_session.flush()
@@ -126,6 +127,7 @@ async def test_correct_outcome_resets_negative_failed_attempts_to_zero(
             failed_attempts_count=-1,
             status="active",
             escalated_to_supervisor=True,
+            tenant_id=1,
         )
     )
     await db_session.flush()
@@ -173,6 +175,7 @@ async def test_correct_outcome_resets_positive_failed_attempts_to_zero(
             status="active",
             escalated_to_supervisor=True,
             last_failed_attempt_at=datetime.now(UTC),
+            tenant_id=1,
         )
     )
     await db_session.flush()

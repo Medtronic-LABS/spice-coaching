@@ -8,7 +8,7 @@ import uuid
 from typing import Any
 from uuid import UUID
 
-from mc_contracts.coaching_rag import (
+from mc_contracts.coaching import (
     CoachingRagRequest,
     CoachingRagResponse,
     RetrievedModuleHit,
@@ -44,6 +44,8 @@ from platform_service.localized import (
 )
 from platform_service.services.card_body_text import card_body_plain_text
 from platform_service.services.card_normalisation import card_row_to_dict
+from platform_service.services.coaching_chat_gate import should_route_chat
+from platform_service.services.coaching_chat_router import CoachingChatRouter
 from platform_service.services.coaching_rag_errors import CoachingRagError
 from platform_service.services.embedding_vector import assert_embedding_dimension
 from platform_service.services.llm_text_utils import strip_json_fence
@@ -65,6 +67,17 @@ def parse_rag_json(raw_text: str, parsed_json: Any) -> dict[str, Any]:
         raise CoachingRagError(f"model returned non-JSON answer: {exc}") from exc
 
 
+def resolve_response_language(body: CoachingRagRequest, settings: Settings) -> str:
+    lang = body.response_language.strip() or settings.deployment_primary_locale
+    supported = settings.deployment_locale_config.supported
+    if lang not in supported:
+        raise CoachingRagError(
+            f"response_language must be one of {supported!r}, got {lang!r}",
+            status_code=400,
+        )
+    return lang
+
+
 class CoachingRagService:
     def __init__(
         self,
@@ -83,13 +96,29 @@ class CoachingRagService:
         self,
         body: CoachingRagRequest,
         *,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> CoachingRagResponse:
         settings = self._settings
         ttl = min(
             settings.coaching_rag_presigned_url_ttl_seconds,
             settings.admin_file_presigned_max_seconds,
         )
+        lang = resolve_response_language(body, settings)
+
+        if should_route_chat(body.question):
+            routed = await CoachingChatRouter(self._session, self._ai).route(
+                question=body.question,
+                lang=lang,
+            )
+            if routed is not None and routed.should_early_return:
+                return CoachingRagResponse(
+                    answer=routed.answer,
+                    retrieved_modules=[],
+                    source_documents=[],
+                    model=routed.model,
+                    cited_module_ids=[],
+                    suggested_questions=routed.suggested_questions,
+                )
 
         try:
             vectors = await self._ai.embed([body.question])
@@ -127,7 +156,7 @@ class CoachingRagService:
             per_module_budget=per_mod,
             cards_by_module=cards_by_module,
         )
-        resp = await self._generate_answer(body, context)
+        resp = await self._generate_answer(body, context, lang=lang)
         if resp.error:
             raise CoachingRagError(f"ai-runtime error: {resp.error}")
 
@@ -241,15 +270,14 @@ class CoachingRagService:
             return text[:context_max_chars] + "\n... CONTEXT TRUNCATED ..."
         return text
 
-    async def _generate_answer(self, body: CoachingRagRequest, context: str) -> InferenceResponse:
+    async def _generate_answer(
+        self,
+        body: CoachingRagRequest,
+        context: str,
+        *,
+        lang: str,
+    ) -> InferenceResponse:
         settings = self._settings
-        lang = body.response_language.strip() or settings.deployment_primary_locale
-        supported = settings.deployment_locale_config.supported
-        if lang not in supported:
-            raise CoachingRagError(
-                f"response_language must be one of {supported!r}, got {lang!r}",
-                status_code=400,
-            )
         rendered = await PromptTemplateService().render(
             self._session,
             template_id=COACHING_RAG_TEMPLATE_ID,
@@ -315,7 +343,7 @@ class CoachingRagService:
         cited_ids: list[UUID],
         ttl: int,
         cards_by_module: dict[UUID, list[dict[str, Any]]],
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> list[SourceAttribution]:
         settings = self._settings
         module_repo = ModuleRepository(self._session)

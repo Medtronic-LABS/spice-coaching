@@ -92,7 +92,7 @@ class TelemetryBatch(BaseModel):
     events: list[TelemetryEvent] = Field(..., max_length=_MAX_EVENTS_PER_BATCH)
     sdk_version: str
     chw_id: int
-    tenant_id: UUID | None = None
+    tenant_id: int | None = None
 
 
 class TelemetryAckResponse(BaseModel):

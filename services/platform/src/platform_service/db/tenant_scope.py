@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from uuid import UUID
-
-from sqlalchemy import ColumnElement, or_
+from sqlalchemy import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 
 
 def tenant_scope_filter(
-    column: InstrumentedAttribute[UUID | None],
-    tenant_id: UUID,
+    column: InstrumentedAttribute[int],
+    tenant_id: int,
 ) -> ColumnElement[bool]:
-    """Match tenant-global rows (``tenant_id IS NULL``) and tenant-specific rows."""
-    return or_(column.is_(None), column == tenant_id)
+    """Match rows belonging to ``tenant_id`` (exact equality; no shared-NULL scope)."""
+    return column == tenant_id

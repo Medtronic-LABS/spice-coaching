@@ -78,7 +78,7 @@ GET /admin/modules?domain=clinical
 }
 ```
 
-Each row includes `domain`, `lifecycle_status`, `created_at`, `published_at` (see `packages/contracts/src/mc_contracts/admin_modules.py`). `total_modules` / `total_pages` respect the same filters as the page.
+Each row includes `domain`, `lifecycle_status`, `created_at`, `published_at` (see `packages/contracts/src/mc_contracts/modules.py`). `total_modules` / `total_pages` respect the same filters as the page.
 
 ---
 

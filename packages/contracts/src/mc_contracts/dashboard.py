@@ -10,34 +10,6 @@ from pydantic import BaseModel, Field
 from mc_contracts.localized import LocalizedString
 
 
-class GapSummary(BaseModel):
-    scenario_id: str
-    wrong_count: int
-    skip_count: int
-    gap_active: bool
-
-
-class CHWSkillSnapshot(BaseModel):
-    chw_id: int
-    digital_help_used: int
-    cards_shown: int
-    cards_accepted: int
-    incorrect_referrals: int = 0
-    quiz_correct_rate: float | None
-    active_gaps: list[GapSummary] = Field(default_factory=list)
-
-
-class SupervisorDashboardResponse(BaseModel):
-    """Tier 1 dashboard — data we own, no SPICE enrichment needed."""
-
-    chw_id: int
-    period_days: int = 30
-    chw_snapshot: CHWSkillSnapshot
-    top_gap_scenarios: list[str] = Field(default_factory=list)
-    validator_failure_rate: float | None = None
-    fallback_rate: float | None = None
-
-
 class DigitalHelpModuleUsageItem(BaseModel):
     """One ranked module by combined digital_help_used + module_requested volume.
 
@@ -64,26 +36,6 @@ class DigitalHelpModuleUsageResponse(BaseModel):
     modules: list[DigitalHelpModuleUsageItem] = Field(default_factory=list)
 
 
-class LLMQualityResponse(BaseModel):
-    """AI runtime observability dashboard."""
-
-    period_days: int = 7
-    total_inferences: int
-    digital_help_event_count: int = 0
-    inference_online_count: int = 0
-    inference_edge_count: int = 0
-    inference_offline_count: int = 0
-    validator_pass_count: int = 0
-    validator_fail_count: int = 0
-    fallback_used_count: int = 0
-    avg_latency_ms: float | None = None
-    validator_failure_rate: float | None = None
-    fallback_rate: float | None = None
-    error_rate: float | None = None
-    avg_input_tokens: float | None = None
-    avg_output_tokens: float | None = None
-
-
 class TeamActivitySummary(BaseModel):
     total_users: int
     active_users: int
@@ -105,9 +57,17 @@ class TeamMemberChatbotModuleUsage(BaseModel):
     query_count: int
 
 
-class TeamMemberActivityDetail(BaseModel):
+class TeamActivityMemberDetail(BaseModel):
+    """One current-level team-activity row (AM, PO, or SK).
+
+    AM/PO metrics are rolled up from descendant SKs. ``can_drill_down`` is true
+    for AM/PO rows and false for SK rows.
+    """
+
     user_id: int
     name: str
+    role: str
+    can_drill_down: bool
     is_active: bool
     is_chatbot_engaged: bool
     last_chat_at: datetime | None = None
@@ -122,11 +82,24 @@ class TeamMemberActivityDetail(BaseModel):
 
 
 class TeamActivityResponse(BaseModel):
+    """One-level team activity report.
+
+    Default focus is the caller (Admin/auth-off → AMs; AM → POs; PO → SKs).
+    Optional ``user_id`` drills to a descendant's children. Optional ``depth``
+    (query param, not echoed) selects a deeper member level under that focus.
+    ``members`` is the current level only (no nesting). ``limit``/``offset``/
+    ``total_pages`` page ``members``; ``total_users`` and ``summary.*`` always
+    count Shastiya Kormi (SKs) under the effective focus. ``focus_user_id``
+    echoes the query param when set, otherwise null.
+    """
+
     from_date: date
     to_date: date
     summary: TeamActivitySummary
-    users: list[TeamMemberActivityDetail] = Field(default_factory=list)
+    members: list[TeamActivityMemberDetail] = Field(default_factory=list)
+    focus_user_id: int | None = None
     total_users: int
+    total_members: int = 0
     total_pages: int
     limit: int
     offset: int
@@ -216,6 +189,34 @@ class ModuleCreationSuggestionDetailResponse(BaseModel):
     suggestion: ModuleCreationSuggestionListItem
     questions: list[ModuleCreationSuggestionEvidenceItem] = Field(default_factory=list)
     requests: list[ModuleCreationSuggestionEvidenceItem] = Field(default_factory=list)
+
+
+class PublishedModuleCompletionItem(BaseModel):
+    """One published module version with scoped SK completion counts.
+
+    Completions are counted per ``module_family_id`` (ledger grain). Multiple
+    published versions of the same family in the date range each appear as a
+    row but share the same ``completed_sk_count``.
+    """
+
+    module_id: UUID
+    module_family_id: UUID
+    title: LocalizedString | None = None
+    published_at: datetime
+    completed_sk_count: int
+    total_descendant_sk_count: int
+
+
+class PublishedModuleCompletionsResponse(BaseModel):
+    """Modules published in range with Admin/AM descendant SK completion counts."""
+
+    from_date: date
+    to_date: date
+    total_modules: int
+    total_descendant_sk_count: int
+    limit: int
+    offset: int
+    modules: list[PublishedModuleCompletionItem] = Field(default_factory=list)
 
 
 class DocumentUsageTopItem(BaseModel):

@@ -21,17 +21,22 @@ from platform_service.services.run_state_service import (
     STAGE_QUIZ_GENERATION,
     RunStateService,
 )
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "source_document, ingestion_run_step, ingestion_run")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text("TRUNCATE source_document, ingestion_run_step, ingestion_run RESTART IDENTITY CASCADE")
+    )
+    await db_session.commit()
 
 
 async def _seed_run(session: AsyncSession) -> tuple[RunStateService, object]:
@@ -41,6 +46,7 @@ async def _seed_run(session: AsyncSession) -> tuple[RunStateService, object]:
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -230,6 +236,7 @@ class TestFusionRunLookup:
             primary_language="en",
             content_domain="clinical",
             original_storage_path="/tmp/a.pdf",
+            tenant_id=1,
         )
         sd2 = SourceDocument(
             title="b",
@@ -237,6 +244,7 @@ class TestFusionRunLookup:
             primary_language="en",
             content_domain="clinical",
             original_storage_path="/tmp/b.pdf",
+            tenant_id=1,
         )
         db_session.add_all([sd1, sd2])
         await db_session.flush()

@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,15 +45,19 @@ class ModuleCreationSuggestionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def _scope_filter(self, tenant_id: uuid.UUID | None):  # type: ignore[no-untyped-def]
-        if tenant_id is None:
-            return ModuleCreationSuggestion.tenant_id.is_(None)
+    def _scope_filter(self, tenant_id: int):  # type: ignore[no-untyped-def]
         return ModuleCreationSuggestion.tenant_id == tenant_id
+
+    def _visible_evidence_exists(self, visible_chw_ids: frozenset[int]):  # type: ignore[no-untyped-def]
+        return exists().where(
+            ModuleCreationSuggestionEvidence.suggestion_id == ModuleCreationSuggestion.id,
+            ModuleCreationSuggestionEvidence.sample_chw_id.in_(list(visible_chw_ids)),
+        )
 
     async def replace_for_day(
         self,
         *,
-        tenant_id: uuid.UUID | None,
+        tenant_id: int,
         suggestion_date: date,
         rows: list[SuggestionRow],
         computed_at: datetime,
@@ -107,17 +111,24 @@ class ModuleCreationSuggestionRepository:
     async def list_in_range(
         self,
         *,
-        tenant_id: uuid.UUID | None,
+        tenant_id: int | None,
         from_date: date,
         to_date: date,
         limit: int,
         offset: int,
+        visible_chw_ids: frozenset[int] | None = None,
     ) -> tuple[list[ModuleCreationSuggestion], int]:
         filters = [
-            self._scope_filter(tenant_id),
             ModuleCreationSuggestion.suggestion_date >= from_date,
             ModuleCreationSuggestion.suggestion_date <= to_date,
         ]
+        if tenant_id is not None:
+            filters.append(self._scope_filter(tenant_id))
+        if visible_chw_ids is not None:
+            if len(visible_chw_ids) == 0:
+                return [], 0
+            filters.append(self._visible_evidence_exists(visible_chw_ids))
+
         count_stmt = select(func.count()).select_from(ModuleCreationSuggestion).where(*filters)
         total = int((await self._session.execute(count_stmt)).scalar_one())
         stmt = (
@@ -130,21 +141,31 @@ class ModuleCreationSuggestionRepository:
             .limit(limit)
             .offset(offset)
         )
-        rows = list((await self._session.execute(stmt)).scalars().all())
+        if visible_chw_ids is not None:
+            stmt = stmt.options(selectinload(ModuleCreationSuggestion.evidence))
+        result = await self._session.execute(stmt)
+        rows = list(
+            result.scalars().unique().all() if visible_chw_ids is not None else result.scalars().all()
+        )
         return rows, total
 
     async def get_detail(
         self,
         *,
         suggestion_id: uuid.UUID,
-        tenant_id: uuid.UUID | None,
+        tenant_id: int | None,
+        visible_chw_ids: frozenset[int] | None = None,
     ) -> ModuleCreationSuggestion | None:
+        filters = [ModuleCreationSuggestion.id == suggestion_id]
+        if tenant_id is not None:
+            filters.append(self._scope_filter(tenant_id))
+        if visible_chw_ids is not None:
+            if len(visible_chw_ids) == 0:
+                return None
+            filters.append(self._visible_evidence_exists(visible_chw_ids))
         stmt = (
             select(ModuleCreationSuggestion)
-            .where(
-                ModuleCreationSuggestion.id == suggestion_id,
-                self._scope_filter(tenant_id),
-            )
+            .where(*filters)
             .options(selectinload(ModuleCreationSuggestion.evidence))
         )
-        return (await self._session.execute(stmt)).scalars().first()
+        return (await self._session.execute(stmt)).scalars().unique().first()

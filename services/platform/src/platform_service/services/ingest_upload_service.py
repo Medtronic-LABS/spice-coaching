@@ -25,6 +25,7 @@ from mc_foundation.objectstore import (
     StoredObject,
     safe_basename,
 )
+from mc_foundation.problem import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import Settings, get_settings
@@ -77,7 +78,11 @@ class IngestedSourceResult:
 
 @dataclass(frozen=True)
 class IngestUploadParams:
-    uploaded_by: str
+    """Upload context: string actor for file_upload audit; numeric id for source_document."""
+
+    actor: str
+    uploaded_by_user_id: int | None = None
+    tenant_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -90,18 +95,23 @@ class DuplicateIngestConflict:
     existing_source_documents: tuple[SourceDocument, ...]
 
 
+_DUPLICATE_CONTENT_MESSAGE = (
+    "One or more files match already-uploaded or already-ingested content; set override to re-upload."
+)
+
+
 @dataclass(frozen=True)
-class IngestUploadOutcome:
-    """Result of attempting to upload one file."""
+class _StagedIngestUpload:
+    """Local staging artifact before object-storage / DB writes."""
 
-    uploaded: IngestedSourceResult | None = None
-    skipped: DuplicateIngestConflict | None = None
-
-    def __post_init__(self) -> None:
-        if self.uploaded is not None and self.skipped is not None:
-            raise ValueError("uploaded and skipped are mutually exclusive")
-        if self.uploaded is None and self.skipped is None:
-            raise ValueError("one of uploaded or skipped must be set")
+    staging_path: Path
+    content_sha256: str
+    original_filename: str
+    source_type: str
+    title: str
+    description: str | None
+    override_duplicate: bool
+    content_domain: str
 
 
 class IngestUploadService:
@@ -353,6 +363,21 @@ class IngestUploadService:
         }
 
     @staticmethod
+    def duplicate_content_error(
+        conflicts: list[DuplicateIngestConflict],
+        *,
+        message: str = _DUPLICATE_CONTENT_MESSAGE,
+    ) -> AppError:
+        return AppError(
+            ErrorCode.DUPLICATE_CONTENT.value,
+            message,
+            status=409,
+            extensions={
+                "conflicts": [IngestUploadService.duplicate_conflict_payload(c) for c in conflicts],
+            },
+        )
+
+    @staticmethod
     def source_type_for_upload(file: UploadFile) -> str:
         if not file.filename:
             raise IngestValidationError(
@@ -375,126 +400,160 @@ class IngestUploadService:
         params: IngestUploadParams,
         override_flags: list[bool],
         content_domains: list[str],
-    ) -> list[IngestUploadOutcome]:
-        outcomes: list[IngestUploadOutcome] = []
-        for (
-            upload,
-            doc_title,
-            description,
-            override_duplicate,
-            content_domain,
-        ) in zip(
-            files,
-            titles,
-            descriptions,
-            override_flags,
-            content_domains,
-            strict=True,
-        ):
-            outcomes.append(
-                await self.upload_one_file(
-                    file=upload,
-                    title=doc_title,
-                    description=description,
-                    params=params,
-                    override_duplicate=override_duplicate,
-                    content_domain=content_domain,
-                )
-            )
-        return outcomes
-
-    async def upload_one_file(
-        self,
-        *,
-        file: UploadFile,
-        title: str,
-        params: IngestUploadParams,
-        description: str | None = None,
-        override_duplicate: bool = False,
-        content_domain: str = _DEFAULT_CONTENT_DOMAIN,
-    ) -> IngestUploadOutcome:
-        """Upload one file, persist provenance, and create an uploaded source_document."""
+    ) -> list[IngestedSourceResult]:
+        """Stage all files, reject conflicts atomically, then write storage + DB rows."""
         if self._storage is None:
             raise RuntimeError("IngestUploadService requires object storage for uploads")
-        source_type = self.source_type_for_upload(file)
-        staging_path, content_sha256, original_filename = await self._stage_and_digest_upload(
-            file,
-            source_type=source_type,
-        )
-        source_repo = SourceRepository(self._db)
+
+        staged: list[_StagedIngestUpload] = []
         try:
-            existing = await source_repo.list_duplicate_candidates_by_content_sha256(content_sha256)
-            if existing and not override_duplicate:
-                return IngestUploadOutcome(
-                    skipped=DuplicateIngestConflict(
-                        filename=original_filename,
-                        title=title,
+            for upload, doc_title, description, override_duplicate, content_domain in zip(
+                files,
+                titles,
+                descriptions,
+                override_flags,
+                content_domains,
+                strict=True,
+            ):
+                source_type = self.source_type_for_upload(upload)
+                staging_path, content_sha256, original_filename = await self._stage_and_digest_upload(
+                    upload,
+                    source_type=source_type,
+                )
+                staged.append(
+                    _StagedIngestUpload(
+                        staging_path=staging_path,
                         content_sha256=content_sha256,
-                        existing_source_documents=tuple(existing),
+                        original_filename=original_filename,
+                        source_type=source_type,
+                        title=doc_title,
+                        description=description,
+                        override_duplicate=override_duplicate,
+                        content_domain=content_domain,
                     )
                 )
 
-            try:
-                stored = await self._put_staged_upload_to_object_storage(
-                    staging_path,
-                    original_filename=original_filename,
-                )
-            except ObjectStorageError:
-                logger.exception("Ingest object storage upload failed for %s", file.filename)
-                raise IngestValidationError(
-                    "object storage upload failed",
-                    status_code=502,
-                    code=ErrorCode.OBJECT_STORAGE_ERROR.value,
-                ) from None
+            self._reject_within_batch_duplicate_digests(staged)
+            conflicts = await self._collect_duplicate_conflicts(staged, tenant_id=params.tenant_id)
+            if conflicts:
+                raise self.duplicate_content_error(conflicts)
 
-            storage_path = stored.storage_path
-            await record_file_upload(
-                file_upload_repo=FileUploadRepository(self._db),
-                bucket_name=stored.bucket_name,
-                object_key=stored.object_name,
-                storage_path=storage_path,
-                original_filename=original_filename,
-                content_sha256=content_sha256,
-                content_type=stored.content_type,
-                size_bytes=stored.size_bytes,
-                uploaded_by=params.uploaded_by,
-            )
-
-            doc = await source_repo.create_source_document(
-                title=title,
-                source_type=source_type,
-                primary_language=self._settings.deployment_primary_locale,
-                content_domain=content_domain,
-                original_storage_path=storage_path,
-                content_sha256=content_sha256,
-                original_filename=original_filename,
-                uploaded_by=params.uploaded_by,
-                description=description,
-                sync_published_visible=False,
-                status="uploaded",
-            )
-            await record_attribution_event(
-                self._db,
-                event_type="ingest_uploaded",
-                actor=params.uploaded_by,
-                source_document_id=doc.id,
-                payload={
-                    "stored_path": storage_path,
-                    "source_type": source_type,
-                    "content_domain": content_domain,
-                },
-            )
-            return IngestUploadOutcome(
-                uploaded=IngestedSourceResult(
-                    source_document_id=doc.id,
-                    title=doc.title,
-                    source_type=doc.source_type,
-                    stored_path=storage_path,
-                    content_domain=doc.content_domain,
-                )
-            )
+            results: list[IngestedSourceResult] = []
+            for item in staged:
+                results.append(await self._persist_staged_upload(item, params=params))
+            return results
         finally:
-            staging_path.unlink(missing_ok=True)
+            for item in staged:
+                item.staging_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _reject_within_batch_duplicate_digests(staged: list[_StagedIngestUpload]) -> None:
+        seen: dict[str, str] = {}
+        for item in staged:
+            prior = seen.get(item.content_sha256)
+            if prior is not None:
+                raise IngestValidationError(
+                    (
+                        f"duplicate file content in the same request "
+                        f"({prior!r} and {item.original_filename!r}); "
+                        "remove duplicates from the upload and retry"
+                    ),
+                    status_code=422,
+                )
+            seen[item.content_sha256] = item.original_filename
+
+    async def _collect_duplicate_conflicts(
+        self,
+        staged: list[_StagedIngestUpload],
+        *,
+        tenant_id: int,
+    ) -> list[DuplicateIngestConflict]:
+        source_repo = SourceRepository(self._db)
+        conflicts: list[DuplicateIngestConflict] = []
+        for item in staged:
+            if item.override_duplicate:
+                continue
+            existing = await source_repo.list_duplicate_candidates_by_content_sha256(
+                item.content_sha256,
+                tenant_id=tenant_id,
+            )
+            if existing:
+                conflicts.append(
+                    DuplicateIngestConflict(
+                        filename=item.original_filename,
+                        title=item.title,
+                        content_sha256=item.content_sha256,
+                        existing_source_documents=tuple(existing),
+                    )
+                )
+        return conflicts
+
+    async def _persist_staged_upload(
+        self,
+        item: _StagedIngestUpload,
+        *,
+        params: IngestUploadParams,
+    ) -> IngestedSourceResult:
+        source_repo = SourceRepository(self._db)
+        try:
+            stored = await self._put_staged_upload_to_object_storage(
+                item.staging_path,
+                original_filename=item.original_filename,
+            )
+        except ObjectStorageError:
+            logger.exception("Ingest object storage upload failed for %s", item.original_filename)
+            raise IngestValidationError(
+                "object storage upload failed",
+                status_code=502,
+                code=ErrorCode.OBJECT_STORAGE_ERROR.value,
+            ) from None
+
+        storage_path = stored.storage_path
+        await record_file_upload(
+            file_upload_repo=FileUploadRepository(self._db),
+            bucket_name=stored.bucket_name,
+            object_key=stored.object_name,
+            storage_path=storage_path,
+            original_filename=item.original_filename,
+            content_sha256=item.content_sha256,
+            content_type=stored.content_type,
+            size_bytes=stored.size_bytes,
+            uploaded_by=params.actor,
+            tenant_id=params.tenant_id,
+        )
+
+        doc = await source_repo.create_source_document(
+            title=item.title,
+            source_type=item.source_type,
+            primary_language=self._settings.deployment_primary_locale,
+            content_domain=item.content_domain,
+            original_storage_path=storage_path,
+            content_sha256=item.content_sha256,
+            original_filename=item.original_filename,
+            uploaded_by=params.uploaded_by_user_id,
+            description=item.description,
+            sync_published_visible=False,
+            status="uploaded",
+            tenant_id=params.tenant_id,
+        )
+        await record_attribution_event(
+            self._db,
+            event_type="ingest_uploaded",
+            actor=params.actor,
+            source_document_id=doc.id,
+            payload={
+                "stored_path": storage_path,
+                "source_type": item.source_type,
+                "content_domain": item.content_domain,
+            },
+        )
+        return IngestedSourceResult(
+            source_document_id=doc.id,
+            title=doc.title,
+            source_type=doc.source_type,
+            stored_path=storage_path,
+            content_domain=doc.content_domain,
+        )
 
     async def _stage_and_digest_upload(
         self,

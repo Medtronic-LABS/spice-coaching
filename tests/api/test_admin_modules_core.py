@@ -1,12 +1,10 @@
-"""Admin modules API — module CRUD, search, regenerate."""
+"""Admin modules API — module CRUD and search."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
-import platform_service.celery_tasks as celery_tasks
 import pytest
 from asyncpg import Range
 from fastapi import FastAPI
@@ -20,7 +18,6 @@ from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.models.source_page import SourcePage
 from platform_service.deps import get_object_storage_client
-from platform_service.integrations import ai_runtime_client as arc
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +26,6 @@ from tests.api.conftest import (
     _mock_storage,
     _seed_module,
     _seed_source_document,
-    _unit_basis_vector,
 )
 from tests.conftest import platform_path, requires_db
 from tests.localized_helpers import loc, loc_options, primary_from_response
@@ -254,6 +250,37 @@ class TestListModules:
         resp = await client.get(platform_path("/admin/modules?domain=ncd"))
         assert {primary_from_response(m) for m in resp.json()["modules"]} == {"ncd-mod"}
 
+    async def test_chatbot_faqs_only_filter(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        await _seed_module(
+            db_session,
+            title_localized=loc("training-mod"),
+            domain="clinical",
+            chatbot_faqs_only=False,
+        )
+        await _seed_module(
+            db_session,
+            title_localized=loc("faq-only-mod"),
+            domain="clinical",
+            chatbot_faqs_only=True,
+        )
+
+        exclude_faq = await client.get(
+            platform_path("/admin/modules?status=published&chatbot_faqs_only=false")
+        )
+        assert exclude_faq.status_code == 200
+        assert {primary_from_response(m) for m in exclude_faq.json()["modules"]} == {"training-mod"}
+
+        only_faq = await client.get(platform_path("/admin/modules?status=published&chatbot_faqs_only=true"))
+        assert only_faq.status_code == 200
+        assert {primary_from_response(m) for m in only_faq.json()["modules"]} == {"faq-only-mod"}
+
+        all_published = await client.get(platform_path("/admin/modules?status=published"))
+        assert all_published.status_code == 200
+        assert {primary_from_response(m) for m in all_published.json()["modules"]} == {
+            "training-mod",
+            "faq-only-mod",
+        }
+
     async def test_source_document_ids_in_list_response(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -338,6 +365,14 @@ class TestListModules:
 
         resp = await client.get(platform_path("/admin/modules/domains?status=review_pending"))
         assert resp.json() == ["fusion"]
+
+        resp = await client.get(platform_path("/admin/modules/domains?q=nc"))
+        assert resp.status_code == 200
+        assert resp.json() == ["ncd"]
+
+        resp = await client.get(platform_path("/admin/modules/domains?q=zzz"))
+        assert resp.status_code == 200
+        assert resp.json() == []
 
     async def test_published_date_range_filters_published_at(
         self, client: AsyncClient, db_session: AsyncSession
@@ -628,7 +663,7 @@ class TestGetModuleDetail:
         assert page_ref["page_number"] == 12
         assert page_ref["start_ms"] is None
         assert page_ref["end_ms"] is None
-        assert page_ref["presigned_url"].endswith("#page=12")
+        assert page_ref["presigned_url"] == f"{_PRESIGNED_URL}#page=12"
         assert page_ref["presigned_expires_seconds"] == get_settings().admin_file_presigned_max_seconds
 
     async def test_source_documents_empty_when_no_linked_docs(
@@ -780,13 +815,13 @@ class TestCreateModule:
             )
         ).scalar_one_or_none()
         assert family is not None
-        assert family.module_code
+        assert family.module_code == "new-manual-module"
 
         # Module
         module = (await db_session.execute(select(Module).where(Module.id == new_id))).scalar_one_or_none()
         assert module is not None
         assert module.title_localized["bn"] == "নতুন মডিউল"
-        assert "en" not in module.title_localized
+        assert module.title_localized["en"] == "New Manual Module"
         assert module.lifecycle_status == "draft"
         assert module.clinically_reviewed is False
 
@@ -810,7 +845,7 @@ class TestCreateModule:
             await db_session.execute(select(BehaviouralGap).where(BehaviouralGap.id == module.primary_gap_id))
         ).scalar_one_or_none()
         assert gap is not None
-        assert gap.description == "নতুন মডিউল"
+        assert gap.description == "New Manual Module"
         assert gap.gap_code.startswith("module_primary_gap_")
 
         # Gap link
@@ -836,6 +871,7 @@ class TestCreateModule:
             severity_default="moderate",
             detection_rule_jsonb={},
             status="active",
+            tenant_id=1,
         )
         db_session.add(gap)
         await db_session.flush()
@@ -892,6 +928,7 @@ class TestCreateModule:
             severity_default="moderate",
             detection_rule_jsonb={},
             status="active",
+            tenant_id=1,
         )
         db_session.add(gap)
         await db_session.commit()
@@ -970,6 +1007,66 @@ class TestEditModule:
         assert refreshed is not None
         assert refreshed.clinically_reviewed is True
         assert refreshed.version == v1.version
+
+    async def test_complete_snapshot_with_chatbot_faqs_only_change_creates_version(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        v1 = await _seed_module(
+            db_session,
+            title_localized={"bn": "faq flip title"},
+            description_localized={"bn": "faq flip desc"},
+            chatbot_faqs_only=False,
+        )
+        detail = (await client.get(platform_path(f"/admin/modules/{v1.id}"))).json()
+        snapshot = {
+            "expected_version": detail["version"],
+            "title": detail["title"],
+            "description": detail["description"],
+            "module_json": {
+                "cards": detail["cards"],
+                "attachments": detail.get("attachments") or [],
+                "quiz": detail.get("quiz") or [],
+            },
+            "thumbnail_storage_path": detail.get("thumbnail_storage_path"),
+            "chatbot_faqs_only": True,
+        }
+
+        resp = await client.put(platform_path(f"/admin/modules/{v1.id}"), json=snapshot)
+        assert resp.status_code == 200
+        assert resp.json()["id"] != str(v1.id)
+        assert resp.json()["version"] == 2
+
+        v2 = await db_session.get(Module, UUID(resp.json()["id"]))
+        assert v2 is not None
+        assert v2.chatbot_faqs_only is True
+
+    async def test_complete_snapshot_with_same_chatbot_faqs_only_is_noop(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        v1 = await _seed_module(
+            db_session,
+            title_localized={"bn": "faq same title"},
+            description_localized={"bn": "faq same desc"},
+            chatbot_faqs_only=False,
+        )
+        detail = (await client.get(platform_path(f"/admin/modules/{v1.id}"))).json()
+        snapshot = {
+            "expected_version": detail["version"],
+            "title": detail["title"],
+            "description": detail["description"],
+            "module_json": {
+                "cards": detail["cards"],
+                "attachments": detail.get("attachments") or [],
+                "quiz": detail.get("quiz") or [],
+            },
+            "thumbnail_storage_path": detail.get("thumbnail_storage_path"),
+            "chatbot_faqs_only": False,
+        }
+
+        resp = await client.put(platform_path(f"/admin/modules/{v1.id}"), json=snapshot)
+        assert resp.status_code == 200
+        assert resp.json()["id"] == str(v1.id)
+        assert resp.json()["version"] == v1.version
 
     async def test_fe_shaped_complete_snapshot_with_nested_quiz_is_noop(
         self, client: AsyncClient, db_session: AsyncSession
@@ -1148,6 +1245,7 @@ class TestEditModule:
             severity_default="moderate",
             detection_rule_jsonb={},
             status="active",
+            tenant_id=1,
         )
         db_session.add(gap)
         await db_session.flush()
@@ -1283,7 +1381,8 @@ class TestEditModule:
         result = await db_session.execute(stmt)
         questions = result.scalars().all()
         assert len(questions) == 1
-        assert questions[0].question_localized["bn"] == "Test question from json"
+        assert questions[0].question_localized["en"] == "Test question from json"
+        assert questions[0].question_localized.get("bn", "") == ""
 
     async def test_returns_404_for_unknown(self, client: AsyncClient) -> None:
         resp = await client.put(
@@ -1481,95 +1580,6 @@ class TestEditModule:
         assert resp.json()["code"] == "invalid_attachment_object_prefix"
 
 
-# ─── POST /admin/modules/{id}/clinically-reviewed ──────────────────────────
-
-
-class TestClinicallyReviewedEndpoint:
-    async def test_flips_flag_to_true_with_audit(self, client: AsyncClient, db_session: AsyncSession) -> None:
-        m = await _seed_module(db_session, clinically_reviewed=False)
-        reviewer = uuid4()
-
-        resp = await client.post(
-            platform_path(f"/admin/modules/{m.id}/clinically-reviewed"),
-            json={"clinically_reviewed": True, "reviewer_id": str(reviewer)},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["clinically_reviewed"] is True
-        assert data["clinically_reviewed_at"] is not None
-        assert data["clinically_reviewed_by"] == str(reviewer)
-
-    async def test_flips_flag_to_false_clears_audit(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        m = await _seed_module(db_session, clinically_reviewed=True)
-        # Pre-populate the audit fields.
-        m.clinically_reviewed_at = datetime.now(UTC)
-        m.clinically_reviewed_by = uuid4()
-        await db_session.commit()
-
-        resp = await client.post(
-            platform_path(f"/admin/modules/{m.id}/clinically-reviewed"),
-            json={"clinically_reviewed": False},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["clinically_reviewed"] is False
-        assert data["clinically_reviewed_at"] is None
-        assert data["clinically_reviewed_by"] is None
-
-    async def test_returns_404_for_unknown(self, client: AsyncClient) -> None:
-        resp = await client.post(
-            platform_path(f"/admin/modules/{uuid4()}/clinically-reviewed"),
-            json={"clinically_reviewed": True},
-        )
-        assert resp.status_code == 404
-
-
-# ─── POST /admin/modules/{id}/visibility-window ────────────────────────────
-
-
-class TestVisibilityWindowEndpoint:
-    async def test_set_window_with_iso_timestamps(
-        self, client: AsyncClient, db_session: AsyncSession
-    ) -> None:
-        m = await _seed_module(db_session)
-
-        resp = await client.post(
-            platform_path(f"/admin/modules/{m.id}/visibility-window"),
-            json={
-                "starts_at": "2026-06-01T00:00:00Z",
-                "ends_at": "2026-06-30T00:00:00Z",
-            },
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["visibility_window"] is not None
-        assert "2026-06-01" in data["visibility_window"]["lower"]
-        assert "2026-06-30" in data["visibility_window"]["upper"]
-
-    async def test_clear_window_with_nulls(self, client: AsyncClient, db_session: AsyncSession) -> None:
-        now = datetime.now(UTC)
-        m = await _seed_module(
-            db_session,
-            visibility_window=Range(now, now + timedelta(days=7), lower_inc=True, upper_inc=False),
-        )
-
-        resp = await client.post(
-            platform_path(f"/admin/modules/{m.id}/visibility-window"),
-            json={"starts_at": None, "ends_at": None},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["visibility_window"] is None
-
-    async def test_returns_404_for_unknown(self, client: AsyncClient) -> None:
-        resp = await client.post(
-            platform_path(f"/admin/modules/{uuid4()}/visibility-window"),
-            json={"starts_at": None, "ends_at": None},
-        )
-        assert resp.status_code == 404
-
-
 # ─── DELETE /admin/modules/{id} (retire) ───────────────────────────────────
 
 
@@ -1620,121 +1630,39 @@ class TestRetireEndpoint:
         assert resp.status_code == 404
 
 
-# ─── POST /admin/modules/search (semantic) ────────────────────────────────
+class TestPublishModule:
+    async def test_publish_draft_module_success(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        mod = await _seed_module(db_session, lifecycle_status="draft", published_at=None)
+        resp = await client.post(platform_path(f"/admin/modules/{mod.id}/publish"))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["id"] == str(mod.id)
+        assert body["lifecycle_status"] == "published"
+        assert body["first_activated_at"] is not None
 
+        await db_session.refresh(mod)
+        assert mod.lifecycle_status == "published"
+        assert mod.published_at is not None
 
-class TestSemanticSearch:
-    async def test_top_k_modules_by_cosine_distance(
+        family = await db_session.get(ModuleFamily, mod.module_family_id)
+        assert family is not None
+        assert family.current_published_module_id == mod.id
+
+    async def test_publish_already_published_module_idempotent(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
-        a = await _seed_module(db_session, title_localized={"bn": "A"}, embedding=_unit_basis_vector(0))
-        await _seed_module(db_session, title_localized={"bn": "B"}, embedding=_unit_basis_vector(1))
-        await _seed_module(db_session, title_localized={"bn": "C"}, embedding=_unit_basis_vector(2))
-
-        resp = await client.post(
-            platform_path("/admin/modules/search"),
-            json={"query_vector": _unit_basis_vector(0), "limit": 3},
-        )
+        mod = await _seed_module(db_session, lifecycle_status="published")
+        resp = await client.post(platform_path(f"/admin/modules/{mod.id}/publish"))
         assert resp.status_code == 200
-        results = resp.json()
-        assert len(results) == 3
-        # Module A is rank 1 (cosine distance 0 to query).
-        assert results[0]["id"] == str(a.id)
+        assert resp.json()["lifecycle_status"] == "published"
 
-    async def test_skips_modules_without_embedding(
+    async def test_publish_retired_module_returns_409(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
-        with_emb = await _seed_module(
-            db_session, title_localized={"bn": "indexed"}, embedding=_unit_basis_vector(0)
-        )
-        await _seed_module(db_session, title_localized={"bn": "not-indexed"}, embedding=None)
+        mod = await _seed_module(db_session, lifecycle_status="retired")
+        resp = await client.post(platform_path(f"/admin/modules/{mod.id}/publish"))
+        assert resp.status_code == 409
 
-        resp = await client.post(
-            platform_path("/admin/modules/search"),
-            json={"query_vector": _unit_basis_vector(0), "limit": 5},
-        )
-        ids = {m["id"] for m in resp.json()}
-        assert str(with_emb.id) in ids
-        # Only one row returned — the unembedded module is skipped.
-        assert len(ids) == 1
-
-    async def test_query_string_embeds_via_ai_runtime(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """When the body sends `query` instead of `query_vector`, the endpoint
-        embeds via ai-runtime and feeds the result into search_by_embedding.
-        Mock the AIRuntimeClient.embed call to return a known vector."""
-
-        target = await _seed_module(
-            db_session, title_localized={"bn": "target"}, embedding=_unit_basis_vector(0)
-        )
-        await _seed_module(db_session, title_localized={"bn": "other"}, embedding=_unit_basis_vector(1))
-
-        embed_mock = AsyncMock(return_value=[_unit_basis_vector(0)])
-        monkeypatch.setattr(arc.AIRuntimeClient, "embed", embed_mock)
-
-        resp = await client.post(
-            platform_path("/admin/modules/search"), json={"query": "any text", "limit": 2}
-        )
-        assert resp.status_code == 200
-        results = resp.json()
-        assert results[0]["id"] == str(target.id)
-        embed_mock.assert_awaited_once_with(["any text"])
-
-    async def test_search_requires_query_or_vector(self, client: AsyncClient) -> None:
-        resp = await client.post(platform_path("/admin/modules/search"), json={"limit": 3})
-        assert resp.status_code == 400
-
-
-# ─── Regenerate quiz / embedding ──────────────────────────────────────────
-
-
-class TestRegeneratePostPublish:
-    async def test_regenerate_quiz_enqueues_celery_task(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-
-        delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.generate_module_quiz_task, "delay", delay_mock)
-
-        m = await _seed_module(db_session)
-        resp = await client.post(platform_path(f"/admin/modules/{m.id}/regenerate-quiz"))
-        assert resp.status_code == 200
-        assert resp.json() == {
-            "id": str(m.id),
-            "enqueued": "platform.generate_module_quiz",
-        }
-        delay_mock.assert_called_once_with(str(m.id))
-
-    async def test_regenerate_embedding_enqueues_celery_task(
-        self,
-        client: AsyncClient,
-        db_session: AsyncSession,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-
-        delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.generate_module_embedding_task, "delay", delay_mock)
-
-        m = await _seed_module(db_session)
-        resp = await client.post(platform_path(f"/admin/modules/{m.id}/regenerate-embedding"))
-        assert resp.status_code == 200
-        assert resp.json() == {
-            "id": str(m.id),
-            "enqueued": "platform.generate_module_embedding",
-        }
-        delay_mock.assert_called_once_with(str(m.id))
-
-    async def test_regenerate_quiz_404_when_module_missing(self, client: AsyncClient) -> None:
-        resp = await client.post(platform_path(f"/admin/modules/{uuid4()}/regenerate-quiz"))
-        assert resp.status_code == 404
-
-    async def test_regenerate_embedding_404_when_module_missing(self, client: AsyncClient) -> None:
-        resp = await client.post(platform_path(f"/admin/modules/{uuid4()}/regenerate-embedding"))
+    async def test_publish_nonexistent_module_returns_404(self, client: AsyncClient) -> None:
+        resp = await client.post(platform_path(f"/admin/modules/{uuid4()}/publish"))
         assert resp.status_code == 404

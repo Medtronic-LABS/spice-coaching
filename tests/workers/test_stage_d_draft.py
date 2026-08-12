@@ -57,24 +57,34 @@ from platform_service.services.run_state_service import (
     RunStateService,
 )
 from platform_service.workers.stage_d_draft import StageDOrchestrator, StageDResult
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 from tests.localized_helpers import refresher_card
 
 pytestmark = [requires_db, pytest.mark.asyncio]
+
 
 # ─── Per-test cleanup ─────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "module_card, module_quiz_question, module, module_family, behavioural_gap, module_candidate_draft, content_block, source_page, source_document, ingestion_run_step, ingestion_run, ingest_batch",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module_card, module_quiz_question, module, module_family, "
+            "behavioural_gap, module_candidate_draft, content_block, source_page, "
+            "source_document, ingestion_run_step, ingestion_run, ingest_batch "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
+
+
+# ─── Seed helpers ─────────────────────────────────────────────────────────
 
 
 async def _start_card_draft_step(session: AsyncSession, candidate: ModuleCandidateDraft):
@@ -123,6 +133,7 @@ async def _seed_candidate(
         primary_language="en",
         content_domain=content_domain,
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -151,7 +162,7 @@ async def _seed_candidate(
     # but Stage D itself only needs the candidate row to exist with valid
     # FK + provenance. We skip the run row by giving the FK a value that
     # won't be referenced (CASCADE on insert: must point at a real run).
-    batch = IngestBatch(status="running", assessment_mode=assessment_mode)
+    batch = IngestBatch(status="running", assessment_mode=assessment_mode, tenant_id=1)
     session.add(batch)
     await session.flush()
     run = IngestionRun(
@@ -180,6 +191,7 @@ async def _seed_candidate(
         proposed_module_type="refresher",
         behavioural_gap_code=behavioural_gap_code,
         quality_flags_jsonb=quality_flags,
+        tenant_id=1,
     )
     session.add(candidate)
     await session.flush()
@@ -476,7 +488,7 @@ class TestModuleFamily:
         title = "Same Title"
         slug = _slugify(title)
         # Insert a family already at that slug.
-        existing = ModuleFamily(module_code=slug)
+        existing = ModuleFamily(module_code=slug, tenant_id=1)
         db_session.add(existing)
         await db_session.flush()
         await db_session.commit()
@@ -497,6 +509,8 @@ class TestModuleFamily:
         # Suffix matches the "-N" convention.
         assert new_family.module_code.startswith(slug)
         assert new_family.module_code != slug
+        assert new_family.tenant_id == 1
+        assert module.tenant_id == 1
 
 
 # ─── Primary behavioural gap ───────────────────────────────────────────────
@@ -621,9 +635,10 @@ async def _seed_active_module(
         severity_default="moderate",
         detection_rule_jsonb={},
         status="active",
+        tenant_id=1,
     )
     session.add(gap)
-    fam = ModuleFamily(module_code=family_code)
+    fam = ModuleFamily(module_code=family_code, tenant_id=1)
     session.add(fam)
     await session.flush()
     old_cards = [
@@ -647,6 +662,7 @@ async def _seed_active_module(
         lifecycle_status=lifecycle_status,
         clinically_reviewed=lifecycle_status == "published",
         published_at=datetime.now(UTC) if lifecycle_status == "published" else None,
+        tenant_id=1,
     )
     session.add(published)
     await session.flush()
@@ -952,5 +968,5 @@ class TestPublishedModuleMerge:
             await db_session.commit()
 
         # Dual-path enqueues post-publish for primary and secondary.
-        assert mock_card_batch.delay.call_count == 2
-        assert mock_card_batch.delay.call_args.kwargs.get("force") is True
+        assert mock_card_batch.call_count == 2
+        assert mock_card_batch.call_args.kwargs.get("force") is True

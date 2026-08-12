@@ -32,6 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from platform_service.config import get_settings
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -97,6 +98,7 @@ class TestPerCardTablesDropped:
     @pytest.mark.parametrize(
         "table",
         [
+            "module_card",
             "module_card_membership",
             "module_card_embedding",
             "module_card_snippet",
@@ -112,10 +114,6 @@ class TestPerCardTablesDropped:
             f"this table would mean reverting that decision."
         )
 
-    async def test_module_card_table_restored(self, db_session: AsyncSession) -> None:
-        """Relational module_card returned in later migrations (0033+)."""
-        assert await _table_exists(db_session, "module_card")
-
 
 # ─── Legacy v3.0 tables dropped ──────────────────────────────────────────
 
@@ -128,6 +126,7 @@ class TestLegacyTablesDropped:
             "quiz_question",
             "documents",
             "clinical_glossary",
+            "prompt_template",
             "learning_path",
             "chw_gap_profile",
         ],
@@ -139,10 +138,6 @@ class TestLegacyTablesDropped:
             f"that read/wrote it has been deleted; resurrecting the table "
             f"requires reviving that code path too."
         )
-
-    async def test_prompt_template_table_restored(self, db_session: AsyncSession) -> None:
-        """DB-backed prompts restored in later migrations (0043+)."""
-        assert await _table_exists(db_session, "prompt_template")
 
 
 # ─── module: new columns added ───────────────────────────────────────────
@@ -164,6 +159,8 @@ class TestModuleColumnsAdded:
         assert col["data_type"] == "USER-DEFINED"
         assert col["udt_name"] == "vector"
         assert col["is_nullable"] == "YES"
+        # Verify the dimension matches `settings.embedding_dimension`.
+        expected_dim = get_settings().embedding_dimension
         # pg_attribute records the typmod for vector(N); we read it via
         # `format_type` which prints the dim into the type string.
         formatted = (
@@ -176,7 +173,7 @@ class TestModuleColumnsAdded:
                 )
             )
         ).scalar_one()
-        assert formatted.startswith("vector")
+        assert f"vector({expected_dim})" in formatted
 
     async def test_visibility_window_is_tstzrange_nullable(self, db_session: AsyncSession) -> None:
         cols = await _columns_for(db_session, "module")
@@ -272,7 +269,11 @@ class TestQuizQuestionLinkedToModule:
         assert "module_id" in cols
         col = cols["module_id"]
         assert col["data_type"] == "uuid"
-        assert col["is_nullable"] in {"YES", "NO"}
+        assert col["is_nullable"] == "NO", (
+            "module_quiz_question.module_id must be NOT NULL — the "
+            "membership join table was dropped, every quiz question MUST "
+            "belong to exactly one module version."
+        )
 
     async def test_module_id_fk_cascades_on_delete(self, db_session: AsyncSession) -> None:
         # information_schema doesn't expose ON DELETE; query pg_constraint.

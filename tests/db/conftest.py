@@ -35,8 +35,12 @@ async def _make_family(
     session: AsyncSession,
     *,
     module_code: str | None = None,
+    tenant_id: int = 1,
 ) -> ModuleFamily:
-    fam = ModuleFamily(module_code=module_code or f"family-{uuid4().hex[:8]}")
+    fam = ModuleFamily(
+        module_code=module_code or f"family-{uuid4().hex[:8]}",
+        tenant_id=tenant_id,
+    )
     session.add(fam)
     await session.flush()
     return fam
@@ -60,9 +64,10 @@ async def _make_module(
     published_at: datetime | None = None,
     created_at: datetime | None = None,
     set_family_pointer: bool = True,
+    tenant_id: int = 1,
 ) -> Module:
     if family is None:
-        family = await _make_family(session)
+        family = await _make_family(session, tenant_id=tenant_id)
     if module_json is None:
         cards_data = [{"title": {"bn": "Card 1"}}]
         shell_json: dict[str, Any] | None = {}
@@ -84,6 +89,7 @@ async def _make_module(
         thumbnail_storage_path=thumbnail_storage_path,
         published_at=published_at or (datetime.now(UTC) if lifecycle_status == "published" else None),
         created_at=created_at or datetime.now(UTC),
+        tenant_id=tenant_id,
     )
     session.add(module)
     await session.flush()

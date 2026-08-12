@@ -87,19 +87,24 @@ def strip_markdown_formatting(text: str) -> str:
 
         cleaned_lines.append(line)
 
-    # Strip list prefixes per line (but preserve line breaks), and convert
-    # table rows in place. A field can contain prose, a table, and code in
-    # one value, so table handling must not discard the non-table lines.
-    stripped: list[str] = []
-    for line in cleaned_lines:
-        if _TABLE_PIPE_RE.match(line):
+    # Convert markdown tables (pipes) into space-separated cells.
+    if any(_TABLE_PIPE_RE.match(line) for line in cleaned_lines):
+        rows: list[str] = []
+        for line in cleaned_lines:
+            if not _TABLE_PIPE_RE.match(line):
+                continue
             if _TABLE_SEPARATOR_RE.match(line):
                 continue
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
             cells = [strip_inline_markdown(c) for c in cells if c]
             if cells:
-                stripped.append("  ".join(cells))
-            continue
+                rows.append("  ".join(cells))
+        result = "\n".join(rows).strip()
+        return result
+
+    # Strip list prefixes per line (but preserve line breaks).
+    stripped: list[str] = []
+    for line in cleaned_lines:
         line = _LIST_ITEM_PREFIX_RE.sub("", line).strip()
         stripped.append(strip_inline_markdown(line) if line else "")
 

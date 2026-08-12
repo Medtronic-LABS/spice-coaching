@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
 
 from mc_contracts.sync import (
     ModuleTriggerBindingSyncPayload,
@@ -19,7 +18,7 @@ class TriggersBundleBuilder:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def build(self, *, since: datetime, tenant_id: UUID | None = None) -> TriggersSyncBundle:
+    async def build(self, *, since: datetime, tenant_id: int | None = None) -> TriggersSyncBundle:
         trigger_repo = TriggerRepository(self._session)
         triggers = await trigger_repo.list_active_triggers_updated_since(since, tenant_id=tenant_id)
         trigger_ids = [trigger.id for trigger in triggers]

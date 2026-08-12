@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-import pytest_asyncio
+from mc_foundation.objectstore import PresignedObjectUrl
+from platform_service.config import Settings
 from platform_service.db.models.behavioural_gap import BehaviouralGap
-from platform_service.db.models.chw_module_assignment import CHWModuleAssignment
 from platform_service.db.models.chw_training_request import CHWTrainingRequest
 from platform_service.db.models.content_block import ContentBlock
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_assignment import ModuleAssignment
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.models.source_page import SourcePage
@@ -26,12 +27,14 @@ from platform_service.services.module_card_service import (
 from platform_service.services.sync_service import SyncService
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
+from tests.helpers.hierarchy_fixtures import SK_ID, seed_basic_hierarchy
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 _STORAGE_PATH = "medtronics-storage/source-documents/manual.pdf"
 _THUMB_PATH = "medtronics-storage/ingest/thumbnails/doc.png"
+_THUMB_URL = "https://minio.example/module-thumb"
 
 _SAMPLE_SEARCH_METADATA = {
     "schema_version": 1,
@@ -45,13 +48,19 @@ _SAMPLE_SEARCH_METADATA = {
 }
 
 
-@pytest_asyncio.fixture(autouse=True)
-async def _wipe_sync_module_data(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "chw_module_assignment, chw_training_request, module_card, module_quiz_question, module, module_family",
-    )
-    yield
+def _mock_storage(*, thumb_url: str = _THUMB_URL) -> MagicMock:
+    storage = MagicMock()
+
+    async def _presign(*, object_name: str, expires_seconds: int, **_kwargs: Any):
+        return PresignedObjectUrl(
+            url=thumb_url,
+            bucket_name="medtronics-storage",
+            object_name=object_name,
+            expires_seconds=expires_seconds,
+        )
+
+    storage.presigned_get_url = AsyncMock(side_effect=_presign)
+    return storage
 
 
 async def _make_published_module(
@@ -62,7 +71,7 @@ async def _make_published_module(
     module_json: dict[str, Any] | None = None,
     search_metadata_jsonb: dict[str, Any] | None = None,
 ) -> Module:
-    family = ModuleFamily(module_code=f"SYNC-MOD-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"SYNC-MOD-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     if module_json is None:
@@ -84,6 +93,7 @@ async def _make_published_module(
         thumbnail_storage_path=thumbnail_storage_path,
         module_json=shell_json,
         search_metadata_jsonb=search_metadata_jsonb,
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()
@@ -111,6 +121,7 @@ async def _make_source_document(
         original_storage_path=_STORAGE_PATH,
         original_filename="manual.pdf",
         thumbnail_storage_path=thumbnail_storage_path,
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()
@@ -191,7 +202,48 @@ async def test_modules_bundle_includes_has_thumbnail(db_session: AsyncSession) -
 
     by_id = {m.id: m for m in bundle.modules}
     assert by_id[with_thumb.id].has_thumbnail is True
+    assert by_id[with_thumb.id].thumbnail_presigned_url is None
+    assert by_id[with_thumb.id].thumbnail_presigned_expires_seconds is None
     assert by_id[without_thumb.id].has_thumbnail is False
+    assert by_id[without_thumb.id].thumbnail_presigned_url is None
+
+
+@pytest.mark.asyncio
+@requires_db
+async def test_modules_bundle_includes_thumbnail_presigned_url(db_session: AsyncSession) -> None:
+    thumb_path = "medtronics-storage/ingest/thumbnails/abc.png"
+    with_thumb = await _make_published_module(
+        db_session,
+        source_document_ids=None,
+        thumbnail_storage_path=thumb_path,
+    )
+    without_thumb = await _make_published_module(
+        db_session, source_document_ids=None, thumbnail_storage_path=None
+    )
+    soft_fail = await _make_published_module(
+        db_session,
+        source_document_ids=None,
+        thumbnail_storage_path="not-a-valid-object-path.png",
+    )
+
+    since = datetime.now(UTC) - timedelta(days=1)
+    expires = Settings().admin_file_presigned_max_seconds
+    bundle = await SyncService(db_session).get_modules_bundle(
+        since=since,
+        storage=_mock_storage(),
+        settings=Settings(),
+    )
+
+    by_id = {m.id: m for m in bundle.modules}
+    assert by_id[with_thumb.id].has_thumbnail is True
+    assert by_id[with_thumb.id].thumbnail_presigned_url == _THUMB_URL
+    assert by_id[with_thumb.id].thumbnail_presigned_expires_seconds == expires
+    assert by_id[without_thumb.id].has_thumbnail is False
+    assert by_id[without_thumb.id].thumbnail_presigned_url is None
+    assert by_id[without_thumb.id].thumbnail_presigned_expires_seconds is None
+    assert by_id[soft_fail.id].has_thumbnail is True
+    assert by_id[soft_fail.id].thumbnail_presigned_url is None
+    assert by_id[soft_fail.id].thumbnail_presigned_expires_seconds is None
 
 
 @pytest.mark.asyncio
@@ -272,10 +324,7 @@ async def test_modules_bundle_includes_search_metadata(db_session: AsyncSession)
 async def _make_gap(session: AsyncSession) -> BehaviouralGap:
     code = f"gap_{uuid4().hex[:8]}"
     gap = BehaviouralGap(
-        gap_code=code,
-        description=code,
-        domain="rmnch",
-        detection_rule_jsonb={},
+        gap_code=code, description=code, domain="rmnch", detection_rule_jsonb={}, tenant_id=1
     )
     session.add(gap)
     await session.flush()
@@ -315,15 +364,9 @@ async def test_modules_bundle_includes_behavioural_gap_associations(
 @pytest.mark.asyncio
 @requires_db
 async def test_modules_bundle_assigned_module_ids(db_session: AsyncSession) -> None:
+    await seed_basic_hierarchy(db_session)
     module = await _make_published_module(db_session, source_document_ids=None)
-    db_session.add(
-        CHWModuleAssignment(
-            module_id=module.id,
-            assignment_type="individual",
-            user_id=1313053891,
-            assigned_by=1,
-        )
-    )
+    db_session.add(ModuleAssignment(module_id=module.id, user_id=SK_ID, assigned_by=1, tenant_id=1))
     await db_session.commit()
 
     since = datetime.now(UTC) - timedelta(days=1)
@@ -332,7 +375,11 @@ async def test_modules_bundle_assigned_module_ids(db_session: AsyncSession) -> N
     assert without_user.assigned_module_ids == []
     assert without_user.requested_modules == []
 
-    with_user = await SyncService(db_session).get_modules_bundle(since=since, user_id=1313053891)
+    with_user = await SyncService(db_session).get_modules_bundle(
+        since=since,
+        user_id=SK_ID,
+        tenant_id=1,
+    )
     assert len(with_user.assigned_module_ids) == 1
     assert with_user.assigned_module_ids[0].module_id == module.id
     assert with_user.assigned_module_ids[0].assigned_at is not None
@@ -388,8 +435,8 @@ async def test_modules_bundle_requested_modules(db_session: AsyncSession) -> Non
 @requires_db
 async def test_modules_bundle_requested_modules_tenant_scope(db_session: AsyncSession) -> None:
     chw_id = 1313053892
-    tenant_a = uuid4()
-    tenant_b = uuid4()
+    tenant_a = 1
+    tenant_b = 2
     global_row = CHWTrainingRequest(
         chw_id=chw_id,
         module_id=None,
@@ -426,3 +473,86 @@ async def test_modules_bundle_requested_modules_tenant_scope(db_session: AsyncSe
     names = {row.requested_module_name for row in scoped.requested_modules}
     assert names == {"Global Request", "Tenant A Request"}
     assert "Tenant B Request" not in names
+
+
+@pytest.mark.asyncio
+@requires_db
+async def test_modules_bundle_excludes_chatbot_faq_assignments(db_session: AsyncSession) -> None:
+    await seed_basic_hierarchy(db_session)
+    family = ModuleFamily(module_code=f"faq-{uuid4().hex[:8]}", tenant_id=1, chatbot_faqs_only=True)
+    db_session.add(family)
+    await db_session.flush()
+    module = Module(
+        module_family_id=family.id,
+        version=1,
+        lifecycle_status="published",
+        module_type="refresher",
+        title_localized={"bn": "FAQ module"},
+        domain="hypertension",
+        estimated_minutes=5,
+        difficulty_level="basic",
+        chatbot_faqs_only=True,
+        tenant_id=1,
+    )
+    db_session.add(module)
+    await db_session.flush()
+    family.current_published_module_id = module.id
+    db_session.add(
+        ModuleAssignment(
+            module_id=module.id,
+            user_id=SK_ID,
+            assigned_by=1,
+            tenant_id=1,
+        )
+    )
+    await db_session.commit()
+
+    since = datetime.now(UTC) - timedelta(days=1)
+    bundle = await SyncService(db_session).get_modules_bundle(
+        since=since,
+        user_id=SK_ID,
+        tenant_id=1,
+    )
+    assert bundle.assigned_module_ids == []
+
+
+@pytest.mark.asyncio
+@requires_db
+async def test_modules_bundle_assigned_module_ids_tenant_scope(db_session: AsyncSession) -> None:
+    await seed_basic_hierarchy(db_session)
+    module_a = await _make_published_module(db_session, source_document_ids=None)
+    module_b = await _make_published_module(db_session, source_document_ids=None)
+    db_session.add_all(
+        [
+            ModuleAssignment(
+                module_id=module_a.id,
+                user_id=SK_ID,
+                assigned_by=1,
+                tenant_id=1,
+            ),
+            ModuleAssignment(
+                module_id=module_b.id,
+                user_id=SK_ID,
+                assigned_by=1,
+                tenant_id=2,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    since = datetime.now(UTC) - timedelta(days=1)
+    tenant_a_bundle = await SyncService(db_session).get_modules_bundle(
+        since=since,
+        user_id=SK_ID,
+        tenant_id=1,
+    )
+    assert len(tenant_a_bundle.assigned_module_ids) == 1
+    assert tenant_a_bundle.assigned_module_ids[0].module_id == module_a.id
+
+    tenant_b_bundle = await SyncService(db_session).get_modules_bundle(
+        since=since,
+        user_id=SK_ID,
+        tenant_id=2,
+    )
+    assert len(tenant_b_bundle.assigned_module_ids) == 1
+    assert tenant_b_bundle.assigned_module_ids[0].module_id == module_b.id

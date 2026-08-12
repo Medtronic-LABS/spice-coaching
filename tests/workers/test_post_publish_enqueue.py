@@ -26,28 +26,25 @@ from platform_service.services.run_state_service import (
     RunStateService,
 )
 from platform_service.workers.stage_d_draft import StageDOrchestrator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
-@pytest.fixture(autouse=True)
-def _enable_gap_classification(monkeypatch: pytest.MonkeyPatch) -> None:
-    settings = get_settings()
-    monkeypatch.setattr(settings, "post_publish_gap_classification_enabled", True)
-    monkeypatch.setattr("platform_service.services.draft_pipeline.get_settings", lambda: settings)
-
-
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "module, module_family, module_candidate_draft, source_document, ingestion_run_step, ingestion_run, ingest_batch",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module, module_family, module_candidate_draft, source_document, "
+            "ingestion_run_step, ingestion_run, ingest_batch RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 async def _seed_run_and_candidate(
@@ -62,6 +59,7 @@ async def _seed_run_and_candidate(
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -79,6 +77,7 @@ async def _seed_run_and_candidate(
         estimated_card_count=5,
         estimated_quiz_count=4,
         proposed_module_type="refresher",
+        tenant_id=1,
     )
     session.add(cand)
     await session.flush()
@@ -96,16 +95,14 @@ class TestEnqueuePostPublishSteps:
         mock_card_batch = MagicMock()
 
         with (
-            patch("platform_service.services.draft_pipeline.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.services.draft_pipeline.generate_module_embedding_task", mock_embed),
-            patch(
-                "platform_service.services.draft_pipeline.generate_module_search_metadata_task", mock_metadata
-            ),
+            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
+            patch("platform_service.celery_tasks.generate_module_embedding_task", mock_embed),
+            patch("platform_service.celery_tasks.generate_module_search_metadata_task", mock_metadata),
             patch(
                 "platform_service.services.draft_pipeline.generate_module_card_search_metadata_batch_task",
                 mock_card_batch,
             ),
-            patch("platform_service.services.draft_pipeline.classify_module_gaps_task", mock_gap),
+            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
         ):
             await stage_d._enqueue_post_publish(
                 module_id,
@@ -152,16 +149,14 @@ class TestEnqueuePostPublishSteps:
         mock_card_batch = MagicMock()
 
         with (
-            patch("platform_service.services.draft_pipeline.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.services.draft_pipeline.generate_module_embedding_task", mock_embed),
-            patch(
-                "platform_service.services.draft_pipeline.generate_module_search_metadata_task", mock_metadata
-            ),
+            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
+            patch("platform_service.celery_tasks.generate_module_embedding_task", mock_embed),
+            patch("platform_service.celery_tasks.generate_module_search_metadata_task", mock_metadata),
             patch(
                 "platform_service.services.draft_pipeline.generate_module_card_search_metadata_batch_task",
                 mock_card_batch,
             ),
-            patch("platform_service.services.draft_pipeline.classify_module_gaps_task", mock_gap),
+            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
         ):
             await stage_d._enqueue_post_publish(
                 module_id,
@@ -187,16 +182,14 @@ class TestEnqueuePostPublishSteps:
         mock_card_batch = MagicMock()
 
         with (
-            patch("platform_service.services.draft_pipeline.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.services.draft_pipeline.generate_module_embedding_task", mock_embed),
-            patch(
-                "platform_service.services.draft_pipeline.generate_module_search_metadata_task", mock_metadata
-            ),
+            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
+            patch("platform_service.celery_tasks.generate_module_embedding_task", mock_embed),
+            patch("platform_service.celery_tasks.generate_module_search_metadata_task", mock_metadata),
             patch(
                 "platform_service.services.draft_pipeline.generate_module_card_search_metadata_batch_task",
                 mock_card_batch,
             ),
-            patch("platform_service.services.draft_pipeline.classify_module_gaps_task", mock_gap),
+            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
         ):
             await stage_d._enqueue_post_publish(
                 module_id,
@@ -236,16 +229,14 @@ class TestEnqueuePostPublishSteps:
         monkeypatch.setattr(settings, "post_publish_search_metadata_enabled", False)
 
         with (
-            patch("platform_service.services.draft_pipeline.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.services.draft_pipeline.generate_module_embedding_task", mock_embed),
-            patch(
-                "platform_service.services.draft_pipeline.generate_module_search_metadata_task", mock_metadata
-            ),
+            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
+            patch("platform_service.celery_tasks.generate_module_embedding_task", mock_embed),
+            patch("platform_service.celery_tasks.generate_module_search_metadata_task", mock_metadata),
             patch(
                 "platform_service.services.draft_pipeline.generate_module_card_search_metadata_batch_task",
                 mock_card_batch,
             ),
-            patch("platform_service.services.draft_pipeline.classify_module_gaps_task", mock_gap),
+            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
             patch("platform_service.services.draft_pipeline.get_settings", lambda: settings),
         ):
             await stage_d._enqueue_post_publish(
@@ -261,7 +252,7 @@ class TestEnqueuePostPublishSteps:
 
     async def test_merge_flag_passes_force_true(self, db_session: AsyncSession) -> None:
         stage_d, run, cand, sd = await _seed_run_and_candidate(db_session)
-        fam = ModuleFamily(module_code="merge-family")
+        fam = ModuleFamily(module_code="merge-family", tenant_id=1)
         db_session.add(fam)
         await db_session.flush()
         module = Module(
@@ -273,6 +264,7 @@ class TestEnqueuePostPublishSteps:
             module_json={"cards": []},
             quality_flags_jsonb={"flags": ["published_module_merged"]},
             lifecycle_status="draft",
+            tenant_id=1,
         )
         db_session.add(module)
         await db_session.flush()
@@ -284,16 +276,14 @@ class TestEnqueuePostPublishSteps:
         mock_card_batch = MagicMock()
 
         with (
-            patch("platform_service.services.draft_pipeline.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.services.draft_pipeline.generate_module_embedding_task", mock_embed),
-            patch(
-                "platform_service.services.draft_pipeline.generate_module_search_metadata_task", mock_metadata
-            ),
+            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
+            patch("platform_service.celery_tasks.generate_module_embedding_task", mock_embed),
+            patch("platform_service.celery_tasks.generate_module_search_metadata_task", mock_metadata),
             patch(
                 "platform_service.services.draft_pipeline.generate_module_card_search_metadata_batch_task",
                 mock_card_batch,
             ),
-            patch("platform_service.services.draft_pipeline.classify_module_gaps_task", mock_gap),
+            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
         ):
             pipeline = DraftPipeline(db_session)
             await pipeline.enqueue_post_publish(
@@ -304,4 +294,4 @@ class TestEnqueuePostPublishSteps:
             )
 
         mock_card_batch.delay.assert_called_once()
-        assert mock_card_batch.delay.call_args.kwargs.get("force") is True
+        assert mock_card_batch.call_args.kwargs.get("force") is True

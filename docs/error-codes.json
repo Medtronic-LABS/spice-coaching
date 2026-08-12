@@ -137,6 +137,14 @@
       "retryable": false,
       "audience": "operator"
     },
+    "source_document_not_found": {
+      "title": "Source Document Not Found",
+      "description": "Source document id does not exist.",
+      "typical_status": 404,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
     "unknown_stage": {
       "title": "Unknown Stage",
       "description": "Requested pipeline stage name is not recognized.",
@@ -305,22 +313,6 @@
       "retryable": false,
       "audience": "operator"
     },
-    "trigger_binding_not_found": {
-      "title": "Trigger Binding Not Found",
-      "description": "Trigger binding id does not exist.",
-      "typical_status": 404,
-      "domain": "modules",
-      "retryable": false,
-      "audience": "operator"
-    },
-    "assignment_not_found": {
-      "title": "Assignment Not Found",
-      "description": "Module assignment id does not exist.",
-      "typical_status": 404,
-      "domain": "modules",
-      "retryable": false,
-      "audience": "operator"
-    },
     "assignment_validation_error": {
       "title": "Assignment Validation Error",
       "description": "Assignment create/update failed business validation.",
@@ -369,6 +361,110 @@
       "retryable": false,
       "audience": "operator"
     },
+    "badge_not_found": {
+      "title": "Badge Not Found",
+      "description": "Badge id does not exist or is soft-deleted.",
+      "typical_status": 404,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_name_conflict": {
+      "title": "Badge Name Conflict",
+      "description": "An active badge with the same name already exists.",
+      "typical_status": 409,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_domain_invalid": {
+      "title": "Badge Domain Invalid",
+      "description": "Badge domain is missing/invalid, or does not already exist on any module.",
+      "typical_status": 400,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_sequence_conflict": {
+      "title": "Badge Sequence Conflict",
+      "description": "An active badge with the same sequence already exists.",
+      "typical_status": 409,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_module_not_published": {
+      "title": "Badge Module Not Published",
+      "description": "One or more module_ids are missing or not in published lifecycle status.",
+      "typical_status": 400,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_district_not_found": {
+      "title": "Hierarchy District Not Found",
+      "description": "District id does not exist for the selected tenant.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_upazila_not_found": {
+      "title": "Hierarchy Upazila Not Found",
+      "description": "Upazila id does not exist for the selected tenant or district.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_upazila_invalid": {
+      "title": "Hierarchy Upazila Invalid",
+      "description": "Upazila assignment violates district or parent upazila constraints.",
+      "typical_status": 400,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_user_not_found": {
+      "title": "Hierarchy User Not Found",
+      "description": "Hierarchy user id does not exist for the selected tenant.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_user_conflict": {
+      "title": "Hierarchy User Conflict",
+      "description": "A hierarchy user with the same externally supplied id already exists.",
+      "typical_status": 409,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_parent_invalid": {
+      "title": "Hierarchy Parent Invalid",
+      "description": "Parent/role/district/tenant tree rules were violated (AM→PM→SK, same district and tenant).",
+      "typical_status": 400,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_role_mismatch": {
+      "title": "Hierarchy Role Mismatch",
+      "description": "Unsupported or mismatched hierarchy role value.",
+      "typical_status": 400,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_auth_failed": {
+      "title": "Hierarchy Auth Failed",
+      "description": "Authenticated SPICE user is missing from the hierarchy table or role names do not exactly match the hierarchy row.",
+      "typical_status": 403,
+      "domain": "auth",
+      "retryable": false,
+      "audience": "client"
+    },
     "chw_id_required": {
       "title": "Chw Id Required",
       "description": "Request requires a community health worker (CHW) id.",
@@ -388,6 +484,22 @@
     "tenant_mismatch": {
       "title": "Tenant Mismatch",
       "description": "Resource tenant does not match the authenticated principal's tenant.",
+      "typical_status": 403,
+      "domain": "auth",
+      "retryable": false,
+      "audience": "client"
+    },
+    "tenant_id_required": {
+      "title": "Tenant Id Required",
+      "description": "Legacy spice 20006: a tenant id was required. Coaching-platform selects tenant from authenticate userDetail.country.tenantId instead of the TenantId header; missing country tenant yields not_authenticated.",
+      "typical_status": 400,
+      "domain": "auth",
+      "retryable": false,
+      "audience": "client"
+    },
+    "tenant_permission_denied": {
+      "title": "Tenant Permission Denied",
+      "description": "Legacy spice 20005: selected tenant was not in organizationIds. Coaching-platform no longer membership-checks the country tenant from authenticate.",
       "typical_status": 403,
       "domain": "auth",
       "retryable": false,

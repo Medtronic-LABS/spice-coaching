@@ -13,7 +13,6 @@ from fastapi import APIRouter, FastAPI
 from httpx import ASGITransport, AsyncClient
 from mc_contracts.enums import CoachingEventType, EventFamily
 from mc_contracts.telemetry import TelemetryEvent
-from platform_service.api import telemetry
 from platform_service.api.telemetry import (
     _event_to_row,
     _resolve_timestamp_utc,
@@ -48,7 +47,7 @@ def _sample_batch_payload() -> dict:
 
 
 @pytest_asyncio.fixture
-async def app(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[FastAPI]:
+async def app() -> AsyncIterator[FastAPI]:
     app_obj = FastAPI()
     api_router = APIRouter(prefix=get_settings().api_root_path_normalized)
     api_router.include_router(telemetry_router)
@@ -56,7 +55,6 @@ async def app(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[FastAPI]:
 
     ch_mock = MagicMock()
     ch_mock.insert_coaching_events = AsyncMock()
-    monkeypatch.setattr(telemetry, "get_clickhouse_client", lambda: ch_mock)
     app_obj.dependency_overrides[get_clickhouse_client] = lambda: ch_mock
 
     yield app_obj

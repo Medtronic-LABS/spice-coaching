@@ -18,6 +18,7 @@ from platform_service.db.models.module import Module
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
 from platform_service.services.module_gap_classifier import ModuleGapClassifier
 from platform_service.services.post_publish_step import finish_post_publish_step
+from platform_service.workers.tenant_binding import with_module_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ def _merge_gap_classification_flags(
     return out
 
 
+@with_module_tenant
 async def classify_module_gaps_for_module(module_id: UUID, *, step_id: UUID | None = None) -> int:
     """Classify module against referral-domain registry gaps. Returns secondary link count."""
     secondary_count = 0

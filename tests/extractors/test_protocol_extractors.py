@@ -109,16 +109,17 @@ async def test_orchestrator_uses_injected_media_transcriber_fn() -> None:
     # Inject a stub splitter on the constructed media extractor so we don't
     # need ffmpeg present for this test.
     media_ext = orchestrator._extractors["audio"]
+    payload = b"f" * 4096
     media_ext._splitter_fn = lambda *_args, **_kwargs: [
         MediaChunk(
             index=0,
             start_ms=0,
             end_ms=60_000,
-            payload_bytes=b"fake",
-            mime_type="audio/mpeg",
+            payload_bytes=payload,
+            mime_type="audio/mp3",
         )
     ]
 
     result = await media_ext.extract("/tmp/y.mp3", source_type="audio", primary_language="bn")
     assert len(result.pages) == 1
-    fake_transcribe.assert_awaited_once_with(b"fake", "audio/mpeg")
+    fake_transcribe.assert_awaited_once_with(payload, "audio/mp3")

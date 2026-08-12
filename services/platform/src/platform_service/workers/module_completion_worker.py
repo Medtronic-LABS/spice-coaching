@@ -51,21 +51,24 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.gap_telemetry_repository import GapTelemetryRepository
 from platform_service.services.module_completion import (
+    BadgeAwardHandler,
     GapEscalationHandler,
     LearningPointsHandler,
     QuizEscalationHandler,
     QuizProgressHandler,
-    coerce_tenant_uuid,
+    coerce_tenant_id,
     module_quiz_outcome_kind,
     parse_chw_id,
     parse_quiz_id,
     parse_uuid,
 )
+from platform_service.workers.tenant_binding import payload_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +103,7 @@ async def _try_claim_module_event(session, payload: dict[str, Any]) -> bool:
         event_id=parsed,
         chw_id=chw_id,
         event_type=event_type,
-        tenant_id=coerce_tenant_uuid(payload.get("tenant_id")),
+        tenant_id=coerce_tenant_id(payload.get("tenant_id")),
     )
 
 
@@ -142,22 +145,23 @@ async def process_module_event_job(payload: dict[str, Any]) -> None:
         )
         return
 
-    if event_type in ("module_delivered", "module_card_viewed"):
-        await _process_learning_points_only(payload, event_type=event_type)
-        return
-
-    if event_type == "spice_action_observed":
-        if not get_settings().telemetry_behavioural_gap_state_enabled:
-            logger.info(
-                "module_completion_worker skipping spice_action_observed event_id=%s "
-                "(telemetry_behavioural_gap_state_enabled=false)",
-                payload.get("event_id"),
-            )
+    with using_selected_tenant(payload_tenant_id(payload)):
+        if event_type in ("module_delivered", "module_card_viewed"):
+            await _process_learning_points_only(payload, event_type=event_type)
             return
-        await _process_spice_action(payload)
-        return
 
-    await _process_module_quiz(payload, event_type=event_type)
+        if event_type == "spice_action_observed":
+            if not get_settings().telemetry_behavioural_gap_state_enabled:
+                logger.info(
+                    "module_completion_worker skipping spice_action_observed event_id=%s "
+                    "(telemetry_behavioural_gap_state_enabled=false)",
+                    payload.get("event_id"),
+                )
+                return
+            await _process_spice_action(payload)
+            return
+
+        await _process_module_quiz(payload, event_type=event_type)
 
 
 async def _process_learning_points_only(payload: dict[str, Any], *, event_type: str) -> None:
@@ -168,7 +172,7 @@ async def _process_learning_points_only(payload: dict[str, Any], *, event_type: 
             payload.get("event_id"),
         )
         return
-    tenant_uuid = coerce_tenant_uuid(payload.get("tenant_id"))
+    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
     async with SessionLocal() as session:
         try:
             if not await _try_claim_module_event(session, payload):
@@ -181,7 +185,7 @@ async def _process_learning_points_only(payload: dict[str, Any], *, event_type: 
             await LearningPointsHandler(session).try_award_from_payload(
                 event_id=payload.get("event_id"),
                 chw_id=chw_id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
                 event_type=event_type,
                 payload=payload,
             )
@@ -211,7 +215,7 @@ async def _process_spice_action(payload: dict[str, Any]) -> None:
             payload.get("event_id"),
         )
         return
-    tenant_uuid = coerce_tenant_uuid(payload.get("tenant_id"))
+    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
     async with SessionLocal() as session:
         try:
             if not await _try_claim_module_event(session, payload):
@@ -224,7 +228,7 @@ async def _process_spice_action(payload: dict[str, Any]) -> None:
             await GapEscalationHandler(session).handle_spice_action(
                 chw_id=chw_id,
                 behavioural_gap_id=behavioural_gap_id,
-                tenant_uuid=tenant_uuid,
+                tenant_id=tenant_id,
                 payload=payload,
                 payload_json=payload_json,
                 event_id=payload.get("event_id"),
@@ -232,7 +236,7 @@ async def _process_spice_action(payload: dict[str, Any]) -> None:
             await LearningPointsHandler(session).try_award_from_payload(
                 event_id=payload.get("event_id"),
                 chw_id=chw_id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
                 event_type="spice_action_observed",
                 payload=payload,
             )
@@ -257,7 +261,7 @@ async def _process_module_quiz(payload: dict[str, Any], *, event_type: str) -> N
         )
         return
 
-    tenant_uuid = coerce_tenant_uuid(payload.get("tenant_id"))
+    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
 
     async with SessionLocal() as session:
         try:
@@ -281,12 +285,20 @@ async def _process_module_quiz(payload: dict[str, Any], *, event_type: str) -> N
 
             quiz_id = parse_quiz_id(payload)
             if quiz_id is not None:
-                await QuizProgressHandler(session).record_question_attempted_and_maybe_complete(
+                newly_completed_version = await QuizProgressHandler(
+                    session
+                ).record_question_attempted_and_maybe_complete(
                     chw_id=chw_id,
-                    tenant_uuid=tenant_uuid,
+                    tenant_id=tenant_id,
                     module=module,
                     quiz_id=quiz_id,
                 )
+                if newly_completed_version:
+                    await BadgeAwardHandler(session).try_award_for_completed_module(
+                        chw_id=chw_id,
+                        tenant_id=tenant_id,
+                        module_id=module.id,
+                    )
 
             if event_type == "module_quiz_attempted":
                 if get_settings().telemetry_behavioural_gap_state_enabled:
@@ -294,7 +306,7 @@ async def _process_module_quiz(payload: dict[str, Any], *, event_type: str) -> N
                         chw_id=chw_id,
                         module=module,
                         score_pct=payload.get("quiz_score_pct"),
-                        tenant_uuid=tenant_uuid,
+                        tenant_id=tenant_id,
                         event_id=payload.get("event_id"),
                         gap_outcome_kind=module_quiz_outcome_kind(payload),
                     )
@@ -304,7 +316,7 @@ async def _process_module_quiz(payload: dict[str, Any], *, event_type: str) -> N
                         module=module,
                         quiz_id=quiz_id,
                         score_pct=payload.get("quiz_score_pct"),
-                        tenant_uuid=tenant_uuid,
+                        tenant_id=tenant_id,
                         event_id=payload.get("event_id"),
                         gap_outcome_kind=module_quiz_outcome_kind(payload),
                     )
@@ -318,7 +330,7 @@ async def _process_module_quiz(payload: dict[str, Any], *, event_type: str) -> N
             await LearningPointsHandler(session).try_award_from_payload(
                 event_id=payload.get("event_id"),
                 chw_id=chw_id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
                 event_type=event_type,
                 payload=payload,
             )

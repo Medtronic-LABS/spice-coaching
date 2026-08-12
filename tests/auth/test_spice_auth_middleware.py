@@ -10,8 +10,10 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from mc_contracts.errors import ErrorCode
 from platform_service.auth.spice_auth_middleware import SpiceAuthMiddleware
 from platform_service.auth.spice_context import SpiceContexts
+from platform_service.auth.tenant_context import HEADER_TENANT_ID
 from platform_service.config import Settings, get_settings
 from platform_service.integrations.spice_auth_client import (
     SpiceAuthClient,
@@ -19,11 +21,21 @@ from platform_service.integrations.spice_auth_client import (
 )
 from platform_service.main import create_app
 from pydantic_settings import SettingsConfigDict
+from starlette.requests import Request
 
 API_ROOT = "/medtronics-api"
 VALID_TOKEN = "Bearer test.jwt.token"
 MOCK_CONTEXTS = SpiceContexts.model_validate(
-    {"userDetail": {"id": 42, "username": "chw_user", "tenantId": 1}, "tenants": None}
+    {
+        "userDetail": {
+            "id": 42,
+            "username": "chw_user",
+            "tenantId": 1,
+            "organizationIds": [1, 7],
+            "country": {"tenantId": 7},
+        },
+        "tenants": None,
+    }
 )
 
 
@@ -34,6 +46,10 @@ def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         Settings,
         "model_config",
         SettingsConfigDict(env_file=None, env_file_encoding="utf-8", extra="ignore"),
+    )
+    monkeypatch.setattr(
+        "platform_service.auth.spice_auth_middleware.enforce_hierarchy_principal",
+        AsyncMock(return_value=None),
     )
     yield
     get_settings.cache_clear()
@@ -63,8 +79,11 @@ async def middleware_app(
         return {"status": "ok"}
 
     @app.get(f"{API_ROOT}/probe")
-    async def probe() -> dict[str, int | None]:
-        return {"ok": 1}
+    async def probe(request: Request) -> dict[str, int | None]:
+        return {
+            "ok": 1,
+            "selected_tenant_id": getattr(request.state, "selected_tenant_id", None),
+        }
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -101,16 +120,82 @@ async def test_enabled_invalid_token_prefix_returns_401(middleware_app: AsyncCli
 
 
 @pytest.mark.asyncio
-async def test_enabled_valid_token_proceeds(
+async def test_enabled_valid_token_uses_country_tenant(
     middleware_app: AsyncClient,
     mock_spice_client: SpiceAuthClient,
 ) -> None:
     resp = await middleware_app.get(
         f"{API_ROOT}/probe",
-        headers={"Authorization": VALID_TOKEN, "client": "mob"},
+        headers={"Authorization": VALID_TOKEN, "client": "mob", HEADER_TENANT_ID: "99"},
     )
     assert resp.status_code == 200
+    assert resp.json()["selected_tenant_id"] == 7
     mock_spice_client.authenticate.assert_awaited_once()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_enabled_ignores_request_tenant_header(
+    middleware_app: AsyncClient,
+) -> None:
+    resp = await middleware_app.get(
+        f"{API_ROOT}/probe",
+        headers={"Authorization": VALID_TOKEN},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["selected_tenant_id"] == 7
+
+
+@pytest.mark.asyncio
+async def test_enabled_missing_country_tenant_returns_401(
+    middleware_app: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
+    mock_spice_client.authenticate = AsyncMock(  # type: ignore[method-assign]
+        return_value=SpiceContexts.model_validate(
+            {
+                "userDetail": {
+                    "id": 42,
+                    "username": "chw_user",
+                    "tenantId": 1,
+                    "organizationIds": [1, 7],
+                },
+                "tenants": None,
+            }
+        )
+    )
+    resp = await middleware_app.get(
+        f"{API_ROOT}/probe",
+        headers={"Authorization": VALID_TOKEN},
+    )
+    assert resp.status_code == 401
+    assert resp.json()["code"] == ErrorCode.NOT_AUTHENTICATED.value
+    assert "country.tenantId" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_enabled_country_tenant_not_in_organization_ids_still_allowed(
+    middleware_app: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
+    mock_spice_client.authenticate = AsyncMock(  # type: ignore[method-assign]
+        return_value=SpiceContexts.model_validate(
+            {
+                "userDetail": {
+                    "id": 42,
+                    "username": "chw_user",
+                    "organizationIds": [1],
+                    "country": {"tenantId": 55},
+                },
+                "tenants": None,
+            }
+        )
+    )
+    resp = await middleware_app.get(
+        f"{API_ROOT}/probe",
+        headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "1"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["selected_tenant_id"] == 55
 
 
 @pytest.mark.asyncio
@@ -128,7 +213,7 @@ async def test_spice_auth_failure_returns_401(
     )
     resp = await middleware_app.get(
         f"{API_ROOT}/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
     assert resp.status_code == 401
 
@@ -143,7 +228,7 @@ async def test_spice_auth_unavailable_returns_503(
     )
     resp = await middleware_app.get(
         f"{API_ROOT}/probe",
-        headers={"Authorization": VALID_TOKEN},
+        headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
     assert resp.status_code == 503
 
@@ -151,7 +236,31 @@ async def test_spice_auth_unavailable_returns_503(
 def test_spice_auth_exempt_path_set_default() -> None:
     s = Settings()
     assert f"{s.api_root_path_normalized}/ready" in s.spice_auth_exempt_path_set
+    assert f"{s.api_root_path_normalized}/docs" in s.spice_auth_exempt_path_set
+    assert f"{s.api_root_path_normalized}/openapi.json" in s.spice_auth_exempt_path_set
     assert f"{s.api_root_path_normalized}/health" not in s.spice_auth_exempt_path_set
+
+
+@pytest.mark.asyncio
+async def test_web_client_auth_cookie_resolution_and_set_cookie(
+    middleware_app: AsyncClient,
+    mock_spice_client: SpiceAuthClient,
+) -> None:
+    import base64
+
+    token_raw = "test.jwt.token"
+    encoded_token = base64.b64encode(token_raw.encode("utf-8")).decode("utf-8")
+
+    resp = await middleware_app.get(
+        f"{API_ROOT}/probe",
+        headers={"client": "web", HEADER_TENANT_ID: "7"},
+        cookies={"auth-cookie": encoded_token},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["selected_tenant_id"] == 7
+    mock_spice_client.authenticate.assert_awaited_once()  # type: ignore[attr-defined]
+    assert "set-cookie" in resp.headers
+    assert "auth-cookie=" in resp.headers["set-cookie"]
 
 
 def test_spice_auth_authenticate_url() -> None:
@@ -172,7 +281,7 @@ async def test_spice_auth_client_success(monkeypatch: pytest.MonkeyPatch) -> Non
     transport = httpx.MockTransport(handler)
     monkeypatch.setattr(
         "platform_service.integrations.spice_auth_client.httpx.AsyncClient",
-        lambda timeout: _MockClientContext(transport, timeout),
+        lambda timeout, **kwargs: _MockClientContext(transport, timeout),
     )
     client = SpiceAuthClient(base_url="http://auth.test", timeout=1.0)
     result = await client.authenticate(authorization=VALID_TOKEN, client="mob")
@@ -197,15 +306,117 @@ class _MockClientContext:
 
 @pytest.mark.asyncio
 async def test_spice_auth_client_4xx_maps_to_auth_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"n": 0}
+
     def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
         return httpx.Response(403, json={"error": "forbidden"})
 
     transport = httpx.MockTransport(handler)
     monkeypatch.setattr(
         "platform_service.integrations.spice_auth_client.httpx.AsyncClient",
-        lambda timeout: _MockClientContext(transport, timeout),
+        lambda timeout, **kwargs: _MockClientContext(transport, timeout),
+    )
+    monkeypatch.setattr(
+        "platform_service.integrations.spice_auth_client.asyncio.sleep",
+        AsyncMock(),
     )
     client = SpiceAuthClient(base_url="http://auth.test", timeout=1.0)
     with pytest.raises(SpiceAuthError) as exc_info:
         await client.authenticate(authorization=VALID_TOKEN)
     assert exc_info.value.status_code == 401
+    assert calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_spice_auth_client_retries_5xx_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contexts_payload = {"userDetail": {"id": 7, "username": "u"}, "tenants": []}
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return httpx.Response(503, text="unavailable")
+        return httpx.Response(200, json=contexts_payload)
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        "platform_service.integrations.spice_auth_client.httpx.AsyncClient",
+        lambda timeout, **kwargs: _MockClientContext(transport, timeout),
+    )
+    sleep = AsyncMock()
+    monkeypatch.setattr(
+        "platform_service.integrations.spice_auth_client.asyncio.sleep",
+        sleep,
+    )
+    client = SpiceAuthClient(base_url="http://auth.test", timeout=1.0)
+    result = await client.authenticate(authorization=VALID_TOKEN, client="mob")
+    assert result.user_detail is not None
+    assert result.user_detail.id == 7
+    assert calls["n"] == 3
+    assert sleep.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_spice_auth_client_retries_timeout_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contexts_payload = {"userDetail": {"id": 7, "username": "u"}, "tenants": []}
+    calls = {"n": 0}
+
+    async def flaky_post(self: _MockClientContext, url: str, **kwargs):  # type: ignore[no-untyped-def]
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise httpx.ReadTimeout("timed out")
+        request = httpx.Request("POST", url, headers=kwargs.get("headers"))
+        return self._transport.handle_request(request)
+
+    monkeypatch.setattr(
+        "platform_service.integrations.spice_auth_client.httpx.AsyncClient",
+        lambda timeout, **kwargs: _MockClientContext(
+            httpx.MockTransport(lambda r: httpx.Response(200, json=contexts_payload)),
+            timeout,
+        ),
+    )
+    monkeypatch.setattr(_MockClientContext, "post", flaky_post)
+    sleep = AsyncMock()
+    monkeypatch.setattr(
+        "platform_service.integrations.spice_auth_client.asyncio.sleep",
+        sleep,
+    )
+    client = SpiceAuthClient(base_url="http://auth.test", timeout=1.0)
+    result = await client.authenticate(authorization=VALID_TOKEN)
+    assert result.user_detail is not None
+    assert result.user_detail.id == 7
+    assert calls["n"] == 2
+    assert sleep.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_spice_auth_client_exhausts_retries_on_5xx(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(502, text="bad gateway")
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(
+        "platform_service.integrations.spice_auth_client.httpx.AsyncClient",
+        lambda timeout, **kwargs: _MockClientContext(transport, timeout),
+    )
+    sleep = AsyncMock()
+    monkeypatch.setattr(
+        "platform_service.integrations.spice_auth_client.asyncio.sleep",
+        sleep,
+    )
+    client = SpiceAuthClient(base_url="http://auth.test", timeout=1.0)
+    with pytest.raises(SpiceAuthError) as exc_info:
+        await client.authenticate(authorization=VALID_TOKEN)
+    assert exc_info.value.status_code == 503
+    assert calls["n"] == 3
+    assert sleep.await_count == 2

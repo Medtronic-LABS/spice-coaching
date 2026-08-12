@@ -16,8 +16,11 @@ from mc_contracts.sync import (
     RequestedModulePayload,
     SourceDocumentSyncPayload,
 )
+from mc_foundation.objectstore import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.config import Settings
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
 from platform_service.db.repositories.module_repository import ModuleRepository
@@ -29,6 +32,7 @@ from platform_service.services.card_provenance import (
     render_card_provenance,
     resolve_card_provenance,
 )
+from platform_service.services.source_thumbnail_service import presign_thumbnail
 from platform_service.services.sync.module_assignment_resolver import resolve_assigned_modules
 
 
@@ -83,9 +87,10 @@ class ModulesBundleBuilder:
         self,
         *,
         since: datetime,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         user_id: int | None = None,
-        organization_ids: list[int] | None = None,
+        storage: ObjectStore | None = None,
+        settings: Settings | None = None,
     ) -> ModulesSyncBundle:
         module_repo = ModuleRepository(self._session)
         families = await module_repo.list_families_created_since(since, tenant_id=tenant_id)
@@ -148,6 +153,16 @@ class ModulesBundleBuilder:
                 enriched_cards.append(payload)
             doc_ids = list(module.source_document_ids or [])
             source_documents = build_source_document_sync_payloads(doc_ids, doc_by_id)
+            thumb_url: str | None = None
+            thumb_expires: int | None = None
+            if storage is not None:
+                thumb = await presign_thumbnail(
+                    storage,
+                    thumbnail_storage_path=module.thumbnail_storage_path,
+                    settings=settings,
+                )
+                if thumb is not None:
+                    thumb_url, thumb_expires = thumb
             payloads.append(
                 ModuleSyncPayload(
                     id=module.id,
@@ -168,6 +183,8 @@ class ModulesBundleBuilder:
                     updated_at=module.updated_at,
                     source_documents=source_documents,
                     has_thumbnail=bool(module.thumbnail_storage_path),
+                    thumbnail_presigned_url=thumb_url,
+                    thumbnail_presigned_expires_seconds=thumb_expires,
                     search_metadata=module.search_metadata_jsonb,
                     primary_gap_id=module.primary_gap_id,
                     behavioural_gap_ids=gap_ids_by_module.get(module.id, []),
@@ -182,7 +199,7 @@ class ModulesBundleBuilder:
             assignments_by_module = await resolve_assigned_modules(
                 self._session,
                 user_id=user_id,
-                organization_ids=organization_ids,
+                tenant_id=tenant_id if tenant_id is not None else DEFAULT_TENANT_ID,
             )
             for module_id in sorted(assignments_by_module):
                 assigned_module_ids.append(

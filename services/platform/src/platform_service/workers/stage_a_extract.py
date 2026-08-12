@@ -18,6 +18,14 @@ Per `docs/ARCHITECTURE_RESET.md`. The flow per source document:
    Stage 1 failures as real ingestion_run_step failures so downstream
    stages never run on empty sources.
 
+For video sources, after transcript pages are persisted, an optional flagged
+visual enrichment path samples frames, runs VisionExtractor, appends
+``## Visual`` markdown onto chunk pages, and stores ``source_image`` rows
+with timecodes (soft-fail; never blocks transcript Stage A). Empty-audio
+videos soft-fail transcription into timed empty pages so this visual path
+can still contribute usable body text; Stage 1 then fails only if combined
+markdown stays below the emptiness threshold.
+
 The caller (pipeline_orchestrator) is responsible for:
 - Creating the source_document row before invoking us
 - Wrapping us in an ingestion_run for failure tracking
@@ -115,6 +123,9 @@ class StageAExtractor:
                 text_pages=extraction.pages,
                 total_pages=len(extraction.pages),
                 primary_language=resolved_primary_language,
+                source_path=source_path,
+                source_type=source_type,
+                vision_extractor=self._vision,
             )
         return await run_document_path(
             self,

@@ -26,6 +26,7 @@ async def _seed_uploaded(db_session: AsyncSession, *, title: str = "Staged") -> 
         original_storage_path="bucket/ingest/staged.pdf",
         original_filename="staged.pdf",
         status="uploaded",
+        tenant_id=1,
     )
     db_session.add(doc)
     await db_session.flush()
@@ -42,6 +43,7 @@ async def _seed_ingested(db_session: AsyncSession) -> SourceDocument:
         original_filename="done.pdf",
         content_sha256="abc123",
         status="ingested",
+        tenant_id=1,
     )
     db_session.add(doc)
     await db_session.flush()
@@ -51,7 +53,7 @@ async def _seed_ingested(db_session: AsyncSession) -> SourceDocument:
 def _params() -> IngestStartParams:
     return IngestStartParams(
         assessment_mode="with_quiz",
-        uploaded_by="tester",
+        actor="tester",
     )
 
 
@@ -113,22 +115,26 @@ async def test_start_ingested_without_override_raises(db_session: AsyncSession) 
     assert conflicts[0]["existing_source_documents"][0]["source_document_id"] == str(ingested.id)
 
 
-async def test_start_mixed_batch_skips_ingested_without_override(db_session: AsyncSession) -> None:
+async def test_start_mixed_batch_any_conflict_raises_without_mutations(db_session: AsyncSession) -> None:
     ingested = await _seed_ingested(db_session)
     staged = await _seed_uploaded(db_session, title="Fresh")
     service = IngestStartService(db_session)
 
-    result = await service.start(
-        source_document_ids=[ingested.id, staged.id],
-        params=_params(),
-        override_flags=[False, False],
-    )
+    with pytest.raises(AppError) as exc_info:
+        await service.start(
+            source_document_ids=[ingested.id, staged.id],
+            params=_params(),
+            override_flags=[False, False],
+        )
 
-    assert len(result.sources) == 1
-    assert result.sources[0].source_document_id == staged.id
-    assert len(result.skipped_duplicates) == 1
-    assert result.skipped_duplicates[0].content_sha256 == "abc123"
-    assert result.skipped_duplicates[0].existing_source_documents[0].id == ingested.id
+    assert exc_info.value.code == "duplicate_content"
+    assert exc_info.value.status == 409
+    conflicts = exc_info.value.extensions["conflicts"]
+    assert len(conflicts) == 1
+    assert conflicts[0]["content_sha256"] == "abc123"
+    assert conflicts[0]["existing_source_documents"][0]["source_document_id"] == str(ingested.id)
+    await db_session.refresh(staged)
+    assert staged.status == "uploaded"
 
 
 async def test_start_ingested_with_override_clones_row(db_session: AsyncSession) -> None:
@@ -157,3 +163,46 @@ async def test_resolve_override_flags_length_mismatch(db_session: AsyncSession) 
         IngestUploadService.resolve_override_duplicates_for_ids([True, False], [staged.id])
 
     assert "override_duplicates must have 1 entries" in str(exc_info.value)
+
+
+async def test_start_rejects_cross_tenant_when_selected_tenant_nonzero(
+    db_session: AsyncSession,
+) -> None:
+    staged = await _seed_uploaded(db_session)  # tenant_id=1
+    service = IngestStartService(db_session)
+    params = IngestStartParams(
+        assessment_mode="with_quiz",
+        actor="tester",
+        tenant_id=99,
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await service.start(
+            source_document_ids=[staged.id],
+            params=params,
+            override_flags=[False],
+        )
+
+    assert exc_info.value.code == "source_not_found"
+    assert exc_info.value.status == 404
+
+
+async def test_start_allows_any_doc_when_selected_tenant_is_zero(
+    db_session: AsyncSession,
+) -> None:
+    staged = await _seed_uploaded(db_session)  # tenant_id=1
+    service = IngestStartService(db_session)
+    params = IngestStartParams(
+        assessment_mode="with_quiz",
+        actor="tester",
+        tenant_id=0,
+    )
+
+    result = await service.start(
+        source_document_ids=[staged.id],
+        params=params,
+        override_flags=[False],
+    )
+
+    assert len(result.sources) == 1
+    assert result.sources[0].source_document_id == staged.id

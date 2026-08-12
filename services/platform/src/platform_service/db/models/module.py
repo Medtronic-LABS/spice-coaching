@@ -30,11 +30,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.config import get_settings
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 _EMBEDDING_DIM = get_settings().embedding_dimension
 
 
-class Module(Base):
+class Module(TenantMixin, Base):
     __tablename__ = "module"
     __table_args__ = (UniqueConstraint("module_family_id", "version", name="uq_module_family_version"),)
 
@@ -50,7 +51,6 @@ class Module(Base):
 
     # refresher | content_update | digital_proficiency
     module_type: Mapped[str] = mapped_column(Text, nullable=False, default="refresher")
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     # Denormalised primary gap for quiz gap-state updates. Full mapping lives
     # in ``module_behavioural_gap`` (many gaps per module). Stage 2-draft

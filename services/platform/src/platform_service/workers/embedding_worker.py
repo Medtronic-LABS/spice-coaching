@@ -32,6 +32,7 @@ from platform_service.services.embedding_vector import assert_embedding_dimensio
 from platform_service.services.module_search_text import module_text_for_search
 from platform_service.services.post_publish_step import finish_post_publish_step
 from platform_service.vectorstore import MODULES_COLLECTION, get_vector_store
+from platform_service.workers.tenant_binding import with_module_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ def _module_text_for_embedding(module: Module, cards: list[dict[str, Any]]) -> s
     return module_text_for_search(module, cards=cards)
 
 
+@with_module_tenant
 async def generate_embedding_for_module(module_id: UUID, *, step_id: UUID | None = None) -> bool:
     """Generate and persist a per-module embedding. Returns True on success.
 

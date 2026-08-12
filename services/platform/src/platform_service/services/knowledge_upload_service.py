@@ -1,7 +1,7 @@
 """Knowledge PDF upload and soft-delete for published-visible source docs.
 
-Owns ``POST /admin/knowledge/upload`` and ``DELETE /admin/knowledge/{id}``.
-Does not enqueue the ingest pipeline.
+Owns ``POST /admin/knowledge/upload``, ``GET /admin/knowledge/uploaders``,
+and ``DELETE /admin/knowledge/{id}``. Does not enqueue the ingest pipeline.
 """
 
 from __future__ import annotations
@@ -14,9 +14,10 @@ from pathlib import Path
 
 import anyio
 from fastapi import UploadFile
-from mc_contracts.admin_knowledge import KnowledgeSplitSpec
 from mc_contracts.enums import ContentDomain
 from mc_contracts.errors import ErrorCode
+from mc_contracts.knowledge import KnowledgeSplitSpec
+from mc_contracts.source_documents import SourceDocumentActorRef
 from mc_foundation.objectstore import (
     ObjectNotFoundError,
     ObjectStorageError,
@@ -33,6 +34,10 @@ from platform_service.db.repositories.file_upload_repository import FileUploadRe
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.attribution_audit import record_attribution_event
 from platform_service.services.file_digest import sha256_hex_file
+from platform_service.services.ingest_upload_service import (
+    DuplicateIngestConflict,
+    IngestUploadService,
+)
 from platform_service.services.pdf_split import count_pdf_pages, split_pdf_page_range
 from platform_service.services.upload_provenance import (
     build_upload_metadata,
@@ -93,7 +98,17 @@ class KnowledgeUploadService:
         self._storage = storage
         self._settings = settings or get_settings()
 
-    async def retire(self, source_document_id: uuid.UUID) -> None:
+    async def list_uploaders(self, *, tenant_id: int) -> list[SourceDocumentActorRef]:
+        """Return distinct resolvable uploaders of active knowledge docs in ``tenant_id``."""
+        users = await SourceRepository(self._db).list_knowledge_uploaders(tenant_id=tenant_id)
+        return [SourceDocumentActorRef(id=user.id, name=user.name) for user in users]
+
+    async def retire(
+        self,
+        source_document_id: uuid.UUID,
+        *,
+        updated_by: int | None = None,
+    ) -> None:
         """Soft-delete a knowledge source document by setting ``status='retired'``.
 
         Only documents with ``sync_published_visible=true`` may be retired.
@@ -116,16 +131,21 @@ class KnowledgeUploadService:
         if doc.status == "retired":
             return
         doc.status = "retired"
+        if updated_by is not None:
+            doc.updated_by = updated_by
         await self._db.flush()
 
     async def upload(
         self,
         *,
         file: UploadFile,
-        uploaded_by: str,
+        actor: str,
+        uploaded_by_user_id: int | None = None,
         title: str | None = None,
         thumbnail_storage_path: str | None = None,
         splits_json: str | None = None,
+        tenant_id: int = 0,
+        override_duplicates: bool = False,
     ) -> list[KnowledgeUploadedResult]:
         splits = self.parse_splits(splits_json)
         staging_path = await self._stage_pdf_upload(file)
@@ -185,12 +205,22 @@ class KnowledgeUploadService:
                     )
                 )
 
+            digests = [sha256_hex_file(artifact.local_path) for artifact in prepared]
+            self._reject_within_request_duplicate_digests(prepared, digests)
+            if not override_duplicates:
+                conflicts = await self._collect_duplicate_conflicts(
+                    prepared,
+                    digests,
+                    tenant_id=tenant_id,
+                )
+                if conflicts:
+                    raise IngestUploadService.duplicate_content_error(conflicts)
+
             results: list[KnowledgeUploadedResult] = []
             source_repo = SourceRepository(self._db)
             file_upload_repo = FileUploadRepository(self._db)
-            for artifact in prepared:
+            for artifact, digest in zip(prepared, digests, strict=True):
                 stored = await self._put_artifact(artifact)
-                digest = sha256_hex_file(artifact.local_path)
                 await record_file_upload(
                     file_upload_repo=file_upload_repo,
                     bucket_name=stored.bucket_name,
@@ -200,7 +230,8 @@ class KnowledgeUploadService:
                     content_sha256=digest,
                     content_type="application/pdf",
                     size_bytes=stored.size_bytes,
-                    uploaded_by=uploaded_by,
+                    uploaded_by=actor,
+                    tenant_id=tenant_id,
                 )
                 doc = await source_repo.create_source_document(
                     title=artifact.title,
@@ -210,9 +241,10 @@ class KnowledgeUploadService:
                     original_storage_path=stored.storage_path,
                     content_sha256=digest,
                     original_filename=artifact.original_filename,
-                    uploaded_by=uploaded_by,
+                    uploaded_by=uploaded_by_user_id,
                     sync_published_visible=True,
                     status="uploaded",
+                    tenant_id=tenant_id,
                 )
                 if artifact.thumbnail_storage_path is not None:
                     doc.thumbnail_storage_path = artifact.thumbnail_storage_path
@@ -220,7 +252,7 @@ class KnowledgeUploadService:
                 await record_attribution_event(
                     self._db,
                     event_type="knowledge_uploaded",
-                    actor=uploaded_by,
+                    actor=actor,
                     source_document_id=doc.id,
                     payload={
                         "stored_path": stored.storage_path,
@@ -244,6 +276,50 @@ class KnowledgeUploadService:
             for path in split_temps:
                 path.unlink(missing_ok=True)
             staging_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _reject_within_request_duplicate_digests(
+        prepared: list[_PreparedArtifact],
+        digests: list[str],
+    ) -> None:
+        seen: dict[str, str] = {}
+        for artifact, digest in zip(prepared, digests, strict=True):
+            prior = seen.get(digest)
+            if prior is not None:
+                raise KnowledgeValidationError(
+                    (
+                        f"duplicate file content in the same request "
+                        f"({prior!r} and {artifact.original_filename!r}); "
+                        "remove duplicates from the upload and retry"
+                    ),
+                    status_code=422,
+                )
+            seen[digest] = artifact.original_filename
+
+    async def _collect_duplicate_conflicts(
+        self,
+        prepared: list[_PreparedArtifact],
+        digests: list[str],
+        *,
+        tenant_id: int,
+    ) -> list[DuplicateIngestConflict]:
+        source_repo = SourceRepository(self._db)
+        conflicts: list[DuplicateIngestConflict] = []
+        for artifact, digest in zip(prepared, digests, strict=True):
+            existing = await source_repo.list_duplicate_candidates_by_content_sha256(
+                digest,
+                tenant_id=tenant_id,
+            )
+            if existing:
+                conflicts.append(
+                    DuplicateIngestConflict(
+                        filename=artifact.original_filename,
+                        title=artifact.title,
+                        content_sha256=digest,
+                        existing_source_documents=tuple(existing),
+                    )
+                )
+        return conflicts
 
     @staticmethod
     def parse_splits(splits_json: str | None) -> list[KnowledgeSplitSpec]:
