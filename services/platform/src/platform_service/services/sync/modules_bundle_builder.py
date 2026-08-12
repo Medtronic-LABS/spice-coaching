@@ -15,8 +15,10 @@ from mc_contracts.sync import (
     RequestedModulePayload,
     SourceDocumentSyncPayload,
 )
+from mc_foundation.objectstore import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.config import Settings
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
 from platform_service.db.repositories.module_repository import ModuleRepository
@@ -29,6 +31,7 @@ from platform_service.services.card_provenance import (
     resolve_card_provenance,
 )
 from platform_service.services.sync.module_assignment_resolver import resolve_assigned_modules
+from platform_service.services.sync.presign_service import SyncPresignService
 
 
 def build_source_document_sync_payloads(
@@ -77,6 +80,7 @@ def resolve_module_content_domain(
 class ModulesBundleBuilder:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._presign = SyncPresignService(session)
 
     async def build(
         self,
@@ -85,6 +89,8 @@ class ModulesBundleBuilder:
         tenant_id: UUID | None = None,
         user_id: int | None = None,
         organization_ids: list[int] | None = None,
+        storage: ObjectStore | None = None,
+        settings: Settings | None = None,
     ) -> ModulesSyncBundle:
         module_repo = ModuleRepository(self._session)
         families = await module_repo.list_families_created_since(since, tenant_id=tenant_id)
@@ -135,6 +141,18 @@ class ModulesBundleBuilder:
         all_cards = [card for _, cards in module_cards for card in cards]
         provenance_context = await resolve_card_provenance(self._session, all_cards, storage=None)
 
+        thumb_url_by_id: dict[UUID, str] = {}
+        thumb_exp_by_id: dict[UUID, int] = {}
+        if storage is not None and module_ids:
+            thumb_resp = await self._presign.get_module_thumbnail_presigned_urls(
+                module_ids=module_ids,
+                storage=storage,
+                settings=settings,
+            )
+            for item in thumb_resp.urls:
+                thumb_url_by_id[item.module_id] = item.presigned_url
+                thumb_exp_by_id[item.module_id] = item.expires_seconds
+
         payloads = []
         for module, cards in module_cards:
             enriched_cards = []
@@ -167,6 +185,8 @@ class ModulesBundleBuilder:
                     updated_at=module.updated_at,
                     source_documents=source_documents,
                     has_thumbnail=bool(module.thumbnail_storage_path),
+                    thumbnail_presigned_url=thumb_url_by_id.get(module.id),
+                    thumbnail_presigned_expires_seconds=thumb_exp_by_id.get(module.id),
                     search_metadata=module.search_metadata_jsonb,
                     primary_gap_id=module.primary_gap_id,
                     behavioural_gap_ids=gap_ids_by_module.get(module.id, []),

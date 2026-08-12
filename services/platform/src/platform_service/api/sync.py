@@ -219,6 +219,7 @@ async def sync_modules(
         description="Optional tenant UUID override (admin principals only when auth is enabled).",
     ),
     db: AsyncSession = Depends(get_db),
+    storage: ObjectStore = Depends(get_object_storage_client),
 ) -> ModulesSyncBundle:
     """Return published modules updated after `since` (plus their quiz payloads).
 
@@ -238,6 +239,7 @@ async def sync_modules(
         tenant_id=effective_tenant,
         user_id=effective_user_id,
         organization_ids=organization_ids,
+        storage=storage,
     )
 
 

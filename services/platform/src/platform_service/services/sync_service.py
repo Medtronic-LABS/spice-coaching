@@ -110,12 +110,16 @@ class SyncService:
         tenant_id: UUID | None = None,
         user_id: int | None = None,
         organization_ids: list[int] | None = None,
+        storage: ObjectStore | None = None,
+        settings: Settings | None = None,
     ) -> ModulesSyncBundle:
         return await self._modules.build(
             since=since,
             tenant_id=tenant_id,
             user_id=user_id,
             organization_ids=organization_ids,
+            storage=storage,
+            settings=settings,
         )
 
     async def get_published_source_documents_bundle(

@@ -87,6 +87,8 @@ class ModuleSyncPayload(BaseModel):
     updated_at: datetime
     source_documents: list[SourceDocumentSyncPayload] = Field(default_factory=list)
     has_thumbnail: bool = False
+    thumbnail_presigned_url: str | None = None
+    thumbnail_presigned_expires_seconds: int | None = None
     search_metadata: dict[str, Any] | None = None
     primary_gap_id: UUID | None = None
     behavioural_gap_ids: list[UUID] = Field(default_factory=list)
