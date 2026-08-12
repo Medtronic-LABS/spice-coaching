@@ -129,6 +129,7 @@ services:
       spice_auth_timeout_seconds: ${SPICE_AUTH_TIMEOUT_SECONDS:-5}
       spice_auth_default_client: ${SPICE_AUTH_DEFAULT_CLIENT:-mob}
       app_env: ${APP_ENV:-development}
+      deployment_primary_locale: ${DEPLOYMENT_PRIMARY_LOCALE:-bn}
       log_json: "true"
     depends_on:
       migrate:
@@ -198,6 +199,7 @@ services:
       object_storage_secure: ${OBJECT_STORAGE_SECURE:-"false"}
       object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
       app_env: ${APP_ENV:-development}
+      deployment_primary_locale: ${DEPLOYMENT_PRIMARY_LOCALE:-bn}
       log_service_name: platform-celery-worker
       log_json: "true"
     depends_on:
