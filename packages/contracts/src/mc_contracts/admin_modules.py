@@ -272,6 +272,7 @@ class SourceDocumentSummary(BaseModel):
     description: str | None = None
     thumbnail_storage_path: str | None = None
     ingested_at: datetime
+    sync_published_visible: bool = False
 
 
 class SourceDocumentMetadataUpdate(BaseModel):
