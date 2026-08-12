@@ -55,6 +55,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       MINIO_ROOT_PASSWORD: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
+      MINIO_SERVER_URL: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT:-}
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
