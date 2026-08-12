@@ -39,7 +39,7 @@ def ingest_job_from_result(
         source_document_id=result.source_document_id,
         source_path=result.stored_path,
         source_type=result.source_type,
-        primary_language=get_settings().deployment_primary_locale,
+        primary_language=result.primary_language,
         run_id=run_id,
         batch_id=batch_id,
     )

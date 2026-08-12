@@ -74,6 +74,7 @@ class IngestedSourceResult:
     source_type: str
     stored_path: str
     content_domain: str
+    primary_language: str
 
 
 @dataclass(frozen=True)
@@ -574,6 +575,7 @@ class IngestUploadService:
                     source_type=doc.source_type,
                     stored_path=storage_path,
                     content_domain=doc.content_domain,
+                    primary_language=doc.primary_language,
                 )
             )
         finally:
