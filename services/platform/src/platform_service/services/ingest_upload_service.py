@@ -62,6 +62,7 @@ MAX_INGEST_FILES = 10
 _ALLOWED_CONTENT_DOMAINS = frozenset(e.value for e in ContentDomain)
 _ALLOWED_ASSESSMENT_MODES = frozenset(e.value for e in AssessmentMode)
 _DEFAULT_CONTENT_DOMAIN = ContentDomain.CLINICAL.value
+_ALLOWED_LANGUAGES = frozenset({"en", "bn", "hi", "ta", "te"})
 
 
 @dataclass(frozen=True)
@@ -327,6 +328,47 @@ class IngestUploadService:
         return resolved
 
     @staticmethod
+    def resolve_primary_languages_for_files(
+        primary_languages_json: str | None,
+        files: list[UploadFile],
+        default_language: str,
+    ) -> list[str]:
+        """Map each upload to a primary_language (default deployment locale when omitted/null)."""
+        if not files:
+            raise IngestValidationError("at least one file is required")
+        if primary_languages_json is None:
+            return [default_language] * len(files)
+        try:
+            parsed = json.loads(primary_languages_json)
+        except json.JSONDecodeError as exc:
+            raise IngestValidationError("primary_languages must be valid JSON") from exc
+        if not isinstance(parsed, list):
+            raise IngestValidationError("primary_languages must be a JSON array")
+        if len(parsed) != len(files):
+            raise IngestValidationError(
+                f"primary_languages must have {len(files)} entries (one per file); got {len(parsed)}",
+            )
+        resolved: list[str] = []
+        for index, entry in enumerate(parsed):
+            if entry is None:
+                resolved.append(default_language)
+                continue
+            if not isinstance(entry, str):
+                raise IngestValidationError(
+                    f"primary_languages[{index}] must be a string or null",
+                )
+            lang = entry.strip()
+            if not lang:
+                resolved.append(default_language)
+                continue
+            if lang not in _ALLOWED_LANGUAGES:
+                raise IngestValidationError(
+                    f"primary_languages[{index}] {lang!r} not supported; allowed: {sorted(_ALLOWED_LANGUAGES)}",
+                )
+            resolved.append(lang)
+        return resolved
+
+    @staticmethod
     def resolve_content_domains_for_files(
         content_domains_json: str | None,
         files: list[UploadFile],
@@ -405,8 +447,10 @@ class IngestUploadService:
         override_flags: list[bool],
         content_domains: list[str],
         sync_published_visible_flags: list[bool] | None = None,
+        primary_languages: list[str] | None = None,
     ) -> list[IngestUploadOutcome]:
         resolved_visible = sync_published_visible_flags or [False] * len(files)
+        resolved_languages = primary_languages or [self._settings.deployment_primary_locale] * len(files)
         outcomes: list[IngestUploadOutcome] = []
         for (
             upload,
@@ -415,6 +459,7 @@ class IngestUploadService:
             override_duplicate,
             content_domain,
             sync_visible,
+            primary_language,
         ) in zip(
             files,
             titles,
@@ -422,6 +467,7 @@ class IngestUploadService:
             override_flags,
             content_domains,
             resolved_visible,
+            resolved_languages,
             strict=True,
         ):
             outcomes.append(
@@ -433,6 +479,7 @@ class IngestUploadService:
                     override_duplicate=override_duplicate,
                     content_domain=content_domain,
                     sync_published_visible=sync_visible,
+                    primary_language=primary_language,
                 )
             )
         return outcomes
@@ -447,6 +494,7 @@ class IngestUploadService:
         override_duplicate: bool = False,
         content_domain: str = _DEFAULT_CONTENT_DOMAIN,
         sync_published_visible: bool = False,
+        primary_language: str | None = None,
     ) -> IngestUploadOutcome:
         """Upload one file, persist provenance, and create an uploaded source_document."""
         if self._storage is None:
@@ -498,7 +546,7 @@ class IngestUploadService:
             doc = await source_repo.create_source_document(
                 title=title,
                 source_type=source_type,
-                primary_language=self._settings.deployment_primary_locale,
+                primary_language=primary_language or self._settings.deployment_primary_locale,
                 content_domain=content_domain,
                 original_storage_path=storage_path,
                 content_sha256=content_sha256,

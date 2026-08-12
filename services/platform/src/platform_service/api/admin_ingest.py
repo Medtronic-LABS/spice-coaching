@@ -179,6 +179,14 @@ async def upload_ingest_documents(
             "Defaults to false for all files when omitted."
         ),
     ),
+    primary_languages: str | None = Form(
+        None,
+        description=(
+            "Optional JSON array of language codes, one per file in upload order "
+            '(e.g. ["en","bn"]). Allowed: en, bn, hi, ta, te. '
+            "Defaults to DEPLOYMENT_PRIMARY_LOCALE for all files when omitted."
+        ),
+    ),
     tenant_id: UUID | None = Query(
         default=None,
         description="Optional tenant UUID override (admin principals only when auth is enabled).",
@@ -196,6 +204,10 @@ async def upload_ingest_documents(
     override_flags = upload_svc.resolve_override_duplicates_for_files(override_duplicates, files)
     resolved_content_domains = upload_svc.resolve_content_domains_for_files(content_domains, files)
     resolved_sync_visible = upload_svc.resolve_sync_published_visible_for_files(sync_published_visible, files)
+    settings = get_settings()
+    resolved_primary_languages = upload_svc.resolve_primary_languages_for_files(
+        primary_languages, files, default_language=settings.deployment_primary_locale
+    )
     uploaded_by = resolve_spice_actor(request)
     params = IngestUploadParams(uploaded_by=uploaded_by)
     outcomes = await upload_svc.upload_files(
@@ -206,6 +218,7 @@ async def upload_ingest_documents(
         override_flags=override_flags,
         content_domains=resolved_content_domains,
         sync_published_visible_flags=resolved_sync_visible,
+        primary_languages=resolved_primary_languages,
     )
     uploaded = [outcome.uploaded for outcome in outcomes if outcome.uploaded is not None]
     skipped_duplicates = [outcome.skipped for outcome in outcomes if outcome.skipped is not None]
