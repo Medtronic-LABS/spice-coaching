@@ -108,8 +108,8 @@ services:
       search_metadata_max_tags: ${SEARCH_METADATA_MAX_TAGS:-10}
       # Object storage — defaults to local MinIO; override via .env for S3 or GCS deployments.
       object_storage_backend: ${OBJECT_STORAGE_BACKEND:-minio}
-      object_storage_endpoint: ${OBJECT_STORAGE_ENDPOINT:-minio:9000}
-      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT:-minio:9000}
+      object_storage_endpoint: ${OBJECT_STORAGE_ENDPOINT}
+      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT}
       object_storage_presign_mode: ${OBJECT_STORAGE_PRESIGN_MODE:-proxy}
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
@@ -188,8 +188,8 @@ services:
       chat_feedback_summary_max_negative_online_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_ONLINE_SAMPLES:-30}
       chat_feedback_summary_max_negative_offline_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_OFFLINE_SAMPLES:-30}
       object_storage_backend: ${OBJECT_STORAGE_BACKEND:-minio}
-      object_storage_endpoint: ${OBJECT_STORAGE_ENDPOINT:-minio:9000}
-      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT:-minio:9000}
+      object_storage_endpoint: ${OBJECT_STORAGE_ENDPOINT}
+      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PRESIGNED_ENDPOINT}
       object_storage_presign_mode: ${OBJECT_STORAGE_PRESIGN_MODE:-proxy}
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
