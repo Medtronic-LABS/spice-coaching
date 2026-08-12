@@ -190,7 +190,9 @@ async def test_media_path_video_empty_audio_logs_and_still_enriches(
     enrich_instance = AsyncMock()
 
     async def _enrich(*, source_document_id, source_path, pages):  # noqa: ANN001
-        pages[0].markdown_content = (
+        pages[
+            0
+        ].markdown_content = (
             "## Visual (t=0ms)\n\nA slide about diabetes prevention with enough characters to pass."
         )
         return 1
