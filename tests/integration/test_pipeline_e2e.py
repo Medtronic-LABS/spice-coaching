@@ -161,7 +161,7 @@ def _draft_response(*, cards: list[dict] | None = None, insufficient: str | None
 def _card(idx: int = 0) -> dict[str, Any]:
     return {
         "title": {"bn": f"কার্ড {idx}", "en": f"Card {idx}" * 5},
-        "body": {"bn": "মূল বিষয় এবং পরবর্তী পদক্ষেপ। "} * 5,
+        "body": {"bn": "মূল বিষয় এবং পরবর্তী পদক্ষেপ। " * 5},
         "next_action": {"bn": "পরবর্তী পদক্ষেপ নিন।"},
         "source_block_ids": [str(uuid4())],
     }

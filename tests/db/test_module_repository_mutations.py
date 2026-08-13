@@ -385,7 +385,7 @@ class TestCountModules:
             (
                 await db_session.execute(
                     select(
-                        ModuleRepository.__init__.__globals__["Module"]
+                        Module
                     ).where(  # use Module from the repo's namespace
                         Module.description_localized["bn"] == marker, Module.clinically_reviewed.is_(True)
                     )
