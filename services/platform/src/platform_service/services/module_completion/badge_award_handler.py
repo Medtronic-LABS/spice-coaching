@@ -26,7 +26,7 @@ class BadgeAwardHandler:
         self,
         *,
         chw_id: int,
-        tenant_id: int | None,
+        tenant_id: int,
         module_id: UUID,
     ) -> None:
         """Evaluate active same-tenant badges linking ``module_id`` and award when complete."""

@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import get_settings
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.chw_behavioural_gap_state import CHWBehaviouralGapState
 from platform_service.services.trigger_evaluator import (
@@ -86,7 +87,7 @@ class GapStateService:
         chw_id: int,
         behavioural_gap_id: UUID,
         predicate: dict[str, Any] | None = None,
-        tenant_id: int | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
         now: datetime | None = None,
     ) -> ObservationOutcome:
         """Record one telemetry observation of the gap pattern.
@@ -131,7 +132,7 @@ class GapStateService:
         *,
         chw_id: int,
         behavioural_gap_id: UUID,
-        tenant_id: int | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
         now: datetime | None = None,
     ) -> CHWBehaviouralGapState:
         """Record a failed quiz attempt and (if threshold crossed within

@@ -28,7 +28,7 @@ class QuizProgressHandler:
         self,
         *,
         chw_id: int,
-        tenant_id: int | None,
+        tenant_id: int,
         module: Module,
         quiz_id: UUID,
     ) -> bool:

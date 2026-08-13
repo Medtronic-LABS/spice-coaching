@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import requires_db, truncate_tables
 from tests.helpers.hierarchy_fixtures import SK_ID, seed_basic_hierarchy
+from tests.helpers.tenant import TEST_TENANT_ID
 
 pytestmark = [pytest.mark.asyncio, requires_db]
 
@@ -44,15 +45,27 @@ def patch_session_local(db_session: AsyncSession):
     @asynccontextmanager
     async def _factory():
         original_commit = db_session.commit
+        original_rollback = db_session.rollback
 
         async def _commit_as_flush() -> None:
             await db_session.flush()
 
+        async def _rollback_as_noop() -> None:
+            """Swallow the worker's rollback.
+
+            The worker commits per event and rolls back on duplicate/invalid
+            module. Here commit is only a flush, so a real rollback would also
+            discard rows written by *earlier* events in the same test — which is
+            exactly what the duplicate no-op tests assert survived.
+            """
+
         db_session.commit = _commit_as_flush  # type: ignore[method-assign]
+        db_session.rollback = _rollback_as_noop  # type: ignore[method-assign]
         try:
             yield db_session
         finally:
             db_session.commit = original_commit  # type: ignore[method-assign]
+            db_session.rollback = original_rollback  # type: ignore[method-assign]
 
     with patch.object(training_request_event_worker, "SessionLocal", _factory):
         yield
@@ -61,11 +74,11 @@ def patch_session_local(db_session: AsyncSession):
 async def _seed_published_module(
     session: AsyncSession,
     *,
-    tenant_id: int | None = None,
+    tenant_id: int = TEST_TENANT_ID,
     chatbot_faqs_only: bool = False,
     lifecycle_status: str = "published",
 ) -> Module:
-    fam = ModuleFamily(module_code=f"TR-{uuid4().hex[:8]}", tenant_id=1)
+    fam = ModuleFamily(module_code=f"TR-{uuid4().hex[:8]}", tenant_id=tenant_id)
     session.add(fam)
     await session.flush()
     module = Module(
@@ -212,7 +225,10 @@ async def test_chatbot_faqs_only_no_op(patch_session_local, db_session: AsyncSes
 
 
 async def test_duplicate_module_no_op(patch_session_local, db_session: AsyncSession) -> None:
-    chw = _test_chw_id()
+    # module_id requests also create an assignment, which FKs to users.
+    await seed_basic_hierarchy(db_session)
+    await db_session.commit()
+    chw = SK_ID
     module = await _seed_published_module(db_session)
     payload = {
         "event_type": "module_requested",

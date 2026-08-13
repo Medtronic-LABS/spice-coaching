@@ -62,7 +62,6 @@ from platform_service.services.module_completion import (
     LearningPointsHandler,
     QuizEscalationHandler,
     QuizProgressHandler,
-    coerce_tenant_id,
     module_quiz_outcome_kind,
     parse_chw_id,
     parse_quiz_id,
@@ -103,7 +102,7 @@ async def _try_claim_module_event(session, payload: dict[str, Any]) -> bool:
         event_id=parsed,
         chw_id=chw_id,
         event_type=event_type,
-        tenant_id=coerce_tenant_id(payload.get("tenant_id")),
+        tenant_id=payload_tenant_id(payload),
     )
 
 
@@ -172,7 +171,7 @@ async def _process_learning_points_only(payload: dict[str, Any], *, event_type: 
             payload.get("event_id"),
         )
         return
-    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = payload_tenant_id(payload)
     async with SessionLocal() as session:
         try:
             if not await _try_claim_module_event(session, payload):
@@ -215,7 +214,7 @@ async def _process_spice_action(payload: dict[str, Any]) -> None:
             payload.get("event_id"),
         )
         return
-    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = payload_tenant_id(payload)
     async with SessionLocal() as session:
         try:
             if not await _try_claim_module_event(session, payload):
@@ -261,7 +260,7 @@ async def _process_module_quiz(payload: dict[str, Any], *, event_type: str) -> N
         )
         return
 
-    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = payload_tenant_id(payload)
 
     async with SessionLocal() as session:
         try:

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import get_settings
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
 
 
@@ -46,7 +47,7 @@ class QuizQuestionStateService:
         chw_id: int,
         quiz_id: UUID,
         module_id: UUID,
-        tenant_id: int | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
         now: datetime | None = None,
     ) -> CHWQuizQuestionState:
         """Record one quiz attempt observation (first/last attempt timestamps)."""
@@ -79,7 +80,7 @@ class QuizQuestionStateService:
         chw_id: int,
         quiz_id: UUID,
         module_id: UUID,
-        tenant_id: int | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
         now: datetime | None = None,
     ) -> CHWQuizQuestionState:
         """Record a failed quiz attempt and escalate when threshold crossed."""

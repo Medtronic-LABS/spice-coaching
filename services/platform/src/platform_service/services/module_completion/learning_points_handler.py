@@ -20,7 +20,7 @@ class LearningPointsHandler:
         *,
         event_id: str | None,
         chw_id: int,
-        tenant_id: int | None,
+        tenant_id: int,
         event_type: str,
         payload: dict,
     ) -> None:

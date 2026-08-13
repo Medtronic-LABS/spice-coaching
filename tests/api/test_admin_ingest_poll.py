@@ -34,6 +34,8 @@ def _step(
         input_summary_jsonb=input_summary,
         output_summary_jsonb=output_summary,
         error_jsonb=None,
+        error_code=None,
+        error_message=None,
     )
 
 

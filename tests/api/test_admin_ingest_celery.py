@@ -31,10 +31,10 @@ from platform_service.services.run_state_service import (
     STEP_FAILED,
     STEP_SUCCEEDED,
 )
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import platform_path, requires_db
+from tests.conftest import platform_path, requires_db, truncate_tables
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -45,15 +45,13 @@ _DUPLICATE_PDF_SHA256 = hashlib.sha256(_DUPLICATE_PDF_BYTES).hexdigest()
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_ingest_tables(db_session: AsyncSession) -> AsyncIterator[None]:
-    yield
-    await db_session.rollback()
-    await db_session.execute(
-        text(
-            "TRUNCATE attribution_event, file_upload, ingestion_run_step, "
-            "ingestion_run, ingest_batch, source_document RESTART IDENTITY CASCADE"
-        )
+    # Truncate *before* the test: rows committed by other modules would
+    # otherwise leak in and break count-based assertions.
+    await truncate_tables(
+        db_session,
+        "attribution_event, file_upload, ingestion_run_step, ingestion_run, ingest_batch, source_document",
     )
-    await db_session.commit()
+    yield
 
 
 @pytest_asyncio.fixture
@@ -753,6 +751,6 @@ class TestIngestBatchRetry:
         await db_session.commit()
         noop = await client.post(platform_path(f"/admin/ingest/batches/{batch_id}/retry"))
         assert noop.status_code == 200
-        assert len(noop.json()["results"]) == 1
-        assert noop.json()["results"][0]["status"] == "noop"
-        assert noop.json()["results"][0]["reason"] == "step_not_failed"
+        # Batch retry only collects steps that are still FAILED, so once the
+        # stage succeeded there is nothing to report.
+        assert noop.json()["results"] == []

@@ -45,7 +45,7 @@ class TrainingRequestService:
         module_id: UUID | None,
         requested_module_name: str | None,
         reason: str | None,
-        tenant_id: int | None,
+        tenant_id: int,
     ) -> TrainingRequestSubmitResult:
         if module_id is not None:
             module = await self._modules.get_module(module_id)

@@ -26,7 +26,7 @@ class GapEscalationHandler:
         chw_id: int,
         module: Module,
         score_pct: float | None,
-        tenant_id: int | None,
+        tenant_id: int,
         event_id: str | None,
         gap_outcome_kind: str | None,
     ) -> None:
@@ -83,7 +83,7 @@ class GapEscalationHandler:
         *,
         chw_id: int,
         behavioural_gap_id: UUID,
-        tenant_id: int | None,
+        tenant_id: int,
         payload: dict[str, Any],
         payload_json: dict[str, Any],
         event_id: str | None,

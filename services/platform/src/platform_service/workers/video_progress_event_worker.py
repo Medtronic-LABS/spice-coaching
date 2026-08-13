@@ -14,7 +14,6 @@ from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.db.repositories.video_progress_repository import VideoProgressRepository
 from platform_service.services.module_completion.telemetry_parsing import (
-    coerce_tenant_id,
     parse_chw_id,
     parse_uuid,
 )
@@ -125,7 +124,7 @@ async def process_video_progress_event_job(payload: dict[str, Any]) -> None:
         return
 
     completed = _parse_completed(payload)
-    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = payload_tenant_id(payload)
 
     with using_selected_tenant(payload_tenant_id(payload)):
         async with SessionLocal() as session:

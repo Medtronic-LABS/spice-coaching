@@ -61,6 +61,8 @@ def _step(
         input_summary_jsonb=input_summary or None,
         output_summary_jsonb=output_summary,
         error_jsonb=error,
+        error_code=None,
+        error_message=None,
     )
 
 

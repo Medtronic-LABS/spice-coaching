@@ -79,20 +79,6 @@ def platform_path(path: str) -> str:
     return get_settings().api_path(path)
 
 
-# Most DB/API tests seed ``tenant_id=1`` rows; align default selected tenant.
-_TEST_DEFAULT_TENANT_ID = 1
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _align_test_default_tenant_id() -> Iterator[None]:
-    import platform_service.auth.tenant_context as tenant_context
-
-    original = tenant_context.DEFAULT_SELECTED_TENANT_ID
-    tenant_context.DEFAULT_SELECTED_TENANT_ID = _TEST_DEFAULT_TENANT_ID
-    yield
-    tenant_context.DEFAULT_SELECTED_TENANT_ID = original
-
-
 @pytest.fixture(scope="session", autouse=True)
 def _disable_spice_auth_for_tests() -> Iterator[None]:
     """API tests assume open access unless they explicitly exercise auth."""

@@ -25,7 +25,7 @@ class QuizEscalationHandler:
         module: Module,
         quiz_id: UUID,
         score_pct: float | None,
-        tenant_id: int | None,
+        tenant_id: int,
         event_id: str | None,
         gap_outcome_kind: str | None,
     ) -> None:
