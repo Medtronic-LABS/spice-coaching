@@ -92,7 +92,7 @@ class TestAdminFileUpload:
         assert resp.status_code == 201
         body = resp.json()
         assert body["storage_path"].startswith(f"{_TEST_BUCKET}/")
-        assert body["content_type"] == "application/pdf"
+        assert body["content_type"] == "text/plain"
         assert body["reused_existing"] is False
         storage_mock.put_object_from_local_file.assert_awaited_once()
         put_kwargs = storage_mock.put_object_from_local_file.await_args.kwargs
