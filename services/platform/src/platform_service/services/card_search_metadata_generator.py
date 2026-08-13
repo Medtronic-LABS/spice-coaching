@@ -262,7 +262,7 @@ class CardSearchMetadataGenerator:
         if not card_indices:
             return CardSearchMetadataBatchResult(metadata_by_index={}, failed_indices=[])
 
-        card_list = cards if cards is not None else []
+        card_list = cards if cards is not None else (module.module_json.get("cards") or [])
         card_payloads: list[dict[str, Any]] = []
         for card_index in card_indices:
             if card_index < 0 or card_index >= len(card_list):

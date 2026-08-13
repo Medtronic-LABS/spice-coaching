@@ -204,7 +204,7 @@ def _extract_answer_excerpt(payload: dict[str, Any] | str | None) -> str | None:
 
 
 def _row_to_event(row: dict[str, Any]) -> FeedbackEvent | None:
-    tenant_id = _to_uuid(row.get("tenant_id"))
+    tenant_id = _to_int(row.get("tenant_id"))
     event_id = str(row.get("id") or "").strip()
     if tenant_id is None or not event_id:
         return None

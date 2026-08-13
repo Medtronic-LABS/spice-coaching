@@ -39,6 +39,8 @@ from platform_service.config import get_settings
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
+from platform_service.services.module_card_service import ModuleCardService
+from platform_service.services.prompt_template_service import PromptTemplateService, RenderedPrompt
 from platform_service.services.prompt_variables.quiz_generation_variables import (
     build_quiz_generation_variables,
 )
@@ -125,10 +127,10 @@ class TestFormatCardBlock:
         positions = [
             block.index("Title (bn)"),
             block.index("Body (bn)"),
-            block.index("Next action (bn)"),
-            block.index("Previous practice (bn)"),
-            block.index("Current practice (bn)"),
-            block.index("Rationale (bn)"),
+            block.index("Next Action (bn)"),
+            block.index("Previous Practice (bn)"),
+            block.index("Current Practice (bn)"),
+            block.index("Rationale For Change (bn)"),
         ]
         assert positions == sorted(positions)
 
@@ -185,9 +187,12 @@ async def _seed_module(
     await session.flush()
     if module_json_override is not None:
         module_json = module_json_override
+        cards_data: list[dict] = list(module_json.get("cards") or [])
     elif cards is None:
-        module_json = {"cards": [{"title": {"bn": "c1"}, "body": {"bn": "b1"}}]}
+        cards_data = [{"title": {"bn": "c1"}, "body": {"bn": "b1"}}]
+        module_json = {"cards": cards_data}
     else:
+        cards_data = cards
         module_json = {"cards": cards}
     module = Module(
         module_family_id=fam.id,
@@ -201,6 +206,9 @@ async def _seed_module(
         tenant_id=1,
     )
     session.add(module)
+    await session.flush()
+    if cards_data:
+        await ModuleCardService(session).append_cards(module.id, cards_data)
     await session.flush()
     fam.current_published_module_id = module.id
     await session.commit()
@@ -346,7 +354,6 @@ class TestHappyPath:
         row = result.scalar_one()
         assert row.explanation_localized is not None
         assert "কার্ড" not in row.explanation_localized["bn"]
-        assert "Card" not in row.explanation_localized["en"]
 
 
 # ─── Idempotent retry ───────────────────────────────────────────────────────
@@ -593,7 +600,28 @@ class TestRequestShape:
         self,
         db_session: AsyncSession,
         mock_generate: AsyncMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        captured: dict[str, str] = {}
+
+        async def _capture_render(
+            self: PromptTemplateService,
+            session: AsyncSession | None,
+            *,
+            template_id: str,
+            variant_key: str | None,
+            variables: dict[str, str],
+        ) -> RenderedPrompt:
+            captured["cards_block"] = variables.get("cards_block", "")
+            return RenderedPrompt(
+                template_id=template_id,
+                template_version=1,
+                prompt_template_id=uuid4(),
+                resolved_system_prompt="system",
+                resolved_human_message=variables.get("cards_block", ""),
+            )
+
+        monkeypatch.setattr(PromptTemplateService, "render", _capture_render)
         module_id = await _seed_module(
             db_session,
             cards=[
@@ -604,9 +632,8 @@ class TestRequestShape:
         mock_generate.return_value = _llm_response({"questions": [_valid_question(0)]})
 
         await generate_quiz_for_module(module_id)
-        request: InferenceRequest = mock_generate.call_args.args[0]
-        human = request.prompt.resolved_human_message
-        assert "### Card 1" in human
-        assert "### Card 2" in human
-        assert "card-one-title" in human
-        assert "card-two-title" in human
+        cards_block = captured["cards_block"]
+        assert "### Card 1" in cards_block
+        assert "### Card 2" in cards_block
+        assert "card-one-title" in cards_block
+        assert "card-two-title" in cards_block

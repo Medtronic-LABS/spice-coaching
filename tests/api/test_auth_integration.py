@@ -97,13 +97,28 @@ async def integration_client(
 @pytest.mark.asyncio
 async def test_device_user_cannot_query_other_chw_id(
     integration_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A spoofed ``chw_id`` query param must not change whose cards are returned.
+
+    The endpoint derives the CHW id from the authenticated principal only, so an
+    attacker-supplied ``chw_id`` is ignored rather than honoured.
+    """
+    get_cards = AsyncMock(return_value=MorningCardsResponse(items=[], total_points=0))
+    monkeypatch.setattr(
+        "platform_service.api.morning.MorningSuggestionService.get_morning_cards",
+        get_cards,
+    )
+
     resp = await integration_client.get(
         platform_path("/morning/cards"),
         params={"chw_id": 99},
         headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
-    assert resp.status_code == 403
+
+    assert resp.status_code == 200
+    assert get_cards.await_args is not None
+    assert get_cards.await_args.kwargs["chw_id"] == DEVICE_USER.id == 42
 
 
 @pytest.mark.asyncio

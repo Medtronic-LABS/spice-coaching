@@ -154,7 +154,7 @@ class TestInferenceModeBucketing:
 @pytest.mark.asyncio
 class TestChatFeedbackAggregator:
     async def test_fetch_since_parses_rows(self) -> None:
-        tenant_id = 1
+        tenant_id = 0
         module_id = uuid4()
         occurred_at = datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
         ch_mock = AsyncMock()

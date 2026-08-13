@@ -15,9 +15,6 @@ from platform_service.services.card_search_metadata_generator import (
     normalize_card_search_metadata,
     parse_batch_card_search_metadata,
 )
-from platform_service.services.prompts.card_search_metadata_prompt import (
-    CARD_SEARCH_METADATA_TEMPLATE_VERSION,
-)
 
 
 def _sample_payload(*, primary: str = "bn") -> dict:
@@ -212,7 +209,7 @@ class TestCardSearchMetadataGenerator:
         assert result.metadata_by_index[1]["keywords"]["bn"] == ["k1"]
         sent = client.generate.call_args[0][0]
         assert sent.generation_type == GenerationType.CARD_SEARCH_METADATA
-        assert sent.prompt.template_version == CARD_SEARCH_METADATA_TEMPLATE_VERSION
+        assert sent.prompt.template_id == "card-search-metadata"
 
     @pytest.mark.asyncio
     async def test_generate_wrapper_delegates_to_batch(self) -> None:

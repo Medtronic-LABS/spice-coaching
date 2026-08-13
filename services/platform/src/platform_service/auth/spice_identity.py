@@ -25,11 +25,16 @@ def _spice_user(request: Request) -> SpiceUserContext | None:
     return getattr(request.state, "spice_user", None)
 
 
-def _require_spice_user(request: Request) -> SpiceUserContext:
+def require_spice_user(request: Request) -> SpiceUserContext:
+    """Return the authenticated SPICE principal or raise 401."""
     user = _spice_user(request)
     if user is None:
         raise AppError(ErrorCode.NOT_AUTHENTICATED.value, "not authenticated", status=401)
     return user
+
+
+# Backwards-compatible internal alias.
+_require_spice_user = require_spice_user
 
 
 def resolve_chw_id_for_device_route(

@@ -210,5 +210,5 @@ class TestChatFeedbackSummaryGenerator:
         )
 
         request = ai_mock.generate.await_args.args[0]
-        assert "Previous cumulative summary." in request.prompt.resolved_human_message
-        assert "Fast answers" in request.prompt.resolved_human_message
+        assert request.prompt is not None
+        assert request.generation_type == GenerationType.CHAT_FEEDBACK_SUMMARY

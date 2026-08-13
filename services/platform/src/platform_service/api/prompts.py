@@ -95,11 +95,16 @@ async def get_prompt_version(
 @router.get("/prompts/{template_id}/variables", response_model=PromptTemplateVariablesResponse)
 async def get_prompt_variables(
     template_id: str,
+    request: Request,
     variant_key: str | None = Query(None),
     session: AsyncSession = Depends(get_db),
 ) -> PromptTemplateVariablesResponse:
     repo = PromptTemplateRepository(session)
-    row = await repo.get_active(template_id, variant_key=variant_key)
+    row = await repo.get_active(
+        template_id,
+        variant_key=variant_key,
+        tenant_id=get_selected_tenant_id(request),
+    )
     if row is None:
         raise AppError(
             ErrorCode.PROMPT_NOT_FOUND.value,
@@ -193,6 +198,7 @@ async def activate_prompt_version(
 async def preview_prompt(
     template_id: str,
     body: PromptTemplatePreviewRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
 ) -> PromptTemplatePreviewResponse:
     service = PromptTemplateService()
@@ -203,6 +209,7 @@ async def preview_prompt(
             variant_key=body.variant_key,
             version=body.version,
             variables=body.variables,
+            tenant_id=get_selected_tenant_id(request),
         )
     except (PromptTemplateError, PromptTemplateRenderError) as exc:
         raise AppError(ErrorCode.BAD_REQUEST.value, str(exc), status=400) from exc

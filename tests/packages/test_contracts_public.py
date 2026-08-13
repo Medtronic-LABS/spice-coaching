@@ -76,7 +76,7 @@ def test_telemetry_batch_accepts_document_viewed() -> None:
     batch = TelemetryBatch(
         sdk_version="1.0",
         chw_id=1,
-        tenant_id=uuid4(),
+        tenant_id=1,
         events=[
             TelemetryEvent(
                 id="evt-doc-1",

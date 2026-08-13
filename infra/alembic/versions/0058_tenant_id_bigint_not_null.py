@@ -110,6 +110,17 @@ def _recreate_bigint_tenant_indexes() -> None:
         "chw_training_request",
         ["tenant_id", "submitted_at"],
     )
+    op.create_unique_constraint(
+        "uq_chat_faq_tenant_question",
+        "chat_frequent_question",
+        ["tenant_id", "normalized_question"],
+    )
+    op.create_index(
+        "ix_chat_feedback_summary_tenant",
+        "chat_feedback_summary",
+        ["tenant_id"],
+        unique=True,
+    )
 
 
 def upgrade() -> None:

@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 from mc_contracts.enums import GenerationType
-from mc_contracts.internal_ai import InferenceResponse, TokenUsage
+from mc_contracts.internal_ai import InferenceResponse, PromptSpec, TokenUsage
 from platform_service.services.module_creation_suggestion_classifier import (
     SUGGESTION_KIND_MATCHED_DRAFT,
     SUGGESTION_KIND_PROPOSED_TOPIC,
@@ -19,6 +19,15 @@ from platform_service.services.unattributed_demand_aggregator import (
     DedupedEvidence,
     UnattributedDemandAggregator,
 )
+
+
+def _prompt_spec() -> PromptSpec:
+    return PromptSpec(
+        template_id="module-creation-suggestion",
+        template_version=1,
+        resolved_system_prompt="system",
+        resolved_human_message="human",
+    )
 
 
 def _inference_response(
@@ -141,7 +150,7 @@ async def test_classifier_keeps_valid_draft_and_proposed_drops_unknown() -> None
         ),
         patch(
             "platform_service.services.module_creation_suggestion_classifier.prompt_spec_from_rendered",
-            return_value=MagicMock(),
+            return_value=_prompt_spec(),
         ),
     ):
         classifier = ModuleCreationSuggestionClassifier(session, client=client, settings=settings)
@@ -196,7 +205,7 @@ async def test_classifier_raises_on_invalid_json() -> None:
         ),
         patch(
             "platform_service.services.module_creation_suggestion_classifier.prompt_spec_from_rendered",
-            return_value=MagicMock(),
+            return_value=_prompt_spec(),
         ),
     ):
         classifier = ModuleCreationSuggestionClassifier(session, client=client, settings=settings)
@@ -221,11 +230,11 @@ async def test_classifier_raises_on_ai_runtime_error() -> None:
         patch(
             "platform_service.services.module_creation_suggestion_classifier.PromptTemplateService.render",
             new_callable=AsyncMock,
-            return_value=MagicMock(),
+            return_value=_prompt_spec(),
         ),
         patch(
             "platform_service.services.module_creation_suggestion_classifier.prompt_spec_from_rendered",
-            return_value=MagicMock(),
+            return_value=_prompt_spec(),
         ),
     ):
         classifier = ModuleCreationSuggestionClassifier(session, client=client, settings=settings)

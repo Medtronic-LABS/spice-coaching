@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -53,7 +53,11 @@ async def test_classify_module_falls_back_on_llm_error() -> None:
             token_usage=TokenUsage(input=0, output=0),
         )
     )
-    classifier = AssessmentTopicClassifier(MagicMock(), client=client)
-    result = await classifier.classify_module(module)
+    with patch(
+        "platform_service.db.repositories.module_read_repository.ModuleReadRepository.list_cards",
+        new=AsyncMock(return_value=[]),
+    ):
+        classifier = AssessmentTopicClassifier(MagicMock(), client=client)
+        result = await classifier.classify_module(module)
     assert "malaria" in result.assessment_topics
     assert result.source == "metadata_rules"

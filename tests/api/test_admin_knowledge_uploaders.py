@@ -14,7 +14,6 @@ from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 from mc_foundation.problem import register_problem_handlers
 from platform_service.api.knowledge import router as knowledge_router
-from platform_service.auth.tenant_context import DEFAULT_SELECTED_TENANT_ID
 from platform_service.config import get_settings
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.deps import get_db, get_object_storage_client
@@ -23,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import platform_path, requires_db
 from tests.helpers.hierarchy_fixtures import HIERARCHY_TRUNCATE_SQL, seed_basic_hierarchy
+from tests.helpers.tenant import TEST_TENANT_ID
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -79,7 +79,7 @@ async def _seed_doc(
     uploaded_by: int | None,
     sync_published_visible: bool = True,
     status: str = "uploaded",
-    tenant_id: int = DEFAULT_SELECTED_TENANT_ID,
+    tenant_id: int = TEST_TENANT_ID,
     title: str = "Knowledge doc",
 ) -> SourceDocument:
     doc = SourceDocument(
@@ -115,7 +115,7 @@ class TestKnowledgeUploaders:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        seed = await seed_basic_hierarchy(db_session, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        seed = await seed_basic_hierarchy(db_session, tenant_id=TEST_TENANT_ID)
         await db_session.commit()
         await _seed_doc(db_session, uploaded_by=seed.am_id, title="Doc A")
         await _seed_doc(db_session, uploaded_by=seed.am_id, title="Doc B")
@@ -129,7 +129,7 @@ class TestKnowledgeUploaders:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        seed = await seed_basic_hierarchy(db_session, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        seed = await seed_basic_hierarchy(db_session, tenant_id=TEST_TENANT_ID)
         await db_session.commit()
         await _seed_doc(db_session, uploaded_by=seed.am_id)
         await _seed_doc(db_session, uploaded_by=seed.po_other_id)
@@ -148,7 +148,7 @@ class TestKnowledgeUploaders:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        seed = await seed_basic_hierarchy(db_session, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        seed = await seed_basic_hierarchy(db_session, tenant_id=TEST_TENANT_ID)
         await db_session.commit()
         await _seed_doc(db_session, uploaded_by=None)
         await _seed_doc(db_session, uploaded_by=seed.po_id)
@@ -162,7 +162,7 @@ class TestKnowledgeUploaders:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        seed = await seed_basic_hierarchy(db_session, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        seed = await seed_basic_hierarchy(db_session, tenant_id=TEST_TENANT_ID)
         await db_session.commit()
         await _seed_doc(db_session, uploaded_by=seed.am_id, status="retired")
         await _seed_doc(db_session, uploaded_by=seed.po_id, status="uploaded")
@@ -176,7 +176,7 @@ class TestKnowledgeUploaders:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        seed = await seed_basic_hierarchy(db_session, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        seed = await seed_basic_hierarchy(db_session, tenant_id=TEST_TENANT_ID)
         await db_session.commit()
         await _seed_doc(db_session, uploaded_by=seed.am_id, sync_published_visible=False)
         await _seed_doc(db_session, uploaded_by=seed.sk_id, sync_published_visible=True)
@@ -190,7 +190,7 @@ class TestKnowledgeUploaders:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        selected = await seed_basic_hierarchy(db_session, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        selected = await seed_basic_hierarchy(db_session, tenant_id=TEST_TENANT_ID)
         other = await seed_basic_hierarchy(
             db_session,
             tenant_id=_OTHER_TENANT_ID,
@@ -205,7 +205,7 @@ class TestKnowledgeUploaders:
         )
         await db_session.commit()
         await _seed_doc(db_session, uploaded_by=other.am_id, tenant_id=_OTHER_TENANT_ID)
-        await _seed_doc(db_session, uploaded_by=selected.po_id, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        await _seed_doc(db_session, uploaded_by=selected.po_id, tenant_id=TEST_TENANT_ID)
 
         resp = await _list_uploaders(client)
         assert resp.status_code == 200
@@ -216,7 +216,7 @@ class TestKnowledgeUploaders:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        seed = await seed_basic_hierarchy(db_session, tenant_id=DEFAULT_SELECTED_TENANT_ID)
+        seed = await seed_basic_hierarchy(db_session, tenant_id=TEST_TENANT_ID)
         await db_session.commit()
         await _seed_doc(db_session, uploaded_by=999_999)
         await _seed_doc(db_session, uploaded_by=seed.am_id)

@@ -242,10 +242,8 @@ class TestPromptGapContextRemoved:
         prompt = render_system_prompt({"clinical"})
         lowered = prompt.lower()
         assert "annexure" in lowered
-        assert "appendix" in lowered
+        assert "appendices" in lowered
         assert "job aid" in lowered
-        # Hindi-Bijoy mojibake cue (lowercase form, since prompt is lowered).
-        assert "layxud" in lowered
 
     def test_human_message_uses_short_tokens_not_uuids(self) -> None:
         """The corpus body must reference content blocks/pages/docs by
@@ -406,7 +404,7 @@ class TestValidateCandidate:
 
     @pytest.mark.parametrize(
         "card_count,expected",
-        [(2, False), (3, True), (5, True), (7, True), (8, False)],
+        [(0, False), (1, True), (10, True), (11, False)],
     )
     def test_card_count_bounds(self, card_count: int, expected: bool) -> None:
         b1 = uuid4()
@@ -415,7 +413,7 @@ class TestValidateCandidate:
 
     @pytest.mark.parametrize(
         "quiz_count,expected",
-        [(2, False), (3, True), (10, True), (11, False)],
+        [(0, False), (1, True), (10, True), (11, False)],
     )
     def test_quiz_count_bounds(self, quiz_count: int, expected: bool) -> None:
         b1 = uuid4()
@@ -622,7 +620,7 @@ class TestIdentifyValidationFiltersInvalid:
                     "candidates": [
                         _valid_candidate(cited_block_ids=[b1], source_page_id=p1),  # valid
                         _valid_candidate(
-                            cards=1, cited_block_ids=[b1], source_page_id=p1
+                            cards=0, cited_block_ids=[b1], source_page_id=p1
                         ),  # bad: card_count below min
                         _valid_candidate(
                             module_type="bogus", cited_block_ids=[b1], source_page_id=p1

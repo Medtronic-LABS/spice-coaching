@@ -22,6 +22,22 @@ from platform_service.services.published_module_merger import (
 from tests.localized_helpers import refresher_card
 
 
+@pytest.fixture(autouse=True)
+def _nonzero_merge_thresholds(monkeypatch) -> None:
+    settings = get_settings()
+    settings.stage_d_published_merge_min_existing_card_match_ratio = 0.5
+    settings.stage_d_published_merge_card_similarity_threshold = 0.5
+    settings.stage_d_published_merge_module_similarity_threshold = 0.5
+    monkeypatch.setattr(
+        "platform_service.services.published_module_merger.get_settings",
+        lambda: settings,
+    )
+    monkeypatch.setattr(
+        "tests.services.test_published_module_merger.get_settings",
+        lambda: settings,
+    )
+
+
 def _published(
     module_id: uuid.UUID,
     *,

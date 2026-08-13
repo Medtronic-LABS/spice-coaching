@@ -12,6 +12,7 @@ from mc_contracts.internal_ai import PromptSpec
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.base import SessionLocal
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.prompt_template import PromptTemplate
 from platform_service.db.repositories.prompt_template_repository import PromptTemplateRepository
 
@@ -179,10 +180,15 @@ class PromptTemplateService:
         variant_key: str | None,
         version: int | None,
         variables: dict[str, str],
+        tenant_id: int | None = None,
     ) -> RenderedPrompt:
         repo = PromptTemplateRepository(session)
         if version is None:
-            row = await repo.get_active(template_id, variant_key=variant_key)
+            row = await repo.get_active(
+                template_id,
+                variant_key=variant_key,
+                tenant_id=tenant_id if tenant_id is not None else DEFAULT_TENANT_ID,
+            )
         else:
             row = await repo.get_version(template_id, version, variant_key=variant_key)
         if row is None:

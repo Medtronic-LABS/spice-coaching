@@ -184,9 +184,12 @@ def test_cross_chunk_similarity_threshold_in_range() -> None:
 
 def test_quiz_and_card_bounds() -> None:
     s = Settings()
-    assert s.quiz_min_questions == 3
+    # ingestion-merge lowered the floors to 1: short source documents can
+    # legitimately yield a single card / single quiz question rather than
+    # failing Stage 2 cardinality validation.
+    assert s.quiz_min_questions == 1
     assert s.quiz_max_questions == 10
-    assert s.card_min_count == 3
+    assert s.card_min_count == 1
     assert s.card_max_count == 10
 
 
