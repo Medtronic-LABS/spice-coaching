@@ -126,6 +126,7 @@ class IngestStartService:
                     source_type=doc.source_type,
                     stored_path=doc.original_storage_path,
                     content_domain=doc.content_domain,
+                    primary_language=doc.primary_language,
                 )
                 jobs.append(
                     ingest_job_from_result(
