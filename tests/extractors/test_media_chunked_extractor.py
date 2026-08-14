@@ -192,6 +192,26 @@ async def test_video_non_empty_transcript_app_error_still_raises() -> None:
     assert exc_info.value.code == ErrorCode.AI_RUNTIME_ERROR.value
 
 
+async def test_video_encode_no_stream_error_synthesizes_timed_empty_pages() -> None:
+    def boom(*args, **kwargs):
+        raise MediaSplitterError(
+            "ffmpeg chunk encode failed (start_ms=0): "
+            "[out#0/mp3 @ 0x5b1cbbe67a00] Output file does not contain any stream",
+            reason="media_encode_failed",
+        )
+
+    ext = MediaSourceExtractor(splitter_fn=boom, transcribe_fn=AsyncMock())
+    with patch(
+        "platform_service.workers.extractors.media_extractor.probe_media_duration_ms",
+        return_value=120_000,
+    ):
+        result = await ext.extract("/tmp/visual_only.mp4", source_type="video", primary_language="bn")
+
+    assert result.requires_calibration is False
+    assert [(p.start_ms, p.end_ms) for p in result.pages] == [(0, 120_000)]
+    assert all(page.markdown == "" for page in result.pages)
+
+
 async def test_video_no_transcribable_chunks_synthesizes_timed_empty_pages() -> None:
     def boom(*args, **kwargs):
         raise MediaSplitterError(

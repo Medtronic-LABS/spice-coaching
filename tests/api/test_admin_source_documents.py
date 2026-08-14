@@ -433,6 +433,25 @@ class TestSourceDocumentMetadata:
         assert row["description"] == "A short blurb"
         assert row["thumbnail_storage_path"] == "medtronics-storage/ingest/thumbnails/x.png"
         assert row["stored_path"] == doc.original_storage_path
+        assert row["duration_ms"] is None
+
+    async def test_list_includes_duration_ms_for_video(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        pdf = await _seed_source_document(db_session, title="pdf-doc")
+        pdf.status = "ingested"
+        video = await _seed_source_document(db_session, title="video-doc", original_filename="clip.mp4")
+        video.status = "ingested"
+        video.source_type = "video"
+        video.duration_ms = 90_000
+        await db_session.commit()
+
+        resp = await client.get(platform_path("/admin/source-documents?source_type=video"))
+        assert resp.status_code == 200
+        rows = resp.json()["source_documents"]
+        assert len(rows) == 1
+        assert rows[0]["title"] == "video-doc"
+        assert rows[0]["duration_ms"] == 90_000
 
     async def test_patch_title_and_description(self, client: AsyncClient, db_session: AsyncSession) -> None:
         doc = await _seed_source_document(db_session, title="old-title")
@@ -593,9 +612,11 @@ class TestListSourceDocumentsActorsAndAssigned:
         assigned_doc.status = "ingested"
         assigned_doc.uploaded_by = hierarchy.am_id
         assigned_doc.updated_by = hierarchy.sk_id
+        assigned_doc.ingested_by = hierarchy.po_id
         unassigned_doc = await _seed_source_document(db_session, title="unassigned-doc")
         unassigned_doc.status = "ingested"
         unassigned_doc.uploaded_by = 999_999  # no matching users row
+        unassigned_doc.ingested_by = 888_888  # no matching users row
         orphan_id_doc = await _seed_source_document(db_session, title="no-actors")
         orphan_id_doc.status = "ingested"
         db_session.add(
@@ -616,16 +637,19 @@ class TestListSourceDocumentsActorsAndAssigned:
         assert assigned_row["assigned"] is True
         assert assigned_row["uploaded_by"] == {"id": AM_ID, "name": "Test Area Manager"}
         assert assigned_row["updated_by"] == {"id": SK_ID, "name": "Test Shastiya Kormi"}
+        assert assigned_row["ingested_by"] == {"id": PO_ID, "name": "Test PO"}
 
         unassigned_row = by_title["unassigned-doc"]
         assert unassigned_row["assigned"] is False
         assert unassigned_row["uploaded_by"] is None
         assert unassigned_row["updated_by"] is None
+        assert unassigned_row["ingested_by"] is None
 
         bare_row = by_title["no-actors"]
         assert bare_row["assigned"] is False
         assert bare_row["uploaded_by"] is None
         assert bare_row["updated_by"] is None
+        assert bare_row["ingested_by"] is None
 
     async def test_patch_metadata_sets_updated_by(
         self, client: AsyncClient, db_session: AsyncSession

@@ -249,7 +249,9 @@ class TestStage1ExtractionFailures:
         assert run_row.status == RUN_FAILED
         assert run_row.error_jsonb["failed_stage"] == STAGE_EXTRACT
         assert run_row.error_jsonb["reason"] == "document_empty"
-        assert run_row.error_jsonb["message"] == "The document is empty."
+        assert run_row.error_jsonb["message"] == (
+            "The document appears to be empty or has too little text to process."
+        )
 
         step = (
             await db_session.execute(
@@ -262,8 +264,8 @@ class TestStage1ExtractionFailures:
         err = step.error_jsonb
         assert err["type"] == "Stage1DocumentEmptyError"
         assert err["reason"] == "document_empty"
-        assert err["message"] == "The document is empty."
-        assert step.error_message == "The document is empty."
+        assert err["detail"] == "The document is empty."
+        assert step.error_message == ("The document appears to be empty or has too little text to process.")
 
         identify_steps = (
             (
@@ -429,7 +431,22 @@ class TestStageCFailures:
         assert run_row.error_jsonb == {
             "code": ErrorCode.IDENTIFY_NO_CANDIDATES.value,
             "failed_stage": STAGE_MODULE_IDENTIFY,
-            "message": "zero candidates were identified",
+            "failed_stages": [STAGE_MODULE_IDENTIFY],
+            "message": (
+                "We couldn't find any training modules in this document. "
+                "Try a document with clearer sections or headings."
+            ),
+            "causes": [
+                {
+                    "stage": STAGE_MODULE_IDENTIFY,
+                    "code": ErrorCode.IDENTIFY_NO_CANDIDATES.value,
+                    "message": (
+                        "We couldn't find any training modules in this document. "
+                        "Try a document with clearer sections or headings."
+                    ),
+                    "detail": "zero candidates were identified",
+                }
+            ],
         }
 
         identify_step = (
@@ -440,10 +457,14 @@ class TestStageCFailures:
             )
         ).scalar_one()
         assert identify_step.status == STEP_FAILED
-        assert identify_step.error_message == "zero candidates were identified"
+        assert identify_step.error_message == (
+            "We couldn't find any training modules in this document. "
+            "Try a document with clearer sections or headings."
+        )
         assert identify_step.error_jsonb == {
             "type": "NoCandidatesIdentified",
-            "message": "zero candidates were identified",
+            "reason": "identify_no_candidates",
+            "detail": "zero candidates were identified",
             "code": ErrorCode.IDENTIFY_NO_CANDIDATES.value,
         }
 
@@ -496,6 +517,7 @@ class TestStageDPerCandidateFailures:
         ).scalar_one()
         assert run_row.error_jsonb["draft_failures"] == 1
         assert run_row.error_jsonb["drafts_produced"] == 2
+        assert "Card drafting failed" in (run_row.error_jsonb.get("message") or "")
 
     async def test_all_candidates_succeed_run_succeeded(self, db_session: AsyncSession) -> None:
         sd_id = await _seed_source_document(db_session)

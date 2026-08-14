@@ -49,6 +49,8 @@ def _org_user(
         role=role,
         district_id=1,
         district=None,
+        division_id=None,
+        division=None,
         upazila_ids=frozenset(),
         upazila_names=frozenset(),
         parent_id=parent_id,
@@ -232,3 +234,28 @@ class TestPublishedModuleCompletionsRoute:
         assert kwargs["scope"] == PublishedModuleCompletionsScope(viewer_id=None, unrestricted=True)
         assert kwargs["limit"] == 10
         assert kwargs["offset"] == 5
+
+    async def test_geography_filters_passed_to_service(
+        self, client: AsyncClient, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        auth_off = get_settings().model_copy(update={"spice_auth_enabled": False})
+        monkeypatch.setattr("platform_service.auth.spice_identity.get_settings", lambda: auth_off)
+        geo_mock = AsyncMock(return_value=frozenset({395}))
+        monkeypatch.setattr(
+            "platform_service.api.dashboard.resolve_geography_chw_ids",
+            geo_mock,
+        )
+        resp = await client.get(
+            platform_path("/dashboard/published-module-completions"),
+            params={
+                "from_date": "2026-01-01",
+                "to_date": "2026-01-31",
+                "district": "Lalmonirhat",
+                "upazila_id": "Lalmonirhat Sadar",
+            },
+        )
+        assert resp.status_code == 200
+        geo_mock.assert_awaited_once()
+        assert geo_mock.await_args.kwargs["district"] == "Lalmonirhat"
+        assert geo_mock.await_args.kwargs["upazila"] == "Lalmonirhat Sadar"
+        assert app.state.service_mock.await_args.kwargs["geo_chw_ids"] == frozenset({395})

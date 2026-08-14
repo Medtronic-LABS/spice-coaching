@@ -46,6 +46,8 @@ def _org_user(
         role=role,
         district_id=1,
         district=None,
+        division_id=None,
+        division=None,
         upazila_ids=frozenset(),
         upazila_names=frozenset(),
         parent_id=parent_id,
@@ -309,3 +311,32 @@ async def test_pagination_passed_to_repo(monkeypatch: pytest.MonkeyPatch) -> Non
     assert list_mock.await_args.kwargs["limit"] == 10
     assert list_mock.await_args.kwargs["offset"] == 20
     assert count_mock.await_args.kwargs["tenant_id"] == TENANT_ID
+
+
+@pytest.mark.asyncio
+async def test_geo_filter_narrows_visible_sks(monkeypatch: pytest.MonkeyPatch) -> None:
+    family = uuid4()
+    mod = _module(family_id=family, published_at=datetime(2026, 1, 10, tzinfo=UTC))
+    _patch_org_index(monkeypatch, _standard_org())
+    _, _, completions_mock = _stub_repos(
+        monkeypatch,
+        modules=[mod],
+        completions=[
+            _completion(chw_id=SK_A, family_id=family, completed_at=datetime(2026, 1, 12, tzinfo=UTC)),
+            _completion(chw_id=SK_B, family_id=family, completed_at=datetime(2026, 1, 12, tzinfo=UTC)),
+        ],
+    )
+
+    resp = await PublishedModuleCompletionsService(MagicMock()).get_published_module_completions(
+        scope=_am_scope(AM_ID),
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 31),
+        limit=20,
+        offset=0,
+        tenant_id=TENANT_ID,
+        geo_chw_ids=frozenset({SK_A}),
+    )
+
+    assert resp.total_descendant_sk_count == 1
+    assert resp.modules[0].completed_sk_count == 1
+    assert completions_mock.await_args.kwargs["chw_ids"] == [SK_A]

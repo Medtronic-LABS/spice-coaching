@@ -21,6 +21,8 @@ class UserResponse(BaseModel):
     parent_id: int | None = None
     district_id: int
     district: str
+    division_id: int | None = None
+    division: str | None = None
     upazilas: list[AssignmentUpazilaRef] = Field(default_factory=list)
 
 

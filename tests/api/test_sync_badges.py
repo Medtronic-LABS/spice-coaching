@@ -158,7 +158,9 @@ class TestSyncBadgesApi:
         assert avail[0]["id"] == str(b1.id)
         assert avail[0]["name"] == "Clinical Specialist"
         assert avail[0]["image_presigned_url"] == "https://example.test/badge.png"
+        assert avail[0]["image_storage_path"] == "badges/clinical.png"
         assert avail[1]["id"] == str(b2.id)
+        assert avail[1]["image_storage_path"] == "badges/digital.png"
 
         earned = data["earned_badges"]
         assert len(earned) == 1

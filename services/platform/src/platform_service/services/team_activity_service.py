@@ -29,6 +29,7 @@ from platform_service.db.repositories.module_repository import ModuleRepository
 from platform_service.services.dashboard_hierarchy import (
     OrgUser,
     descendants_with_role,
+    filter_users_by_chw_ids,
     is_team_activity_descendant,
     member_role_at_depth,
     org_user_index,
@@ -132,6 +133,19 @@ def _max_datetime(*values: datetime | None) -> datetime | None:
     return max(present)
 
 
+def _summary_from_sk_details(sk_details: list[TeamActivityMemberDetail]) -> TeamActivitySummary:
+    """SK-counted summary for one drillable member (same fields as the envelope)."""
+    total_users = len(sk_details)
+    active_users = sum(1 for sk in sk_details if sk.is_active)
+    return TeamActivitySummary(
+        total_users=total_users,
+        active_users=active_users,
+        non_active_users=total_users - active_users,
+        users_completed_module=sum(1 for sk in sk_details if sk.has_completed_module_in_range),
+        users_chatbot_engaged=sum(1 for sk in sk_details if sk.is_chatbot_engaged),
+    )
+
+
 def _aggregate_member_from_sks(
     *,
     user_id: int,
@@ -141,6 +155,7 @@ def _aggregate_member_from_sks(
 ) -> TeamActivityMemberDetail:
     """Roll AM/PO activity metrics up from descendant SK details (no self events)."""
     can_drill_down = role != HierarchyRole.SHASTIYA_KORMI.value
+    member_summary = _summary_from_sk_details(sk_details)
     if not sk_details:
         return TeamActivityMemberDetail(
             user_id=user_id,
@@ -158,6 +173,7 @@ def _aggregate_member_from_sks(
             chatbot_modules=[],
             refreshers_generated=0,
             refreshers_completed=0,
+            summary=member_summary,
         )
 
     assigned_by_id: dict[UUID, TeamMemberModuleActivity] = {}
@@ -217,6 +233,7 @@ def _aggregate_member_from_sks(
         ),
         refreshers_generated=sum(sk.refreshers_generated for sk in sk_details),
         refreshers_completed=sum(sk.refreshers_completed for sk in sk_details),
+        summary=member_summary,
     )
 
 
@@ -240,6 +257,7 @@ class TeamActivityService:
         offset: int,
         tenant_id: int | None,
         depth: int = 0,
+        geo_chw_ids: frozenset[int] | None = None,
     ) -> TeamActivityResponse:
         hierarchy_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
         by_id = await org_user_index(self._session, tenant_id=hierarchy_tenant)
@@ -269,20 +287,26 @@ class TeamActivityService:
         total_pages = (total_members + limit - 1) // limit if total_members > 0 else 0
         paged_children = children[offset : offset + limit]
 
-        all_sks = sks_under_focus(by_id, focus_id, focus_role)
+        all_sks = filter_users_by_chw_ids(
+            sks_under_focus(by_id, focus_id, focus_role),
+            geo_chw_ids,
+        )
         all_sk_members = [{"id": u.id, "name": u.name} for u in sorted(all_sks, key=lambda u: u.name)]
         all_chw_ids = [int(m["id"]) for m in all_sk_members]
 
         detail_chw_ids: list[int] = []
         sks_by_member: dict[int, list[int]] = {}
         if member_role == HierarchyRole.SHASTIYA_KORMI.value:
-            detail_chw_ids = [u.id for u in paged_children]
+            detail_chw_ids = [u.id for u in filter_users_by_chw_ids(list(paged_children), geo_chw_ids)]
         elif member_role is None:
             # SK focus: no members; still build summary for that one SK.
             detail_chw_ids = []
         else:
             for member in paged_children:
-                member_sks = sks_under_member(by_id, member)
+                member_sks = filter_users_by_chw_ids(
+                    sks_under_member(by_id, member),
+                    geo_chw_ids,
+                )
                 sk_ids = [u.id for u in member_sks]
                 sks_by_member[member.id] = sk_ids
                 detail_chw_ids.extend(sk_ids)
@@ -536,6 +560,7 @@ class TeamActivityService:
                 chatbot_modules=chatbot_modules,
                 refreshers_generated=_to_int(refreshers.get("generated")),
                 refreshers_completed=_to_int(refreshers.get("completed")),
+                summary=None,
             )
 
         return summary, details_by_id
@@ -550,6 +575,7 @@ class TeamActivityService:
         limit: int,
         offset: int,
         tenant_id: int | None,
+        geo_chw_ids: frozenset[int] | None = None,
     ) -> TeamMemberQuestionsResponse:
         hierarchy_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
         by_id = await org_user_index(self._session, tenant_id=hierarchy_tenant)
@@ -563,6 +589,19 @@ class TeamActivityService:
                 ErrorCode.FORBIDDEN.value,
                 "user_id is outside the caller's team hierarchy",
                 status=403,
+            )
+
+        if geo_chw_ids is not None and user_id not in geo_chw_ids:
+            return TeamMemberQuestionsResponse(
+                user_id=user_id,
+                from_date=from_date,
+                to_date=to_date,
+                questions=[],
+                total_questions=0,
+                total_pages=0,
+                limit=limit,
+                offset=offset,
+                server_time_utc=datetime.now(UTC).isoformat(),
             )
 
         total_questions = await self._count_member_questions(

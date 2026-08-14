@@ -75,6 +75,7 @@ class ErrorCode(str, Enum):
     BADGE_SEQUENCE_CONFLICT = "badge_sequence_conflict"
     BADGE_DOMAIN_INVALID = "badge_domain_invalid"
     BADGE_MODULE_NOT_PUBLISHED = "badge_module_not_published"
+    HIERARCHY_DIVISION_NOT_FOUND = "hierarchy_division_not_found"
     HIERARCHY_DISTRICT_NOT_FOUND = "hierarchy_district_not_found"
     HIERARCHY_UPAZILA_NOT_FOUND = "hierarchy_upazila_not_found"
     HIERARCHY_UPAZILA_INVALID = "hierarchy_upazila_invalid"

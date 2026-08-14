@@ -22,6 +22,7 @@ from platform_service.db.models import (  # noqa: F401 — register all models
     CHWModuleQuizProgress,
     CHWTrainingRequest,
     ConfigThreshold,
+    ConfigThresholdChange,
     ContentBlock,
     District,
     FileUpload,

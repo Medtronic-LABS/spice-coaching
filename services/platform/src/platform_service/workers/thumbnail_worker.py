@@ -11,6 +11,7 @@ from mc_contracts.errors import ErrorCode
 from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.deps import get_object_storage_client
+from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.run_state_service import STAGE_THUMBNAIL, STEP_RUNNING, RunStateService
 from platform_service.services.source_thumbnail_service import (
     SourceThumbnailService,
@@ -67,14 +68,17 @@ async def run_thumbnail_job(payload: dict[str, Any]) -> None:
                             output_summary={"thumbnail_storage_path": path},
                         )
                     else:
+                        user_message, error = build_step_failure(
+                            error_code=ErrorCode.THUMBNAIL_FAILED.value,
+                            reason="thumbnail_failed",
+                            technical_message="thumbnail generation returned no path",
+                            error_type="ThumbnailGenerationFailed",
+                        )
                         await run_state.fail_step(
                             step_id,
                             error_code=ErrorCode.THUMBNAIL_FAILED.value,
-                            error_message="thumbnail generation returned no path",
-                            error={
-                                "type": "ThumbnailGenerationFailed",
-                                "message": "thumbnail generation returned no path",
-                            },
+                            error_message=user_message,
+                            error=error,
                         )
                     await session.commit()
         except Exception:
@@ -89,14 +93,17 @@ async def run_thumbnail_job(payload: dict[str, Any]) -> None:
                         run_state = RunStateService(session)
                         existing = await run_state.find_step(run_id, stage=STAGE_THUMBNAIL)
                         if existing is not None and existing.status == STEP_RUNNING:
+                            user_message, error = build_step_failure(
+                                error_code=ErrorCode.THUMBNAIL_FAILED.value,
+                                reason="thumbnail_failed",
+                                technical_message="thumbnail worker crashed",
+                                error_type="ThumbnailJobCrashed",
+                            )
                             await run_state.fail_step(
                                 existing.id,
                                 error_code=ErrorCode.THUMBNAIL_FAILED.value,
-                                error_message="thumbnail worker crashed",
-                                error={
-                                    "type": "ThumbnailJobCrashed",
-                                    "message": "thumbnail worker crashed",
-                                },
+                                error_message=user_message,
+                                error=error,
                             )
                             await session.commit()
                 except Exception:

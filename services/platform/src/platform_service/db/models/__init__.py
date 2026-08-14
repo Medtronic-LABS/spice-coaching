@@ -12,8 +12,10 @@ from platform_service.db.models.chw_module_quiz_progress import CHWModuleQuizPro
 from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
 from platform_service.db.models.chw_training_request import CHWTrainingRequest
 from platform_service.db.models.config_threshold import ConfigThreshold
+from platform_service.db.models.config_threshold_change import ConfigThresholdChange
 from platform_service.db.models.content_block import ContentBlock
 from platform_service.db.models.district import District
+from platform_service.db.models.division import Division
 from platform_service.db.models.document_assignment import DocumentAssignment
 from platform_service.db.models.file_upload import FileUpload
 from platform_service.db.models.hierarchy_user import HierarchyUser
@@ -85,7 +87,9 @@ __all__ = [
     "ChatFeedbackSummary",
     "ChatFrequentQuestion",
     "ConfigThreshold",
+    "ConfigThresholdChange",
     # org hierarchy
+    "Division",
     "District",
     "Upazila",
     "UserUpazila",

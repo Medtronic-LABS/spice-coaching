@@ -13,11 +13,13 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 from mc_contracts.dashboard import (
+    DashboardUserSummary,
+    DigitalHelpModuleQuestionItem,
     DigitalHelpModuleQuestionsResponse,
+    DigitalHelpModuleRequestItem,
     DigitalHelpModuleRequestsResponse,
     DigitalHelpModuleUsageItem,
     DigitalHelpModuleUsageResponse,
-    TeamMemberQuestionItem,
 )
 from mc_foundation.problem import register_problem_handlers
 from platform_service.api.dashboard import router as dashboard_router
@@ -163,6 +165,45 @@ class TestDigitalHelpModuleUsageRoute:
         assert mock_get.await_args.kwargs["chw_ids"] == frozenset({3001, 3002})
 
     @patch(
+        "platform_service.api.dashboard._resolve_dashboard_chw_ids",
+        new_callable=AsyncMock,
+    )
+    @patch(
+        "platform_service.api.dashboard.DashboardAnalyticsService.get_digital_help_module_usage",
+        new_callable=AsyncMock,
+    )
+    async def test_digital_help_modules_passes_geography_filters(
+        self,
+        mock_get: AsyncMock,
+        mock_resolve: AsyncMock,
+        client: AsyncClient,
+    ) -> None:
+        mock_resolve.return_value = frozenset({3001})
+        mock_get.return_value = DigitalHelpModuleUsageResponse(
+            from_date=date(2026, 1, 1),
+            to_date=date(2026, 1, 31),
+            total_digital_help=0,
+            total_module_requested=0,
+            total_modules=0,
+            limit=20,
+            offset=0,
+            modules=[],
+        )
+        resp = await client.get(
+            platform_path(
+                "/dashboard/digital-help-modules"
+                "?from_date=2026-01-01&to_date=2026-01-31"
+                "&division=Rangpur&district=Lalmonirhat&upazila_id=Lalmonirhat%20Sadar"
+            )
+        )
+        assert resp.status_code == 200
+        mock_resolve.assert_awaited_once()
+        assert mock_resolve.await_args.kwargs["division"] == "Rangpur"
+        assert mock_resolve.await_args.kwargs["district"] == "Lalmonirhat"
+        assert mock_resolve.await_args.kwargs["upazila_id"] == "Lalmonirhat Sadar"
+        assert mock_get.await_args.kwargs["chw_ids"] == frozenset({3001})
+
+    @patch(
         "platform_service.api.dashboard.DashboardAnalyticsService.get_digital_help_module_usage",
         new_callable=AsyncMock,
     )
@@ -202,10 +243,15 @@ class TestDigitalHelpModuleQuestionsRoute:
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
             questions=[
-                TeamMemberQuestionItem(
+                DigitalHelpModuleQuestionItem(
                     question="How to treat fever?",
                     occurrence_count=3,
                     last_asked_at=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
+                    asked_by=DashboardUserSummary(
+                        user_id=3001,
+                        user_name="SK One",
+                        user_role="SHASTIYA_KORMI",
+                    ),
                 )
             ],
             total_questions=1,
@@ -227,6 +273,8 @@ class TestDigitalHelpModuleQuestionsRoute:
         assert data["total_questions"] == 1
         assert data["questions"][0]["question"] == "How to treat fever?"
         assert data["questions"][0]["occurrence_count"] == 3
+        assert data["questions"][0]["asked_by"]["user_id"] == 3001
+        assert data["questions"][0]["asked_by"]["user_name"] == "SK One"
         mock_get.assert_awaited_once()
         assert mock_get.await_args.kwargs["module_id"] == module_id
         assert mock_get.await_args.kwargs["from_date"] == date(2026, 1, 1)
@@ -259,7 +307,7 @@ class TestDigitalHelpModuleRequestsRoute:
         "platform_service.api.dashboard.DashboardAnalyticsService.get_digital_help_module_requests",
         new_callable=AsyncMock,
     )
-    async def test_digital_help_module_requests_returns_aggregate(
+    async def test_digital_help_module_requests_returns_paginated_payload(
         self,
         mock_get: AsyncMock,
         client: AsyncClient,
@@ -270,22 +318,40 @@ class TestDigitalHelpModuleRequestsRoute:
             title={"bn": "Module A"},
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
-            module_requested_count=7,
+            requests=[
+                DigitalHelpModuleRequestItem(
+                    requested_at=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
+                    reason="Need training",
+                    requested_by=DashboardUserSummary(
+                        user_id=3001,
+                        user_name="SK One",
+                        user_role="SHASTIYA_KORMI",
+                    ),
+                )
+            ],
+            total_requests=7,
+            total_pages=1,
+            limit=50,
+            offset=0,
         )
 
         resp = await client.get(
             platform_path(
                 f"/dashboard/digital-help-modules/{module_id}/requests"
-                "?from_date=2026-01-01&to_date=2026-01-31"
+                "?from_date=2026-01-01&to_date=2026-01-31&limit=50&offset=0"
             )
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["module_id"] == str(module_id)
-        assert data["module_requested_count"] == 7
+        assert data["total_requests"] == 7
+        assert data["requests"][0]["reason"] == "Need training"
+        assert data["requests"][0]["requested_by"]["user_id"] == 3001
         assert data["title"]["bn"] == "Module A"
         mock_get.assert_awaited_once()
         assert mock_get.await_args.kwargs["module_id"] == module_id
+        assert mock_get.await_args.kwargs["limit"] == 50
+        assert mock_get.await_args.kwargs["offset"] == 0
 
     @patch(
         "platform_service.api.dashboard.DashboardAnalyticsService.get_digital_help_module_requests",
@@ -407,6 +473,7 @@ class TestModuleCreationSuggestionsRoutes:
         client: AsyncClient,
     ) -> None:
         from mc_contracts.dashboard import (
+            DashboardUserSummary,
             ModuleCreationSuggestionDetailResponse,
             ModuleCreationSuggestionEvidenceItem,
             ModuleCreationSuggestionListItem,
@@ -434,6 +501,7 @@ class TestModuleCreationSuggestionsRoutes:
                         source="digital_help",
                         text="BP threshold?",
                         occurrence_count=2,
+                        prompted_by=DashboardUserSummary(user_id=3001, user_name="SK One"),
                     )
                 ],
                 requests=[
@@ -441,6 +509,7 @@ class TestModuleCreationSuggestionsRoutes:
                         source="module_requested",
                         text="Hypertension module",
                         occurrence_count=1,
+                        prompted_by=DashboardUserSummary(user_id=3001, user_name="SK One"),
                     )
                 ],
             )
@@ -466,3 +535,71 @@ class TestModuleCreationSuggestionsRoutes:
         mock_service_cls.return_value = mock_service
         resp = await client.get(platform_path(f"/dashboard/module-creation-suggestions/{suggestion_id}"))
         assert resp.status_code == 404
+
+
+class TestModuleDemandSummaryRoute:
+    @patch(
+        "platform_service.api.dashboard.ModuleDemandSummaryService.get_text_summary",
+        new_callable=AsyncMock,
+    )
+    async def test_module_demand_summary_returns_text(
+        self,
+        mock_get: AsyncMock,
+        client: AsyncClient,
+    ) -> None:
+        from mc_contracts.dashboard import ModuleDemandSummaryResponse
+
+        mock_get.return_value = ModuleDemandSummaryResponse(
+            from_date=date(2026, 7, 1),
+            to_date=date(2026, 7, 31),
+            summary="Between 2026-07-01 to 2026-07-31, CHWs used digital help most on: Module A.",
+        )
+        resp = await client.get(
+            platform_path("/dashboard/module-demand-summary?from_date=2026-07-01&to_date=2026-07-31")
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["summary"].startswith("Between")
+        assert data["from_date"] == "2026-07-01"
+        assert data["to_date"] == "2026-07-31"
+        mock_get.assert_awaited_once()
+        assert mock_get.await_args.kwargs["top_limit"] == 10
+
+    @patch(
+        "platform_service.api.dashboard.ModuleDemandSummaryService.get_text_summary",
+        new_callable=AsyncMock,
+    )
+    async def test_module_demand_summary_forwards_top_limit(
+        self,
+        mock_get: AsyncMock,
+        client: AsyncClient,
+    ) -> None:
+        from mc_contracts.dashboard import ModuleDemandSummaryResponse
+
+        mock_get.return_value = ModuleDemandSummaryResponse(
+            from_date=date(2026, 7, 1),
+            to_date=date(2026, 7, 31),
+            summary="No module usage or creation demand was recorded for your team between 2026-07-01 to 2026-07-31.",
+        )
+        resp = await client.get(
+            platform_path(
+                "/dashboard/module-demand-summary?from_date=2026-07-01&to_date=2026-07-31&top_limit=5"
+            )
+        )
+        assert resp.status_code == 200
+        assert mock_get.await_args.kwargs["top_limit"] == 5
+
+    @patch(
+        "platform_service.api.dashboard.ModuleDemandSummaryService.get_text_summary",
+        new_callable=AsyncMock,
+    )
+    async def test_module_demand_summary_invalid_date_range_returns_422(
+        self,
+        mock_get: AsyncMock,
+        client: AsyncClient,
+    ) -> None:
+        resp = await client.get(
+            platform_path("/dashboard/module-demand-summary?from_date=2026-07-31&to_date=2026-07-01")
+        )
+        assert resp.status_code == 422
+        mock_get.assert_not_awaited()

@@ -26,6 +26,7 @@ from tests.db.conftest import (
     _make_family,
     _make_module,
 )
+from tests.helpers.hierarchy_fixtures import AM_ID, PO_ID, seed_basic_hierarchy
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -328,7 +329,7 @@ class TestCountModules:
         assert default == published
         assert retired >= 1  # at least our retired one
 
-    async def test_default_includes_review_pending(self, db_session: AsyncSession) -> None:
+    async def test_default_includes_review_pending_and_deactivated(self, db_session: AsyncSession) -> None:
         marker = f"count-rp-{uuid4().hex[:6]}"
         await _make_module(
             db_session,
@@ -351,10 +352,10 @@ class TestCountModules:
         default = await repo.count_modules(full_text_query=marker)
         titles = {m.title_localized["bn"] for m in default_rows}
         assert marker in titles
-        assert f"{marker}-deactivated" not in titles
+        assert f"{marker}-deactivated" in titles
         assert review_pending == 1
         assert deactivated == 1
-        assert default == 1
+        assert default == 2
 
     async def test_clinically_reviewed_filter_count(self, db_session: AsyncSession) -> None:
         # Use a unique tag in description so we can isolate.
@@ -384,9 +385,7 @@ class TestCountModules:
         reviewed = (
             (
                 await db_session.execute(
-                    select(
-                        Module
-                    ).where(  # use Module from the repo's namespace
+                    select(Module).where(  # use Module from the repo's namespace
                         Module.description_localized["bn"] == marker, Module.clinically_reviewed.is_(True)
                     )
                 )
@@ -496,7 +495,7 @@ class TestLifecycleRepositoryPublish:
         state = await repo.publish(mod.id, reason="Admin manual publish")
 
         assert state.lifecycle_status == "published"
-        assert state.first_activated_at is not None
+        assert state.activated_at is not None
 
         await db_session.refresh(mod)
         assert mod.lifecycle_status == "published"
@@ -505,6 +504,29 @@ class TestLifecycleRepositoryPublish:
         await db_session.refresh(fam)
         assert fam.current_published_module_id == mod.id
 
+    async def test_publish_sets_published_by_user_id(self, db_session: AsyncSession) -> None:
+        await seed_basic_hierarchy(db_session)
+        fam = await _make_family(db_session)
+        mod = await _make_module(db_session, family=fam, lifecycle_status="draft")
+
+        repo = ModuleLifecycleRepository(db_session)
+        await repo.publish(mod.id, published_by_user_id=PO_ID, reason="Admin manual publish")
+
+        await db_session.refresh(mod)
+        assert mod.published_by == PO_ID
+
+    async def test_publish_idempotent_does_not_overwrite_published_by(self, db_session: AsyncSession) -> None:
+        await seed_basic_hierarchy(db_session)
+        fam = await _make_family(db_session)
+        mod = await _make_module(db_session, family=fam, lifecycle_status="draft")
+
+        repo = ModuleLifecycleRepository(db_session)
+        await repo.publish(mod.id, published_by_user_id=AM_ID)
+        await repo.publish(mod.id, published_by_user_id=PO_ID)
+
+        await db_session.refresh(mod)
+        assert mod.published_by == AM_ID
+
     async def test_publish_retired_module_raises_error(self, db_session: AsyncSession) -> None:
         fam = await _make_family(db_session)
         mod = await _make_module(db_session, family=fam, lifecycle_status="retired")
@@ -512,6 +534,31 @@ class TestLifecycleRepositoryPublish:
         repo = ModuleLifecycleRepository(db_session)
         with pytest.raises(ModuleLifecycleError):
             await repo.publish(mod.id)
+
+    async def test_deactivate_sets_deactivated_by_user_id(self, db_session: AsyncSession) -> None:
+        await seed_basic_hierarchy(db_session)
+        fam = await _make_family(db_session)
+        mod = await _make_module(db_session, family=fam, lifecycle_status="published")
+
+        repo = ModuleLifecycleRepository(db_session)
+        await repo.deactivate(mod.id, deactivated_by_user_id=PO_ID, reason="Seasonal pause")
+
+        await db_session.refresh(mod)
+        assert mod.deactivated_by == PO_ID
+        assert mod.lifecycle_status == "deactivated"
+
+    async def test_reactivate_sets_activated_by_user_id(self, db_session: AsyncSession) -> None:
+        await seed_basic_hierarchy(db_session)
+        fam = await _make_family(db_session)
+        mod = await _make_module(db_session, family=fam, lifecycle_status="published")
+
+        repo = ModuleLifecycleRepository(db_session)
+        await repo.deactivate(mod.id, deactivated_by_user_id=PO_ID)
+        await repo.reactivate(mod.id, activated_by_user_id=AM_ID, reason="Resume program")
+
+        await db_session.refresh(mod)
+        assert mod.activated_by == AM_ID
+        assert mod.lifecycle_status == "published"
 
 
 # Suppress unused-import lint when only referenced via select(...)

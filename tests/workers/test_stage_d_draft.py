@@ -575,6 +575,19 @@ class TestPrimaryBehaviouralGap:
         module = (await db_session.execute(select(Module).where(Module.id == result.module_id))).scalar_one()
         assert module.domain == "family_planning"
 
+    async def test_module_content_domain_comes_from_source_document(self, db_session: AsyncSession) -> None:
+        candidate = await _seed_candidate(
+            db_session, proposed_title="Digital topic", content_domain="digital"
+        )
+        drafter = _make_card_drafter_mock([_make_card() for _ in range(5)])
+
+        orch = StageDOrchestrator(db_session, card_drafter=drafter)
+        result = await orch.run(candidate_id=candidate.id)
+        await db_session.commit()
+
+        module = (await db_session.execute(select(Module).where(Module.id == result.module_id))).scalar_one()
+        assert module.content_domain == "digital"
+
     async def test_quiz_drafter_kwarg_accepted_for_backwards_compat(self, db_session: AsyncSession) -> None:
         """Legacy callers may still pass `quiz_drafter=`. Constructor accepts
         and ignores it (post-architecture-reset Stage D doesn't generate

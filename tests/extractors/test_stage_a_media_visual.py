@@ -116,6 +116,7 @@ async def test_media_path_video_invokes_enrichment() -> None:
 
     EnrichCls.assert_called_once()
     enrich_instance.enrich.assert_awaited_once()
+    assert enrich_instance.enrich.await_args.kwargs.get("empty_audio_fallback") is False
     assert result.extraction_method_counts["transcript"] == 1
     assert result.extraction_method_counts["video_visual"] == 2
 
@@ -189,15 +190,20 @@ async def test_media_path_video_empty_audio_logs_and_still_enriches(
     repo.update_status = AsyncMock()
     enrich_instance = AsyncMock()
 
-    async def _enrich(*, source_document_id, source_path, pages):  # noqa: ANN001
-        pages[
-            0
-        ].markdown_content = (
+    async def _enrich(*, source_document_id, source_path, pages, **kwargs):  # noqa: ANN001, ARG001
+        pages[0].markdown_content = (
             "## Visual (t=0ms)\n\nA slide about diabetes prevention with enough characters to pass."
         )
         return 1
 
     enrich_instance.enrich = AsyncMock(side_effect=_enrich)
+    captured_enrich_kwargs: dict[str, object] = {}
+
+    async def _capture_enrich(**kwargs):  # noqa: ANN001
+        captured_enrich_kwargs.update(kwargs)
+        return await _enrich(**kwargs)
+
+    enrich_instance.enrich = AsyncMock(side_effect=_capture_enrich)
     captured_markdowns: list[str] = []
 
     async def _capture_guard(*_args, page_markdowns, **_kwargs):  # noqa: ANN001
@@ -239,6 +245,7 @@ async def test_media_path_video_empty_audio_logs_and_still_enriches(
         )
 
     enrich_instance.enrich.assert_awaited_once()
+    assert captured_enrich_kwargs.get("empty_audio_fallback") is True
     assert result.extraction_method_counts["video_visual"] == 1
     assert any("empty-audio fallback" in rec.message for rec in caplog.records)
     assert captured_markdowns

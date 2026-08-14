@@ -1,4 +1,4 @@
-"""Admin district, upazila, and hierarchy-user endpoints."""
+"""Admin division, district, upazila, and hierarchy-user endpoints."""
 
 from __future__ import annotations
 
@@ -9,6 +9,10 @@ from mc_contracts.hierarchy import (
     DistrictListResponse,
     DistrictResponse,
     DistrictUpdateRequest,
+    DivisionCreateRequest,
+    DivisionListResponse,
+    DivisionResponse,
+    DivisionUpdateRequest,
     HierarchyUserCreateRequest,
     HierarchyUserListResponse,
     HierarchyUserResponse,
@@ -25,6 +29,79 @@ from platform_service.deps import get_db
 from platform_service.services.hierarchy_service import HierarchyService
 
 router = APIRouter(prefix="/admin", tags=["admin-hierarchy"])
+
+
+# ── Divisions ──────────────────────────────────────────────────────────────
+
+
+@router.post("/divisions", response_model=DivisionResponse, status_code=201)
+async def create_division(
+    request: Request,
+    body: DivisionCreateRequest,
+    session: AsyncSession = Depends(get_db),
+) -> DivisionResponse:
+    return await HierarchyService(session).create_division(
+        body,
+        tenant_id=get_selected_tenant_id(request),
+        actor=resolve_spice_actor(request),
+    )
+
+
+@router.get("/divisions", response_model=DivisionListResponse)
+async def list_divisions(
+    request: Request,
+    q: str | None = Query(None, description="Case-insensitive substring match on name"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_db),
+) -> DivisionListResponse:
+    name_query = q.strip() if q and q.strip() else None
+    return await HierarchyService(session).list_divisions(
+        tenant_id=get_selected_tenant_id(request),
+        name_query=name_query,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/divisions/{division_id}", response_model=DivisionResponse)
+async def get_division(
+    request: Request,
+    division_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> DivisionResponse:
+    return await HierarchyService(session).get_division(
+        division_id,
+        tenant_id=get_selected_tenant_id(request),
+    )
+
+
+@router.put("/divisions/{division_id}", response_model=DivisionResponse)
+async def update_division(
+    request: Request,
+    division_id: int,
+    body: DivisionUpdateRequest,
+    session: AsyncSession = Depends(get_db),
+) -> DivisionResponse:
+    return await HierarchyService(session).update_division(
+        division_id,
+        body,
+        tenant_id=get_selected_tenant_id(request),
+        actor=resolve_spice_actor(request),
+    )
+
+
+@router.delete("/divisions/{division_id}", status_code=204)
+async def delete_division(
+    request: Request,
+    division_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    await HierarchyService(session).delete_division(
+        division_id,
+        tenant_id=get_selected_tenant_id(request),
+    )
+    return Response(status_code=204)
 
 
 # ── Districts ──────────────────────────────────────────────────────────────
@@ -46,6 +123,7 @@ async def create_district(
 @router.get("/districts", response_model=DistrictListResponse)
 async def list_districts(
     request: Request,
+    division_id: int | None = Query(None),
     q: str | None = Query(None, description="Case-insensitive substring match on name"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -54,6 +132,7 @@ async def list_districts(
     name_query = q.strip() if q and q.strip() else None
     return await HierarchyService(session).list_districts(
         tenant_id=get_selected_tenant_id(request),
+        division_id=division_id,
         name_query=name_query,
         limit=limit,
         offset=offset,
@@ -195,6 +274,7 @@ async def create_hierarchy_user(
 async def list_hierarchy_users(
     request: Request,
     district_id: int | None = Query(None),
+    division_id: int | None = Query(None),
     role: HierarchyRole | None = Query(None),
     parent_id: int | None = Query(None),
     upazila_id: int | None = Query(None),
@@ -207,6 +287,7 @@ async def list_hierarchy_users(
     return await HierarchyService(session).list_users(
         tenant_id=get_selected_tenant_id(request),
         district_id=district_id,
+        division_id=division_id,
         role=role.value if role is not None else None,
         parent_id=parent_id,
         upazila_id=upazila_id,

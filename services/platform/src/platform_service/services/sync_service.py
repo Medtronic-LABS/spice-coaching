@@ -18,6 +18,7 @@ from mc_contracts.sync import (
     GapsSyncBundle,
     ModulesSyncBundle,
     SourceDocumentsSyncBundle,
+    StoragePathsPresignResponse,
     TriggersSyncBundle,
     VideoProgressSyncBundle,
 )
@@ -30,6 +31,7 @@ from platform_service.services.sync.chat_faqs_bundle_builder import ChatFaqsBund
 from platform_service.services.sync.config_bundle_builder import ConfigBundleBuilder
 from platform_service.services.sync.gaps_bundle_builder import GapsBundleBuilder
 from platform_service.services.sync.modules_bundle_builder import ModulesBundleBuilder
+from platform_service.services.sync.presign_service import SyncPresignService
 from platform_service.services.sync.source_documents_bundle_builder import (
     SourceDocumentsBundleBuilder,
 )
@@ -49,8 +51,8 @@ class SyncService:
         self._badges = BadgesBundleBuilder(session)
         self._video_progress = VideoProgressBundleBuilder(session)
 
-    async def get_config_bundle(self) -> ConfigSyncBundle:
-        return await self._config.build()
+    async def get_config_bundle(self, *, tenant_id: int) -> ConfigSyncBundle:
+        return await self._config.build(tenant_id=tenant_id)
 
     async def get_modules_bundle(
         self,
@@ -137,4 +139,17 @@ class SyncService:
             since=since,
             user_id=user_id,
             tenant_id=tenant_id,
+        )
+
+    async def get_presigned_urls_for_storage_paths(
+        self,
+        *,
+        storage_paths: list[str],
+        storage: ObjectStore,
+        settings: Settings | None = None,
+    ) -> StoragePathsPresignResponse:
+        return await SyncPresignService(self._session).get_presigned_urls_for_storage_paths(
+            storage_paths=storage_paths,
+            storage=storage,
+            settings=settings,
         )

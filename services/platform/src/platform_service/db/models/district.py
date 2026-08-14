@@ -1,10 +1,10 @@
-"""District — top of the AM → PO → SK org hierarchy."""
+"""District — geographic level below division (Division → District → Upazila)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Identity, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
@@ -18,6 +18,11 @@ class District(TenantMixin, Base):
         BigInteger,
         Identity(always=False),
         primary_key=True,
+    )
+    division_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("division.id", ondelete="CASCADE"),
+        nullable=True,
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

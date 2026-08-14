@@ -17,6 +17,10 @@ Per `docs/ARCHITECTURE_RESET.md`:
   normal ingest drafts use `draft`.
 - `module_type` enum: refresher | content_update | digital_proficiency.
 - `urgent_publish` is a quality flag for the dashboard, not a publish gate.
+- `created_by` is the hierarchy user id (`users.id`) stamped per version at insert.
+- `published_by` is the hierarchy user id stamped once per version on first publish.
+- `deactivated_by` is the hierarchy user id stamped on each deactivation.
+- `activated_by` is the hierarchy user id stamped on each reactivation.
 """
 
 import uuid
@@ -24,7 +28,7 @@ from datetime import datetime
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DateTime, Float, Integer, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSTZRANGE, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,6 +52,10 @@ class Module(TenantMixin, Base):
 
     domain: Mapped[str] = mapped_column(Text, nullable=False)
     sub_domain: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # clinical | digital | operational — copied from the first linked source
+    # document at ingest; optional on manual create (defaults to clinical).
+    content_domain: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # refresher | content_update | digital_proficiency
     module_type: Mapped[str] = mapped_column(Text, nullable=False, default="refresher")
@@ -123,11 +131,26 @@ class Module(TenantMixin, Base):
     # draft | published | retired | deactivated | review_pending
     lifecycle_status: Mapped[str] = mapped_column(Text, nullable=False, default="draft")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    first_activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    deactivated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    reactivated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    published_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deactivated_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    activated_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # When this module-version was retired (admin action). Distinct from
     # `published_at` for the same row — a published module that is later
     # retired carries both timestamps.
@@ -138,6 +161,14 @@ class Module(TenantMixin, Base):
     merge_secondary_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     merge_primary_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     merge_source_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    # Hierarchy user id (`users.id`); set per version when the row is inserted.
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

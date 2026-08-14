@@ -12,19 +12,21 @@ from mc_contracts.ingestion_runs import (
     IngestionRunSummary,
     PublishedModuleMergePoll,
 )
+from mc_contracts.source_documents import SourceDocumentActorRef
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.ingestion_run import IngestionRun, IngestionRunStep
 from platform_service.db.models.source_document import SourceDocument
+from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
 from platform_service.db.repositories.module_candidate_repository import (
     ModuleCandidateRepository,
 )
+from platform_service.services.ingest_run_error_summary import summarize_ingestion_run_error
+from platform_service.services.ingest_user_error_messages import user_message_for_step
 from platform_service.services.module_presenter import get_card_counts, get_quiz_counts
-from platform_service.services.run_state.constants import (
-    _PIPELINE_CLAIM_KEY,
-    as_error_object,
-)
+from platform_service.services.run_state.constants import as_error_object
 from platform_service.services.run_state_service import (
     FUSION_RUN_TYPE,
     RUN_RUNNING,
@@ -48,15 +50,32 @@ def _document_label(doc: SourceDocument | None) -> str:
     return doc.title
 
 
-def _module_id_from_step(step: IngestionRunStep) -> UUID | None:
+def _actor_ref(user_id: int | None, users_by_id: dict[int, HierarchyUser]) -> SourceDocumentActorRef | None:
+    if user_id is None:
+        return None
+    user = users_by_id.get(user_id)
+    if user is None:
+        return None
+    return SourceDocumentActorRef(id=user.id, name=user.name)
+
+
+def _uuid_from_step_summary(step: IngestionRunStep, key: str) -> UUID | None:
     summary = step.output_summary_jsonb or {}
-    raw = summary.get("module_id")
+    raw = summary.get(key)
     if not raw:
         return None
     try:
         return UUID(str(raw))
     except (TypeError, ValueError):
         return None
+
+
+def _module_id_from_step(step: IngestionRunStep) -> UUID | None:
+    return _uuid_from_step_summary(step, "module_id")
+
+
+def _secondary_module_id_from_step(step: IngestionRunStep) -> UUID | None:
+    return _uuid_from_step_summary(step, "secondary_module_id")
 
 
 class IngestionRunPresenter:
@@ -68,21 +87,38 @@ class IngestionRunPresenter:
         self._candidate_repo = ModuleCandidateRepository(session)
 
     @staticmethod
-    def _present_run_error(error_jsonb: Any) -> dict[str, Any] | None:
+    def _present_run_error(
+        error_jsonb: Any,
+        *,
+        steps: list[IngestionRunStep] | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any] | None:
         """Coerce run error metadata for API responses.
 
         ``error_jsonb`` is typed as an object, but legacy Postgres ``||`` merges
-        can leave array values. Internal pipeline-claim keys are stripped.
+        can leave array values. Internal pipeline-claim keys are stripped and
+        a human-readable ``message`` is added when missing.
         """
-        error = dict(as_error_object(error_jsonb))
-        error.pop(_PIPELINE_CLAIM_KEY, None)
-        return error or None
+        return summarize_ingestion_run_error(error_jsonb, steps=steps, status=status)
 
     @staticmethod
     def run_kind(run: IngestionRun) -> str:
         if RunStateService.is_fusion_run(run):
             return FUSION_RUN_TYPE
         return "pipeline"
+
+    @staticmethod
+    def _present_step_error_message(step: IngestionRunStep) -> str | None:
+        if step.status != STEP_FAILED:
+            return step.error_message
+        if not step.error_message and not step.error_jsonb and not step.error_code:
+            return step.error_message
+        return user_message_for_step(
+            error_code=step.error_code,
+            error_jsonb=step.error_jsonb,
+            technical_message=step.error_message,
+            stage=step.stage,
+        )
 
     @staticmethod
     def step_to_poll_dict(step: IngestionRunStep) -> dict[str, Any]:
@@ -97,7 +133,7 @@ class IngestionRunPresenter:
             "output_summary": step.output_summary_jsonb,
             "error": step.error_jsonb,
             "error_code": step.error_code,
-            "error_message": step.error_message,
+            "error_message": IngestionRunPresenter._present_step_error_message(step),
         }
         activity = input_summary.get("activity")
         if activity:
@@ -198,6 +234,9 @@ class IngestionRunPresenter:
         )
         docs_by_id = {d.id: d for d in docs_result.scalars().all()}
 
+        actor_ids = list({r.ingested_by for r in runs if r.ingested_by is not None})
+        users_by_id = await HierarchyRepository(self._session).get_users_by_ids(actor_ids)
+
         succeeded_run_ids = [r.id for r in runs if r.status == RUN_SUCCEEDED]
         module_ids_by_run: dict[UUID, list[UUID]] = {rid: [] for rid in succeeded_run_ids}
         all_module_ids: list[UUID] = []
@@ -210,7 +249,11 @@ class IngestionRunPresenter:
                 )
             )
             seen_per_run: dict[UUID, set[UUID]] = {rid: set() for rid in succeeded_run_ids}
+            secondary_per_run: dict[UUID, set[UUID]] = {rid: set() for rid in succeeded_run_ids}
             for step in steps_result.scalars().all():
+                secondary_id = _secondary_module_id_from_step(step)
+                if secondary_id is not None:
+                    secondary_per_run[step.ingestion_run_id].add(secondary_id)
                 module_id = _module_id_from_step(step)
                 if module_id is None:
                     continue
@@ -219,7 +262,11 @@ class IngestionRunPresenter:
                     continue
                 seen.add(module_id)
                 module_ids_by_run[step.ingestion_run_id].append(module_id)
-                all_module_ids.append(module_id)
+            for run_id, module_ids in module_ids_by_run.items():
+                secondary_ids = secondary_per_run[run_id]
+                countable = [mid for mid in module_ids if mid not in secondary_ids]
+                module_ids_by_run[run_id] = countable
+                all_module_ids.extend(countable)
 
         card_counts = await get_card_counts(self._session, all_module_ids)
         quiz_counts = await get_quiz_counts(self._session, all_module_ids)
@@ -227,6 +274,7 @@ class IngestionRunPresenter:
         summaries: list[IngestionRunSummary] = []
         for run in runs:
             label = _document_label(docs_by_id.get(run.source_document_id))
+            ingested_by = _actor_ref(run.ingested_by, users_by_id)
             if run.status != RUN_SUCCEEDED:
                 summaries.append(
                     IngestionRunSummary(
@@ -235,11 +283,12 @@ class IngestionRunPresenter:
                         status=run.status,
                         started_at=run.started_at,
                         completed_at=run.completed_at,
-                        error=self._present_run_error(run.error_jsonb),
+                        error=self._present_run_error(run.error_jsonb, status=run.status),
                         document_label=label,
                         generated_module_count=0,
                         generated_card_count=0,
                         generated_quiz_count=0,
+                        ingested_by=ingested_by,
                     )
                 )
                 continue
@@ -252,11 +301,12 @@ class IngestionRunPresenter:
                     status=run.status,
                     started_at=run.started_at,
                     completed_at=run.completed_at,
-                    error=self._present_run_error(run.error_jsonb),
+                    error=self._present_run_error(run.error_jsonb, status=run.status),
                     document_label=label,
                     generated_module_count=len(module_ids),
                     generated_card_count=sum(card_counts.get(mid, 0) for mid in module_ids),
                     generated_quiz_count=sum(quiz_counts.get(mid, 0) for mid in module_ids),
+                    ingested_by=ingested_by,
                 )
             )
         return summaries
@@ -292,7 +342,11 @@ class IngestionRunPresenter:
             "status": run.status,
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-            "error": run.error_jsonb,
+            "error": self._present_run_error(
+                run.error_jsonb,
+                steps=steps,
+                status=run.status,
+            ),
             "steps": [self.step_to_poll_dict(s) for s in steps],
             "candidates": [c.model_dump(mode="json") for c in candidates],
         }
@@ -314,17 +368,24 @@ class IngestionRunPresenter:
         if run_kind == FUSION_RUN_TYPE:
             source_document_ids = as_error_object(run.error_jsonb).get("source_document_ids")
         summary = (await self.present_summaries([run]))[0]
+        # Re-present error with step context for richer causes/message.
+        detail_error = self._present_run_error(
+            run.error_jsonb,
+            steps=steps,
+            status=run.status,
+        )
         return IngestionRunDetail(
             id=summary.id,
             source_document_id=summary.source_document_id,
             status=summary.status,
             started_at=summary.started_at,
             completed_at=summary.completed_at,
-            error=summary.error,
+            error=detail_error,
             document_label=summary.document_label,
             generated_module_count=summary.generated_module_count,
             generated_card_count=summary.generated_card_count,
             generated_quiz_count=summary.generated_quiz_count,
+            ingested_by=summary.ingested_by,
             run_kind=run_kind,
             steps=[self.step_to_payload(s) for s in steps],
             candidates=candidates,

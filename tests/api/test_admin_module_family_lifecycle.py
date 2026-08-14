@@ -187,7 +187,7 @@ class TestModuleDeactivateReactivate:
         assert deactivate.status_code == 200
         body = deactivate.json()
         assert body["lifecycle_status"] == "deactivated"
-        assert body["last_deactivated_at"] is not None
+        assert body["deactivated_at"] is not None
 
         reactivate = await admin_client.post(
             platform_path(f"/admin/modules/{module_id}/reactivate"),
@@ -195,7 +195,7 @@ class TestModuleDeactivateReactivate:
         )
         assert reactivate.status_code == 200
         assert reactivate.json()["lifecycle_status"] == "published"
-        assert reactivate.json()["last_reactivated_at"] is not None
+        assert reactivate.json()["activated_at"] is not None
 
         double = await admin_client.post(platform_path(f"/admin/modules/{module_id}/reactivate"))
         assert double.status_code == 409
@@ -216,10 +216,14 @@ class TestModuleDeactivateReactivate:
             m for m in deactivated_list.json()["modules"] if primary_from_response(m) == "status visible"
         )
         assert row["lifecycle_status"] == "deactivated"
-        assert row["last_deactivated_at"] is not None
+        assert row["deactivated_at"] is not None
 
         default_list = await admin_client.get(platform_path("/admin/modules"))
-        assert "status visible" not in {primary_from_response(m) for m in default_list.json()["modules"]}
+        assert "status visible" in {primary_from_response(m) for m in default_list.json()["modules"]}
+        default_row = next(
+            m for m in default_list.json()["modules"] if primary_from_response(m) == "status visible"
+        )
+        assert default_row["lifecycle_status"] == "deactivated"
 
         published_only = await admin_client.get(platform_path("/admin/modules?status=published"))
         assert all(m["lifecycle_status"] == "published" for m in published_only.json()["modules"])

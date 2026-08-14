@@ -222,6 +222,7 @@ async def _seed_module(
     source_document_ids: list[UUID] | None = None,
     primary_gap_id: UUID | None = None,
     chatbot_faqs_only: bool = False,
+    content_domain: str | None = None,
     set_family_pointer: bool = True,
     created_at: datetime | None = None,
     published_at: datetime | None = None,
@@ -252,6 +253,7 @@ async def _seed_module(
         source_document_ids=source_document_ids,
         primary_gap_id=primary_gap_id,
         chatbot_faqs_only=chatbot_faqs_only,
+        content_domain=content_domain,
         published_at=(
             published_at
             if published_at is not None

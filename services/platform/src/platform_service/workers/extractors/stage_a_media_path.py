@@ -87,6 +87,7 @@ async def run_media_transcript_path(
                 source_document_id=source_document_id,
                 source_path=source_path,
                 pages=persisted_pages,
+                empty_audio_fallback=empty_audio,
             )
             if frames:
                 method_counts["video_visual"] = frames

@@ -23,6 +23,7 @@ from platform_service.db.base import SessionLocal
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.attribution_audit import record_attribution_event
 from platform_service.services.cross_source_fusion_runner import CrossSourceFusionRunner
+from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.run_state_service import (
     RUN_FAILED,
     ConcurrentFusionRunError,
@@ -89,10 +90,16 @@ async def _mark_active_ingest_failed(source_document_id: UUID) -> None:
         run_state = RunStateService(session)
         active = await run_state.find_active_run(source_document_id)
         if active is not None:
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.PIPELINE_CRASHED.value,
+                reason="pipeline_crashed",
+                technical_message="pipeline crashed",
+            )
+            error["code"] = ErrorCode.PIPELINE_CRASHED.value
             await run_state.complete_run(
                 active.id,
                 status=RUN_FAILED,
-                error_jsonb={"code": ErrorCode.PIPELINE_CRASHED.value, "detail": "pipeline crashed"},
+                error_jsonb=error,
             )
             if active.ingest_batch_id is not None:
                 await run_state.refresh_batch_status(active.ingest_batch_id)

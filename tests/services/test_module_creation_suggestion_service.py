@@ -332,14 +332,28 @@ async def test_get_detail_returns_scoped_evidence() -> None:
     )
     service._repo.get_detail = AsyncMock(return_value=row)
 
-    result = await service.get_detail(
-        suggestion_id=suggestion_id,
-        tenant_id=1,
-        visible_chw_ids=frozenset({3001}),
-    )
+    org_user = MagicMock()
+    org_user.name = "SK One"
+    org_user.role = "SHASTIYA_KORMI"
+    org_user.division = "D"
+    org_user.district = "Dist"
+    org_user.upazila_names = frozenset({"Up"})
+    with patch(
+        "platform_service.services.module_creation_suggestion_service.org_user_index",
+        new_callable=AsyncMock,
+        return_value={3001: org_user},
+    ):
+        result = await service.get_detail(
+            suggestion_id=suggestion_id,
+            tenant_id=1,
+            visible_chw_ids=frozenset({3001}),
+        )
 
     assert len(result.questions) == 1
     assert len(result.requests) == 1
+    assert result.questions[0].prompted_by.user_id == 3001
+    assert result.questions[0].prompted_by.user_name == "SK One"
+    assert result.requests[0].prompted_by.user_id == 3001
     assert result.suggestion.question_count == 2
     assert result.suggestion.request_count == 1
     assert result.suggestion.evidence_count == 3

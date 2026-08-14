@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from mc_contracts.dashboard import DashboardUserSummary
 from mc_contracts.enums import HierarchyRole
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,8 @@ class OrgUser:
     role: str
     district_id: int
     district: str | None
+    division_id: int | None
+    division: str | None
     upazila_ids: frozenset[int]
     upazila_names: frozenset[str]
     parent_id: int | None
@@ -54,14 +57,25 @@ async def org_user_index(
         {u.district_id for u in users},
         tenant_id=tenant_id,
     )
+    districts = await hierarchy.districts_by_ids(
+        {u.district_id for u in users},
+        tenant_id=tenant_id,
+    )
+    division_ids = {d.division_id for d in districts.values() if d.division_id is not None}
+    division_names = await hierarchy.division_names_by_ids(division_ids, tenant_id=tenant_id)
     out: dict[int, OrgUser] = {}
     for raw in users:
+        district = districts.get(raw.district_id)
+        division_id = district.division_id if district is not None else raw.division_id
+        division_name = division_names.get(division_id) if division_id is not None else raw.division
         out[raw.id] = OrgUser(
             id=raw.id,
             name=raw.name,
             role=_role_value(raw.role),
             district_id=raw.district_id,
             district=district_names.get(raw.district_id),
+            division_id=division_id,
+            division=division_name,
             upazila_ids=frozenset(u.id for u in raw.upazilas),
             upazila_names=frozenset(u.name for u in raw.upazilas),
             parent_id=raw.parent_id,
@@ -159,11 +173,12 @@ async def apply_document_usage_filters(
     *,
     tenant_id: int,
     user_id: int | None = None,
+    division: str | None = None,
     district: str | None = None,
     upazila: str | None = None,
     index: dict[int, OrgUser] | None = None,
 ) -> frozenset[int] | None:
-    """Intersect hierarchy visibility with user/district/upazila filters.
+    """Intersect hierarchy visibility with user/division/district/upazila filters.
 
     Optional ``user_id`` is a role-aware focus (same grain as former ``po_id`` /
     ``sk_id``): PO → PO+SKs, AM → AM+descendants, SK → that user. Geography
@@ -188,6 +203,13 @@ async def apply_document_usage_filters(
     if user_id is not None:
         _intersect(focus_subtree_ids(by_id, user_id))
 
+    if division is not None and division.strip():
+        needle = division.strip().casefold()
+        division_ids = {
+            u.id for u in by_id.values() if u.division is not None and u.division.casefold() == needle
+        }
+        _intersect(division_ids)
+
     if district is not None and district.strip():
         needle = district.strip().casefold()
         district_ids = {
@@ -207,12 +229,42 @@ async def apply_document_usage_filters(
     return frozenset(candidates)
 
 
+async def resolve_geography_chw_ids(
+    session: AsyncSession,
+    *,
+    tenant_id: int,
+    division: str | None = None,
+    district: str | None = None,
+    upazila: str | None = None,
+) -> frozenset[int] | None:
+    """Return user ids matching optional division/district/upazila name filters, or None when unset."""
+    return await apply_document_usage_filters(
+        session,
+        None,
+        tenant_id=tenant_id,
+        division=division,
+        district=district,
+        upazila=upazila,
+    )
+
+
+def filter_users_by_chw_ids(
+    users: list[OrgUser],
+    allowed_chw_ids: frozenset[int] | None,
+) -> list[OrgUser]:
+    """Keep org users whose id is in ``allowed_chw_ids``; pass-through when None."""
+    if allowed_chw_ids is None:
+        return users
+    return [u for u in users if u.id in allowed_chw_ids]
+
+
 def user_display(user_id: int, index: dict[int, OrgUser] | None = None) -> dict[str, Any]:
     """Name / role / geo display fields for a chw_id (nulls when unknown)."""
     if index is None:
         return {
             "user_name": None,
             "user_role": None,
+            "division": None,
             "district": None,
             "upazila": None,
         }
@@ -221,6 +273,7 @@ def user_display(user_id: int, index: dict[int, OrgUser] | None = None) -> dict[
         return {
             "user_name": None,
             "user_role": None,
+            "division": None,
             "district": None,
             "upazila": None,
         }
@@ -229,9 +282,28 @@ def user_display(user_id: int, index: dict[int, OrgUser] | None = None) -> dict[
     return {
         "user_name": user.name or None,
         "user_role": user.role or None,
+        "division": user.division,
         "district": user.district,
         "upazila": upazila_name,
     }
+
+
+def dashboard_user_summary(
+    chw_id: int | None,
+    index: dict[int, OrgUser] | None = None,
+) -> DashboardUserSummary:
+    """Build contract user summary for a CHW id (null fields when unknown)."""
+    if chw_id is None:
+        return DashboardUserSummary()
+    display = user_display(chw_id, index)
+    return DashboardUserSummary(
+        user_id=chw_id,
+        user_name=display["user_name"],
+        user_role=display["user_role"],
+        division=display["division"],
+        district=display["district"],
+        upazila=display["upazila"],
+    )
 
 
 def is_hierarchy_scoped_role(role: str) -> bool:

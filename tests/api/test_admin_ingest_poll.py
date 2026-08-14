@@ -46,7 +46,10 @@ class TestPresentRunError:
     def test_strips_pipeline_claim(self) -> None:
         assert IngestionRunPresenter._present_run_error(
             {"_pipeline_claim": {"claim_token": "x"}, "failed_stage": "extract"}
-        ) == {"failed_stage": "extract"}
+        ) == {
+            "failed_stage": "extract",
+            "message": "Extracting content failed.",
+        }
 
     def test_non_object_error_jsonb_returns_none(self) -> None:
         # Legacy array corruption from jsonb || must not crash list/detail APIs.

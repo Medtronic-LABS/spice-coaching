@@ -6,15 +6,18 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from mc_contracts.enums import ContentDomain
 from mc_contracts.modules import (
     ModuleSourceDocumentRef,
     ModuleSummary,
     QuizQuestionPayload,
 )
+from mc_contracts.source_documents import SourceDocumentActorRef
 from mc_foundation.objectstore import ObjectStore
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_family import ModuleFamily
@@ -54,6 +57,27 @@ __all__ = [
 ]
 
 
+def _creator_ref(
+    user_id: int | None,
+    users_by_id: dict[int, HierarchyUser] | None,
+) -> SourceDocumentActorRef | None:
+    if user_id is None or users_by_id is None:
+        return None
+    user = users_by_id.get(user_id)
+    if user is None:
+        return None
+    return SourceDocumentActorRef(id=user.id, name=user.name)
+
+
+def _content_domain_ref(value: str | None) -> ContentDomain | None:
+    if value is None:
+        return None
+    try:
+        return ContentDomain(value)
+    except ValueError:
+        return None
+
+
 async def summary_from_module(
     module: Module,
     *,
@@ -61,6 +85,7 @@ async def summary_from_module(
     quiz_count: int,
     storage: ObjectStore | None = None,
     family: ModuleFamily | None = None,
+    users_by_id: dict[int, HierarchyUser] | None = None,
 ) -> ModuleSummary:
     thumb_path = module.thumbnail_storage_path
     thumb_url: str | None = None
@@ -76,6 +101,7 @@ async def summary_from_module(
         title=module.title_localized,
         description=module.description_localized,
         domain=module.domain,
+        content_domain=_content_domain_ref(module.content_domain),
         module_type=module.module_type,
         lifecycle_status=module.lifecycle_status,
         clinically_reviewed=module.clinically_reviewed,
@@ -85,9 +111,9 @@ async def summary_from_module(
         estimated_minutes=module.estimated_minutes,
         published_at=module.published_at,
         created_at=module.created_at,
-        first_activated_at=module.first_activated_at,
-        last_deactivated_at=module.last_deactivated_at,
-        last_reactivated_at=module.last_reactivated_at,
+        updated_at=module.updated_at,
+        activated_at=module.activated_at,
+        deactivated_at=module.deactivated_at,
         quality_flags=module.quality_flags_jsonb,
         search_metadata=module.search_metadata_jsonb,
         chatbot_faqs_only=module.chatbot_faqs_only,
@@ -98,6 +124,10 @@ async def summary_from_module(
         merge_secondary_module_id=module.merge_secondary_module_id,
         merge_primary_module_id=module.merge_primary_module_id,
         merge_source_module_id=module.merge_source_module_id,
+        created_by=_creator_ref(module.created_by, users_by_id),
+        published_by=_creator_ref(module.published_by, users_by_id),
+        deactivated_by=_creator_ref(module.deactivated_by, users_by_id),
+        activated_by=_creator_ref(module.activated_by, users_by_id),
     )
 
 

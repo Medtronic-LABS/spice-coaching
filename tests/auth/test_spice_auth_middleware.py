@@ -219,18 +219,19 @@ async def test_spice_auth_failure_returns_401(
 
 
 @pytest.mark.asyncio
-async def test_spice_auth_unavailable_returns_503(
+async def test_spice_auth_unavailable_returns_401(
     middleware_app: AsyncClient,
     mock_spice_client: SpiceAuthClient,
 ) -> None:
     mock_spice_client.authenticate = AsyncMock(  # type: ignore[method-assign]
-        side_effect=SpiceAuthError(503, "authentication service unavailable")
+        side_effect=SpiceAuthError(401, "unable to authenticate")
     )
     resp = await middleware_app.get(
         f"{API_ROOT}/probe",
         headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
-    assert resp.status_code == 503
+    assert resp.status_code == 401
+    assert resp.json()["code"] == ErrorCode.NOT_AUTHENTICATED.value
 
 
 def test_spice_auth_exempt_path_set_default() -> None:
@@ -417,6 +418,7 @@ async def test_spice_auth_client_exhausts_retries_on_5xx(
     client = SpiceAuthClient(base_url="http://auth.test", timeout=1.0)
     with pytest.raises(SpiceAuthError) as exc_info:
         await client.authenticate(authorization=VALID_TOKEN)
-    assert exc_info.value.status_code == 503
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "unable to authenticate"
     assert calls["n"] == 3
     assert sleep.await_count == 2

@@ -11,6 +11,7 @@ from platform_service.db.repositories.module_lifecycle_repository import (
     ModuleLifecycleState,
 )
 from platform_service.services.attribution_audit import record_attribution_event
+from platform_service.services.module_publish_enrichment import enrich_module_for_publish
 
 
 class ModulePublishService:
@@ -25,9 +26,16 @@ class ModulePublishService:
         module_id: UUID,
         *,
         actor_id: UUID | None = None,
+        published_by_user_id: int | None = None,
         reason: str | None = None,
     ) -> ModuleLifecycleState:
-        state = await self._lifecycle_repo.publish(module_id, actor_id=actor_id, reason=reason)
+        await enrich_module_for_publish(self._session, module_id)
+        state = await self._lifecycle_repo.publish(
+            module_id,
+            actor_id=actor_id,
+            published_by_user_id=published_by_user_id,
+            reason=reason,
+        )
         await record_attribution_event(
             self._session,
             event_type="module_published",

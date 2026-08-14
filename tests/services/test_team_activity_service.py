@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from mc_contracts.dashboard import (
     TeamActivityMemberDetail,
+    TeamActivitySummary,
     TeamMemberChatbotModuleUsage,
     TeamMemberModuleActivity,
 )
@@ -57,6 +58,8 @@ def _org_user(
         role=role,
         district_id=1,
         district=None,
+        division_id=None,
+        division=None,
         upazila_ids=frozenset(),
         upazila_names=frozenset(),
         parent_id=parent_id,
@@ -292,6 +295,85 @@ async def test_admin_default_lists_ams_excludes_orphan_sks(
     assert [m.user_id for m in resp.members] == [AM_ID, OTHER_AM_ID]
     assert all(m.role == HierarchyRole.AREA_MANAGER.value for m in resp.members)
     assert all(m.can_drill_down is True for m in resp.members)
+    by_id = {m.user_id: m for m in resp.members}
+    assert by_id[AM_ID].summary == TeamActivitySummary(
+        total_users=1,
+        active_users=0,
+        non_active_users=1,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
+    assert by_id[OTHER_AM_ID].summary == TeamActivitySummary(
+        total_users=1,
+        active_users=0,
+        non_active_users=1,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
+
+
+async def test_geo_filter_narrows_sk_summary_keeps_po_members(
+    ch_client: MagicMock,
+    session: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sk_a = 395
+    sk_b = 396
+    _patch_org_index(
+        monkeypatch,
+        [
+            _org_user(AM_ID, "AM Alpha", role=HierarchyRole.AREA_MANAGER.value),
+            _org_user(ORGANIZER_ID, "PO Alpha", role=HierarchyRole.PO.value, parent_id=AM_ID),
+            _org_user(sk_a, "Alpha SK", role=HierarchyRole.SHASTIYA_KORMI.value, parent_id=ORGANIZER_ID),
+            _org_user(sk_b, "Beta SK", role=HierarchyRole.SHASTIYA_KORMI.value, parent_id=ORGANIZER_ID),
+        ],
+    )
+    _stub_assignments(monkeypatch)
+
+    resp_all = await TeamActivityService(ch_client, session).get_team_activity(
+        scope=_unrestricted_scope(),
+        focus_user_id=AM_ID,
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 31),
+        limit=50,
+        offset=0,
+        tenant_id=None,
+        depth=0,
+        geo_chw_ids=None,
+    )
+    assert resp_all.summary.total_users == 2
+    assert resp_all.total_members == 1
+    assert resp_all.members[0].user_id == ORGANIZER_ID
+    assert resp_all.members[0].summary == TeamActivitySummary(
+        total_users=2,
+        active_users=0,
+        non_active_users=2,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
+
+    resp_filtered = await TeamActivityService(ch_client, session).get_team_activity(
+        scope=_unrestricted_scope(),
+        focus_user_id=AM_ID,
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 31),
+        limit=50,
+        offset=0,
+        tenant_id=None,
+        depth=0,
+        geo_chw_ids=frozenset({sk_a}),
+    )
+    assert resp_filtered.summary.total_users == 1
+    assert resp_filtered.total_members == 1
+    assert resp_filtered.members[0].user_id == ORGANIZER_ID
+    assert resp_filtered.members[0].is_active is False
+    assert resp_filtered.members[0].summary == TeamActivitySummary(
+        total_users=1,
+        active_users=0,
+        non_active_users=1,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
 
 
 async def test_admin_drill_am_lists_pos(
@@ -340,6 +422,13 @@ async def test_admin_drill_am_lists_pos(
     assert resp.members[0].role == HierarchyRole.PO.value
     assert resp.members[0].can_drill_down is True
     assert resp.members[0].is_active is True
+    assert resp.members[0].summary == TeamActivitySummary(
+        total_users=1,
+        active_users=1,
+        non_active_users=0,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
 
 
 async def test_admin_drill_po_lists_sks(
@@ -373,6 +462,7 @@ async def test_admin_drill_po_lists_sks(
     assert [m.user_id for m in resp.members] == [395, 394]
     assert all(m.role == HierarchyRole.SHASTIYA_KORMI.value for m in resp.members)
     assert all(m.can_drill_down is False for m in resp.members)
+    assert all(m.summary is None for m in resp.members)
 
 
 async def test_sk_focus_empty_members_single_sk_summary(
@@ -1070,6 +1160,13 @@ def test_aggregate_member_empty_sks() -> None:
     assert agg.can_drill_down is True
     assert agg.is_active is False
     assert agg.chatbot_query_count == 0
+    assert agg.summary == TeamActivitySummary(
+        total_users=0,
+        active_users=0,
+        non_active_users=0,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
 
 
 def test_aggregate_member_or_flags_sums_and_module_union() -> None:
@@ -1149,6 +1246,13 @@ def test_aggregate_member_or_flags_sums_and_module_union() -> None:
     assert module_a_row.completed_at == earlier
     assert len(agg.chatbot_modules) == 1
     assert agg.chatbot_modules[0].query_count == 3
+    assert agg.summary == TeamActivitySummary(
+        total_users=2,
+        active_users=1,
+        non_active_users=1,
+        users_completed_module=1,
+        users_chatbot_engaged=1,
+    )
 
 
 async def test_am_default_lists_descendant_pos_only(
@@ -1196,6 +1300,13 @@ async def test_am_default_lists_descendant_pos_only(
     assert resp.members[0].role == HierarchyRole.PO.value
     assert resp.members[0].can_drill_down is True
     assert resp.members[0].is_active is True
+    assert resp.members[0].summary == TeamActivitySummary(
+        total_users=1,
+        active_users=1,
+        non_active_users=0,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
 
 
 async def test_pagination_pages_current_level_keeps_full_sk_summary(
@@ -1314,6 +1425,21 @@ async def test_admin_depth_1_lists_pos_excludes_orphans(
     assert [m.user_id for m in resp.members] == [ORGANIZER_ID, OTHER_PO_ID]
     assert all(m.role == HierarchyRole.PO.value for m in resp.members)
     assert all(m.can_drill_down is True for m in resp.members)
+    by_id = {m.user_id: m for m in resp.members}
+    assert by_id[ORGANIZER_ID].summary == TeamActivitySummary(
+        total_users=1,
+        active_users=0,
+        non_active_users=1,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
+    assert by_id[OTHER_PO_ID].summary == TeamActivitySummary(
+        total_users=1,
+        active_users=0,
+        non_active_users=1,
+        users_completed_module=0,
+        users_chatbot_engaged=0,
+    )
 
 
 async def test_admin_depth_2_lists_sks(
@@ -1351,6 +1477,7 @@ async def test_admin_depth_2_lists_sks(
     assert [m.user_id for m in resp.members] == [395, 394]
     assert all(m.role == HierarchyRole.SHASTIYA_KORMI.value for m in resp.members)
     assert all(m.can_drill_down is False for m in resp.members)
+    assert all(m.summary is None for m in resp.members)
 
 
 async def test_am_depth_1_lists_sks(
@@ -1387,6 +1514,7 @@ async def test_am_depth_1_lists_sks(
     assert resp.total_members == 2
     assert [m.user_id for m in resp.members] == [395, 396]
     assert all(m.role == HierarchyRole.SHASTIYA_KORMI.value for m in resp.members)
+    assert all(m.summary is None for m in resp.members)
 
 
 async def test_admin_user_id_am_depth_1_lists_sks_under_am(
@@ -1423,6 +1551,7 @@ async def test_admin_user_id_am_depth_1_lists_sks_under_am(
     assert resp.total_members == 1
     assert resp.members[0].user_id == 395
     assert resp.members[0].role == HierarchyRole.SHASTIYA_KORMI.value
+    assert resp.members[0].summary is None
 
 
 async def test_illegal_depth_returns_422(

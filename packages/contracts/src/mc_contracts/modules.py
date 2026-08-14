@@ -9,7 +9,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from mc_contracts.enums import ContentDomain
 from mc_contracts.localized import LocalizedOptions, LocalizedString
+from mc_contracts.source_documents import SourceDocumentActorRef
 
 
 class ModuleLifecycleActionRequest(BaseModel):
@@ -21,9 +23,8 @@ class ModuleLifecycleStatePayload(BaseModel):
     module_id: UUID
     module_family_id: UUID
     lifecycle_status: str
-    first_activated_at: datetime | None
-    last_deactivated_at: datetime | None
-    last_reactivated_at: datetime | None
+    activated_at: datetime | None
+    deactivated_at: datetime | None
 
 
 class ModuleSummary(BaseModel):
@@ -35,6 +36,7 @@ class ModuleSummary(BaseModel):
     title: LocalizedString
     description: LocalizedString | None = None
     domain: str
+    content_domain: ContentDomain | None = None
     module_type: str
     lifecycle_status: str
     clinically_reviewed: bool
@@ -44,9 +46,9 @@ class ModuleSummary(BaseModel):
     estimated_minutes: int
     published_at: datetime | None
     created_at: datetime
-    first_activated_at: datetime | None = None
-    last_deactivated_at: datetime | None = None
-    last_reactivated_at: datetime | None = None
+    updated_at: datetime
+    activated_at: datetime | None = None
+    deactivated_at: datetime | None = None
     # Quality flags written by Stage 2 / Stage 2-draft (e.g.
     # `insufficient_source_filter`, drafter `insufficient_reason`). Surfaced
     # so the dashboard can build a "needs attention" view; presence of any
@@ -64,6 +66,10 @@ class ModuleSummary(BaseModel):
     merge_secondary_module_id: UUID | None = None
     merge_primary_module_id: UUID | None = None
     merge_source_module_id: UUID | None = None
+    created_by: SourceDocumentActorRef | None = None
+    published_by: SourceDocumentActorRef | None = None
+    deactivated_by: SourceDocumentActorRef | None = None
+    activated_by: SourceDocumentActorRef | None = None
 
 
 class ModuleListResponse(BaseModel):
@@ -159,7 +165,7 @@ class ModuleEditRequest(BaseModel):
 
     A complete snapshot requires ``title``, ``description``, ``module_json``,
     ``thumbnail_storage_path``, and quiz either as top-level ``quiz`` or nested under
-    ``module_json.quiz``. Gap ids and ``editor_id`` are ignored for equality.
+    ``module_json.quiz``. Gap ids are ignored for equality.
     Omitted or unchanged ``chatbot_faqs_only`` does not break the no-op; an explicit
     different value still creates a new draft version. Omitted content fields always
     version-bump.
@@ -176,7 +182,6 @@ class ModuleEditRequest(BaseModel):
     title: LocalizedString | None = None
     description: LocalizedString | None = None
     module_json: dict[str, Any] | None = None
-    editor_id: UUID | None = None
     quiz: list[QuizQuestionEditRequest] | None = None
     behavioural_gap_ids: list[UUID] | None = Field(
         default=None,
@@ -200,6 +205,10 @@ class ModuleEditRequest(BaseModel):
             "chatbot knowledge retrieval only (no CHW training workflows)."
         ),
     )
+    content_domain: ContentDomain | None = Field(
+        default=None,
+        description="Learning Library content domain for this module version.",
+    )
 
 
 class ModuleCreateRequest(BaseModel):
@@ -207,6 +216,7 @@ class ModuleCreateRequest(BaseModel):
     description: LocalizedString | None = None
     domain: str = "clinical"
     sub_domain: str | None = None
+    content_domain: ContentDomain = ContentDomain.CLINICAL
     module_type: str = "refresher"
     estimated_minutes: int = 10
     difficulty_level: str = "moderate"
@@ -214,7 +224,6 @@ class ModuleCreateRequest(BaseModel):
     quiz: list[QuizQuestionEditRequest] | None = None
     behavioural_gap_ids: list[UUID] | None = None
     primary_gap_id: UUID | None = None
-    creator_id: UUID | None = None
     chatbot_faqs_only: bool = Field(
         default=False,
         description=(

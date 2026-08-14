@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from mc_contracts.enums import AssessmentMode
+from mc_contracts.source_documents import SourceDocumentActorRef
 
 
 class ExistingIngestedSourceSummary(BaseModel):
@@ -80,6 +81,8 @@ class IngestStartAcceptedSource(BaseModel):
     title: str
     source_type: str
     stored_path: str
+    ingested_at: datetime
+    ingested_by: SourceDocumentActorRef | None = None
 
 
 class IngestStartResponse(BaseModel):
@@ -144,6 +147,7 @@ class IngestBatchPollResponse(BaseModel):
     created_at: datetime | None = None
     completed_at: datetime | None = None
     error: dict[str, Any] | None = None
+    ingested_by: SourceDocumentActorRef | None = None
     sources: list[IngestBatchSourceProgress] = Field(default_factory=list)
     fusion: IngestBatchFusionProgress | None = None
     retry_url: str | None = Field(

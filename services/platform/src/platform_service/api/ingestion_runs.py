@@ -24,12 +24,35 @@ from platform_service.services.ingestion_run_presenter import IngestionRunPresen
 router = APIRouter(prefix="/admin", tags=["admin-ingestion-runs"])
 
 
+def _normalize_csv_query_values(raw: list[str] | None) -> list[str] | None:
+    """Accept repeated params and/or comma-separated values; dedupe, preserve order."""
+    if not raw:
+        return None
+    values: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        for part in item.split(","):
+            value = part.strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            values.append(value)
+    return values or None
+
+
 @router.get("/ingestion-runs", response_model=IngestionRunListResponse)
 async def list_ingestion_runs(
     status: str | None = Query(None),
     q: str | None = Query(
         None,
         description="Case-insensitive substring match on original_filename or title",
+    ),
+    ingested_by: list[str] | None = Query(
+        None,
+        description=(
+            "Optional filter by ingest starter hierarchy user id(s); repeat and/or comma-separate "
+            "(e.g. ingested_by=101&ingested_by=102 or ingested_by=101,102)"
+        ),
     ),
     sort_by: str = Query(
         DEFAULT_INGESTION_RUN_SORT_BY,
@@ -55,12 +78,33 @@ async def list_ingestion_runs(
             f"sort_dir must be one of: {', '.join(sorted(INGESTION_RUN_SORT_DIRS))}",
             status=422,
         )
+    ingested_by_raw = _normalize_csv_query_values(ingested_by)
+    ingested_by_ids: list[int] | None = None
+    if ingested_by_raw is not None:
+        ingested_by_ids = []
+        invalid_ingested_by: list[str] = []
+        for token in ingested_by_raw:
+            try:
+                ingested_by_ids.append(int(token))
+            except ValueError:
+                invalid_ingested_by.append(token)
+        if invalid_ingested_by:
+            raise AppError(
+                ErrorCode.INVALID_QUERY.value,
+                f"ingested_by must be integer user id(s); got invalid: {', '.join(invalid_ingested_by)}",
+                status=422,
+            )
     filename_query = q.strip() if q and q.strip() else None
     repo = IngestionRunRepository(session)
-    total_runs = await repo.count_ingestion_runs(status=status, filename_query=filename_query)
+    total_runs = await repo.count_ingestion_runs(
+        status=status,
+        filename_query=filename_query,
+        ingested_by_ids=ingested_by_ids,
+    )
     rows = await repo.list_ingestion_runs(
         status=status,
         filename_query=filename_query,
+        ingested_by_ids=ingested_by_ids,
         sort_by=sort_by,
         sort_dir=sort_dir,
         limit=limit,

@@ -56,6 +56,8 @@ class SourceDocumentSyncPayload(BaseModel):
     version_label: str | None = None
     publication_date: date | None = None
     original_filename: str | None = None
+    storage_path: str
+    thumbnail_storage_path: str | None = None
     has_thumbnail: bool = False
 
 
@@ -88,6 +90,7 @@ class ModuleSyncPayload(BaseModel):
     updated_at: datetime
     source_documents: list[SourceDocumentSyncPayload] = Field(default_factory=list)
     has_thumbnail: bool = False
+    thumbnail_storage_path: str | None = None
     thumbnail_presigned_url: str | None = None
     thumbnail_presigned_expires_seconds: int | None = None
     search_metadata: dict[str, Any] | None = None
@@ -156,8 +159,12 @@ class SourceDocumentSyncDownloadPayload(BaseModel):
     source_document_id: UUID
     source_type: str
     title: str | None = None
+    description: str | None = None
     original_filename: str | None = None
+    storage_path: str
+    thumbnail_storage_path: str | None = None
     assigned_at: datetime | None = None
+    duration_ms: int | None = None
     presigned_url: str | None = None
     presigned_expires_seconds: int | None = None
     thumbnail_presigned_url: str | None = None
@@ -295,6 +302,25 @@ class SourceDocumentThumbnailPresignedUrlPayload(BaseModel):
 class SourceDocumentThumbnailsPresignResponse(BaseModel):
     urls: list[SourceDocumentThumbnailPresignedUrlPayload]
     missing_ids: list[UUID]
+    server_time_utc: str
+
+
+_MAX_STORAGE_PATHS_PER_BATCH = 50
+
+
+class StoragePathsPresignRequest(BaseModel):
+    storage_paths: list[str] = Field(..., min_length=1, max_length=_MAX_STORAGE_PATHS_PER_BATCH)
+
+
+class StoragePathPresignedUrlPayload(BaseModel):
+    storage_path: str
+    presigned_url: str
+    expires_seconds: int
+
+
+class StoragePathsPresignResponse(BaseModel):
+    urls: list[StoragePathPresignedUrlPayload]
+    missing_paths: list[str]
     server_time_utc: str
 
 

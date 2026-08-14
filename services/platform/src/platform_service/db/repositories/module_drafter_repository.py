@@ -26,6 +26,7 @@ from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.module_availability import LIFECYCLE_REVIEW_PENDING
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
+from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.localized import (
     candidate_description_localized,
     migrate_legacy_card,
@@ -35,6 +36,7 @@ from platform_service.localized import (
 from platform_service.services.card_normalisation import project_runtime_card
 from platform_service.services.module_card_service import ModuleCardService
 from platform_service.services.module_thumbnail_service import resolve_default_module_thumbnail
+from platform_service.services.sync.modules_bundle_builder import resolve_module_content_domain
 
 
 def _gap_code_for_module(module_id: UUID) -> str:
@@ -85,6 +87,13 @@ class ModuleDrafterRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def _resolve_content_domain_from_sources(self, source_document_ids: list[UUID]) -> str:
+        if not source_document_ids:
+            return resolve_module_content_domain([], {}).value
+        docs = await SourceRepository(self._session).list_source_documents_by_ids(source_document_ids)
+        doc_by_id = {doc.id: doc for doc in docs}
+        return resolve_module_content_domain(source_document_ids, doc_by_id).value
+
     async def get_or_create_module_family(
         self, *, proposed_title: str, created_by: UUID | None = None, tenant_id: int = DEFAULT_TENANT_ID
     ) -> ModuleFamily:
@@ -126,6 +135,7 @@ class ModuleDrafterRepository:
         cards: list[dict[str, Any]],
         source_document_ids: list[UUID],
         quality_flags: dict[str, Any] | None = None,
+        created_by_user_id: int | None = None,
     ) -> Module:
         """Persist a Module row with cards inlined as `module_json.cards`.
 
@@ -157,6 +167,7 @@ class ModuleDrafterRepository:
             )
 
         thumbnail_storage_path = await resolve_default_module_thumbnail(self._session, source_document_ids)
+        content_domain = await self._resolve_content_domain_from_sources(source_document_ids)
 
         module = Module(
             module_family_id=family.id,
@@ -165,6 +176,7 @@ class ModuleDrafterRepository:
             description_localized=candidate.get("description_localized"),
             domain=candidate.get("domain") or get_settings().default_module_domain,
             sub_domain=candidate.get("sub_domain"),
+            content_domain=content_domain,
             module_type=candidate.get("proposed_module_type", "refresher"),
             primary_gap_id=None,
             estimated_minutes=int(candidate.get("estimated_minutes", 10)),
@@ -177,6 +189,7 @@ class ModuleDrafterRepository:
             clinically_reviewed=False,
             published_at=None,
             tenant_id=family.tenant_id,
+            created_by=created_by_user_id,
         )
         self._session.add(module)
         await self._session.flush()
@@ -201,6 +214,7 @@ class ModuleDrafterRepository:
         quality_flags: dict[str, Any] | None = None,
         match_rationale: str | None = None,
         is_merge_secondary: bool = False,
+        created_by_user_id: int | None = None,
     ) -> Module:
         """New ``review_pending`` version in the matched module's family.
 
@@ -243,6 +257,8 @@ class ModuleDrafterRepository:
                 self._session, source_document_ids
             )
 
+        content_domain = await self._resolve_content_domain_from_sources(source_document_ids)
+
         module = Module(
             module_family_id=matched.module_family_id,
             version=version,
@@ -250,6 +266,7 @@ class ModuleDrafterRepository:
             description_localized=candidate_description_localized(candidate) or matched.description_localized,
             domain=candidate.get("domain") or matched.domain,
             sub_domain=candidate.get("sub_domain") or matched.sub_domain,
+            content_domain=content_domain,
             module_type=_module_type,
             tenant_id=matched.tenant_id,
             primary_gap_id=matched.primary_gap_id,
@@ -263,6 +280,7 @@ class ModuleDrafterRepository:
             clinically_reviewed=False,
             published_at=None,
             merge_source_module_id=matched.id,
+            created_by=created_by_user_id,
         )
         self._session.add(module)
         await self._session.flush()

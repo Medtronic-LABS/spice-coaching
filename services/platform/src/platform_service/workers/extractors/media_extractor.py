@@ -55,6 +55,20 @@ SplitterFn = Callable[..., list[MediaChunk]]
 TranscribeChunkFn = Callable[[bytes, str], Awaitable[str]]
 
 _NO_TRANSCRIBABLE_CHUNKS = "no transcribable audio chunks"
+_NO_AUDIO_ENCODE_MARKERS = (
+    "does not contain any stream",
+    "Output file is empty",
+)
+
+
+def _is_video_empty_audio_splitter_error(exc: MediaSplitterError) -> bool:
+    message = str(exc)
+    if _NO_TRANSCRIBABLE_CHUNKS in message:
+        return True
+    if exc.reason != "media_encode_failed":
+        return False
+    lowered = message.lower()
+    return any(marker.lower() in lowered for marker in _NO_AUDIO_ENCODE_MARKERS)
 
 
 class MediaSourceExtractor(SourceExtractor):
@@ -99,11 +113,15 @@ class MediaSourceExtractor(SourceExtractor):
         duration_ms = probe_media_duration_ms(source_path)
         if duration_ms <= 0:
             raise TextExtractionError(
-                f"media has non-positive duration for visual-only fallback: {source_path!s}"
+                f"media has non-positive duration for visual-only fallback: {source_path!s}",
+                reason="media_no_duration",
             )
         windows = iter_media_time_windows(duration_ms)
         if not windows:
-            raise TextExtractionError(f"visual-only fallback produced no time windows for {source_path!s}")
+            raise TextExtractionError(
+                f"visual-only fallback produced no time windows for {source_path!s}",
+                reason="media_unreadable",
+            )
         logger.warning(
             "Video has no transcribable audio chunks; synthesizing %d timed empty "
             "page(s) for visual enrichment path=%s duration_ms=%d",
@@ -125,7 +143,7 @@ class MediaSourceExtractor(SourceExtractor):
                 lambda: self._splitter_fn(source_path, source_type=source_type)
             )
         except MediaSplitterError as exc:
-            if source_type == "video" and _NO_TRANSCRIBABLE_CHUNKS in str(exc):
+            if source_type == "video" and _is_video_empty_audio_splitter_error(exc):
                 pages = await anyio.to_thread.run_sync(
                     lambda: self._visual_only_pages_from_duration(source_path)
                 )
@@ -134,10 +152,13 @@ class MediaSourceExtractor(SourceExtractor):
                     requires_calibration=False,
                     extraction_method_label="transcript",
                 )
-            raise TextExtractionError(str(exc)) from exc
+            raise TextExtractionError(str(exc), reason=exc.reason) from exc
 
         if not chunks:
-            raise TextExtractionError(f"media splitter produced no chunks for {source_path!s}")
+            raise TextExtractionError(
+                f"media splitter produced no chunks for {source_path!s}",
+                reason="media_unreadable",
+            )
 
         pages: list[ExtractedPage] = []
         for chunk in chunks:

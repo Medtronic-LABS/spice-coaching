@@ -13,7 +13,7 @@ from mc_contracts.sync import (
 from mc_foundation.objectstore import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from platform_service.config import Settings
+from platform_service.config import Settings, get_settings
 from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.repositories.document_assignment_repository import (
@@ -22,6 +22,7 @@ from platform_service.db.repositories.document_assignment_repository import (
 from platform_service.db.repositories.module_repository import ModuleRepository
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.sync.presign_service import SyncPresignService
+from platform_service.services.sync.storage_path import sync_object_name
 
 
 class SourceDocumentsBundleBuilder:
@@ -64,6 +65,9 @@ class SourceDocumentsBundleBuilder:
                     if row.source_document_id in assigned_docs_by_id:
                         assigned_at_by_id[row.source_document_id] = row.assigned_at
 
+        settings = settings or get_settings()
+        bucket_name = settings.object_storage_bucket_name
+
         all_doc_ids = list({*module_docs_by_id.keys(), *assigned_docs_by_id.keys()})
         presigned_by_doc, expires_by_doc, thumb_by_id = await self._presign_maps(
             document_ids=all_doc_ids,
@@ -71,29 +75,34 @@ class SourceDocumentsBundleBuilder:
             settings=settings,
         )
 
-        source_documents = [
-            self._payload(
+        source_documents: list[SourceDocumentSyncDownloadPayload] = []
+        for doc in sorted(module_docs_by_id.values(), key=lambda d: (d.updated_at, d.id)):
+            payload = self._payload(
                 doc,
                 assigned_at=None,
                 presigned_by_doc=presigned_by_doc,
                 expires_by_doc=expires_by_doc,
                 thumb_by_id=thumb_by_id,
+                bucket_name=bucket_name,
             )
-            for doc in sorted(module_docs_by_id.values(), key=lambda d: (d.updated_at, d.id))
-        ]
-        assigned_documents = [
-            self._payload(
+            if payload is not None:
+                source_documents.append(payload)
+
+        assigned_documents: list[SourceDocumentSyncDownloadPayload] = []
+        for doc_id in sorted(
+            assigned_docs_by_id.keys(),
+            key=lambda did: (assigned_at_by_id[did], did),
+        ):
+            payload = self._payload(
                 assigned_docs_by_id[doc_id],
                 assigned_at=assigned_at_by_id[doc_id],
                 presigned_by_doc=presigned_by_doc,
                 expires_by_doc=expires_by_doc,
                 thumb_by_id=thumb_by_id,
+                bucket_name=bucket_name,
             )
-            for doc_id in sorted(
-                assigned_docs_by_id.keys(),
-                key=lambda did: (assigned_at_by_id[did], did),
-            )
-        ]
+            if payload is not None:
+                assigned_documents.append(payload)
 
         return SourceDocumentsSyncBundle(
             source_documents=source_documents,
@@ -153,14 +162,23 @@ class SourceDocumentsBundleBuilder:
         presigned_by_doc: dict[UUID, str | None],
         expires_by_doc: dict[UUID, int | None],
         thumb_by_id: dict[UUID, SourceDocumentThumbnailPresignedUrlPayload],
-    ) -> SourceDocumentSyncDownloadPayload:
+        bucket_name: str,
+    ) -> SourceDocumentSyncDownloadPayload | None:
+        object_name = sync_object_name(doc.original_storage_path, bucket_name=bucket_name)
+        if object_name is None:
+            return None
         thumb = thumb_by_id.get(doc.id)
+        thumb_object_name = sync_object_name(doc.thumbnail_storage_path, bucket_name=bucket_name)
         return SourceDocumentSyncDownloadPayload(
             source_document_id=doc.id,
             title=doc.title,
+            description=doc.description,
             source_type=doc.source_type,
             original_filename=doc.original_filename,
+            storage_path=object_name,
+            thumbnail_storage_path=thumb_object_name,
             assigned_at=assigned_at,
+            duration_ms=doc.duration_ms,
             presigned_url=presigned_by_doc.get(doc.id),
             presigned_expires_seconds=expires_by_doc.get(doc.id),
             thumbnail_presigned_url=thumb.presigned_url if thumb is not None else None,

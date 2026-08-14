@@ -52,6 +52,10 @@ class ExtractedPage:
 class TextExtractionError(Exception):
     """Raised when text extraction fails irrecoverably (corrupted file, etc.)."""
 
+    def __init__(self, message: str, *, reason: str = "extract_failed") -> None:
+        super().__init__(message)
+        self.reason = reason
+
 
 def _finalize_markdown(markdown: str) -> str:
     return normalize_extraction_markdown(markdown)
@@ -150,11 +154,14 @@ def extract_pdf_pages(pdf_path: str | Path) -> list[ExtractedPage]:
     """
     path = Path(pdf_path)
     if not path.is_file():
-        raise TextExtractionError(f"PDF not found: {path}")
+        raise TextExtractionError(f"PDF not found: {path}", reason="document_not_found")
     try:
         doc = pymupdf.open(str(path))
     except Exception as exc:
-        raise TextExtractionError(f"Failed to open PDF {path.name}: {exc}") from exc
+        raise TextExtractionError(
+            f"Failed to open PDF {path.name}: {exc}",
+            reason="document_corrupt",
+        ) from exc
     try:
         pages = []
         for i, page in enumerate(doc):
@@ -186,11 +193,14 @@ def extract_pptx_slides(pptx_path: str | Path) -> list[ExtractedPage]:
     """
     path = Path(pptx_path)
     if not path.is_file():
-        raise TextExtractionError(f"PPTX not found: {path}")
+        raise TextExtractionError(f"PPTX not found: {path}", reason="document_not_found")
     try:
         prs = Presentation(str(path))
     except Exception as exc:
-        raise TextExtractionError(f"Failed to open PPTX {path.name}: {exc}") from exc
+        raise TextExtractionError(
+            f"Failed to open PPTX {path.name}: {exc}",
+            reason="document_corrupt",
+        ) from exc
 
     pages: list[ExtractedPage] = []
     for slide_idx, slide in enumerate(prs.slides):
@@ -237,11 +247,14 @@ def extract_docx_pages(docx_path: str | Path) -> list[ExtractedPage]:
     """
     path = Path(docx_path)
     if not path.is_file():
-        raise TextExtractionError(f"DOCX not found: {path}")
+        raise TextExtractionError(f"DOCX not found: {path}", reason="document_not_found")
     try:
         doc = DocxDocument(str(path))
     except Exception as exc:
-        raise TextExtractionError(f"Failed to open DOCX {path.name}: {exc}") from exc
+        raise TextExtractionError(
+            f"Failed to open DOCX {path.name}: {exc}",
+            reason="document_corrupt",
+        ) from exc
 
     lines: list[str] = []
     num_counters: dict[int, int] = {}
@@ -280,4 +293,7 @@ def extract_pages(source_path: str | Path, source_type: str) -> list[ExtractedPa
         return extract_pptx_slides(source_path)
     if source_type == "docx":
         return extract_docx_pages(source_path)
-    raise TextExtractionError(f"Unsupported source_type: {source_type!r}")
+    raise TextExtractionError(
+        f"Unsupported source_type: {source_type!r}",
+        reason="unsupported_file_type",
+    )

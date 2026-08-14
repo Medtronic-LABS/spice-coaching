@@ -81,6 +81,8 @@ async def _bundle(
 
 async def test_module_linked_doc_updated_after_since(db_session: AsyncSession) -> None:
     doc = await _seed_source_document(db_session, sync_published_visible=False)
+    doc.description = "Training overview"
+    await db_session.commit()
     await _seed_module(db_session, source_document_ids=[doc.id])
     since = datetime.now(UTC) - timedelta(hours=1)
 
@@ -90,8 +92,12 @@ async def test_module_linked_doc_updated_after_since(db_session: AsyncSession) -
     entry = bundle.source_documents[0]
     assert entry.source_document_id == doc.id
     assert entry.title == doc.title
+    assert entry.description == "Training overview"
     assert entry.source_type == doc.source_type
     assert entry.original_filename == doc.original_filename
+    assert entry.storage_path == "source-documents/abc_manual.pdf"
+    assert entry.thumbnail_storage_path is None
+    assert entry.duration_ms is None
     assert entry.assigned_at is None
     assert entry.presigned_url == _PRESIGNED_URL
     assert entry.presigned_expires_seconds == Settings().admin_file_presigned_max_seconds
@@ -110,6 +116,21 @@ async def test_includes_thumbnail_presigned_url(db_session: AsyncSession) -> Non
     entry = bundle.source_documents[0]
     assert entry.thumbnail_presigned_url == _THUMB_URL
     assert entry.thumbnail_presigned_expires_seconds == Settings().admin_file_presigned_max_seconds
+    assert entry.thumbnail_storage_path == f"ingest/thumbnails/{doc.id}.png"
+
+
+async def test_includes_duration_ms_for_video(db_session: AsyncSession) -> None:
+    doc = await _seed_source_document(db_session, sync_published_visible=False)
+    doc.source_type = "video"
+    doc.duration_ms = 125_000
+    await db_session.commit()
+    await _seed_module(db_session, source_document_ids=[doc.id])
+    since = datetime.now(UTC) - timedelta(hours=1)
+
+    bundle = await _bundle(db_session, since=since)
+
+    entry = bundle.source_documents[0]
+    assert entry.duration_ms == 125_000
 
 
 async def test_omits_module_linked_doc_when_updated_at_not_after_since(
@@ -187,6 +208,7 @@ async def test_assigned_documents_full_snapshot_ignores_since(db_session: AsyncS
     entry = bundle.assigned_documents[0]
     assert entry.source_document_id == doc.id
     assert entry.assigned_at is not None
+    assert entry.storage_path == "source-documents/abc_manual.pdf"
     assert entry.presigned_url == _PRESIGNED_URL
 
 

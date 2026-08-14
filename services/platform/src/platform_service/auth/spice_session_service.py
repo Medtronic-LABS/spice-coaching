@@ -12,7 +12,11 @@ import logging
 from fastapi import Request, Response
 
 from platform_service.deps import get_spice_auth_client
-from platform_service.integrations.spice_auth_client import SpiceAuthClient, SpiceAuthError
+from platform_service.integrations.spice_auth_client import (
+    AUTH_UPSTREAM_FAILURE_DETAIL,
+    SpiceAuthClient,
+    SpiceAuthError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +83,17 @@ class SpiceSessionService:
             return Response(
                 content=f'{{"detail": "{exc.detail}"}}'.encode(),
                 status_code=exc.status_code,
+                media_type="application/json",
+            )
+
+        if spice_resp.status_code >= 500:
+            logger.error(
+                "SPICE session authentication returned %s",
+                spice_resp.status_code,
+            )
+            return Response(
+                content=f'{{"detail": "{AUTH_UPSTREAM_FAILURE_DETAIL}"}}'.encode(),
+                status_code=401,
                 media_type="application/json",
             )
 

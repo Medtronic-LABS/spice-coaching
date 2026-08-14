@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Integer, Text, func
+from sqlalchemy import BigInteger, DateTime, Integer, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,4 +32,5 @@ class IngestBatch(TenantMixin, Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    triggered_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Spice / hierarchy user id (see users.id); no hard FK — soft-join at list time.
+    ingested_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

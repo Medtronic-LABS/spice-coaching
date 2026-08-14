@@ -27,6 +27,39 @@ def _page(*, page_number: int = 1, start_ms: int = 0, end_ms: int = 120_000, mar
 
 
 @pytest.mark.asyncio
+async def test_enrich_empty_audio_fallback_runs_when_flag_off() -> None:
+    settings = Settings(ingest_video_visual_extraction_enabled=False)
+    page = _page()
+    frame = SampledFrame(30_000, 30_000, b"\x89PNG frame", "sha1")
+    vision = AsyncMock()
+    vision.extract_page = AsyncMock(
+        return_value=VisionExtractionResult(markdown="Slide title text", raw_response=MagicMock())
+    )
+    storage = AsyncMock()
+    storage.put_object_from_local_file = AsyncMock()
+    session = MagicMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+
+    svc = VideoVisualEnrichmentService(
+        session,
+        vision=vision,
+        settings=settings,
+        storage=storage,
+        sample_frames_fn=MagicMock(return_value=[frame]),
+    )
+    n = await svc.enrich(
+        source_document_id=uuid4(),
+        source_path="/tmp/v.mp4",
+        pages=[page],
+        empty_audio_fallback=True,
+    )
+    assert n == 1
+    assert "## Visual (t=00:30)" in page.markdown_content
+    vision.extract_page.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_enrich_flag_off_is_noop() -> None:
     settings = Settings(ingest_video_visual_extraction_enabled=False)
     vision = MagicMock()

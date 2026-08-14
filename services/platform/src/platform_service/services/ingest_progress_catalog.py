@@ -4,14 +4,11 @@ from __future__ import annotations
 
 from platform_service.services.run_state_service import (
     STAGE_CARD_DRAFT,
-    STAGE_CARD_SEARCH_METADATA_GENERATION,
     STAGE_CROSS_SOURCE_FUSION,
-    STAGE_EMBEDDING_GENERATION,
     STAGE_EXTRACT,
     STAGE_GAP_CLASSIFICATION,
     STAGE_MODULE_IDENTIFY,
     STAGE_QUIZ_GENERATION,
-    STAGE_SEARCH_METADATA_GENERATION,
     STAGE_THUMBNAIL,
     STAGE_TRIGGER_BINDING,
 )
@@ -41,18 +38,6 @@ _CATALOG: dict[str, tuple[str, str]] = {
     STAGE_QUIZ_GENERATION: (
         "Generating quiz",
         "Creating assessment questions for the drafted module.",
-    ),
-    STAGE_EMBEDDING_GENERATION: (
-        "Generating embeddings",
-        "Computing vector embeddings used for retrieval and search.",
-    ),
-    STAGE_SEARCH_METADATA_GENERATION: (
-        "Generating search metadata",
-        "Building module-level search metadata for coaching retrieval.",
-    ),
-    STAGE_CARD_SEARCH_METADATA_GENERATION: (
-        "Generating card search metadata",
-        "Building per-card search metadata for finer-grained retrieval.",
     ),
     STAGE_GAP_CLASSIFICATION: (
         "Classifying behavioural gaps",

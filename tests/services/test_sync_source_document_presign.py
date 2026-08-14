@@ -82,7 +82,7 @@ async def test_presign_all_found(db_session: AsyncSession) -> None:
     assert resp.missing_ids == []
     assert len(resp.urls) == 1
     assert resp.urls[0].source_document_id == doc_id
-    assert resp.urls[0].storage_path == _STORAGE_PATH
+    assert resp.urls[0].storage_path == _OBJECT_KEY
     assert resp.urls[0].presigned_url == "https://minio.example/presigned"
     assert resp.urls[0].expires_seconds == settings.admin_file_presigned_max_seconds
     storage.presigned_get_url.assert_awaited_once_with(

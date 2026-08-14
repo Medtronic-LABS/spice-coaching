@@ -1,16 +1,14 @@
 """Configurable thresholds — gap rules, alert cutoffs, dashboard parameters.
 
 All mutable product configuration lives here, not hardcoded anywhere.
-Synced to device via GET /config/sync.
+Synced to device via GET /sync/config.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import DateTime, Integer, Text, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
@@ -22,9 +20,7 @@ class ConfigThreshold(TenantMixin, Base):
     __table_args__ = (UniqueConstraint("tenant_id", "key", name="uq_config_threshold_tenant_key"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     key: Mapped[str] = mapped_column(Text, nullable=False)
-    value_json: Mapped[Any] = mapped_column(JSONB, nullable=False)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

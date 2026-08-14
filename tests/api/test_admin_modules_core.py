@@ -28,6 +28,7 @@ from tests.api.conftest import (
     _seed_source_document,
 )
 from tests.conftest import platform_path, requires_db
+from tests.helpers.hierarchy_fixtures import AM_ID, PO_ID, seed_basic_hierarchy
 from tests.localized_helpers import loc, loc_options, primary_from_response
 
 pytestmark = [requires_db, pytest.mark.asyncio]
@@ -110,7 +111,7 @@ class TestListModules:
         titles = {primary_from_response(m) for m in retired_resp.json()["modules"]}
         assert titles == {"gone"}
 
-    async def test_default_includes_review_pending(
+    async def test_default_includes_review_pending_and_deactivated(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
         await _seed_module(
@@ -125,7 +126,7 @@ class TestListModules:
         )
         await _seed_module(
             db_session,
-            title_localized=loc("deact-hidden"),
+            title_localized=loc("deact-visible"),
             lifecycle_status="deactivated",
             set_family_pointer=False,
         )
@@ -135,8 +136,8 @@ class TestListModules:
         default_titles = {primary_from_response(m) for m in default_resp.json()["modules"]}
         assert "rp-visible" in default_titles
         assert "pub-only" in default_titles
-        assert "deact-hidden" not in default_titles
-        assert default_resp.json()["total_modules"] >= 2
+        assert "deact-visible" in default_titles
+        assert default_resp.json()["total_modules"] >= 3
 
         published_resp = await client.get(platform_path("/admin/modules?status=published"))
         published_titles = {primary_from_response(m) for m in published_resp.json()["modules"]}
@@ -355,7 +356,7 @@ class TestListModules:
 
         resp = await client.get(platform_path("/admin/modules/domains"))
         assert resp.status_code == 200
-        assert resp.json() == ["fusion", "ncd", "rmnch"]
+        assert resp.json() == ["archived", "fusion", "ncd", "rmnch"]
 
         resp = await client.get(platform_path("/admin/modules/domains?status=published"))
         assert resp.json() == ["rmnch"]
@@ -365,6 +366,9 @@ class TestListModules:
 
         resp = await client.get(platform_path("/admin/modules/domains?status=review_pending"))
         assert resp.json() == ["fusion"]
+
+        resp = await client.get(platform_path("/admin/modules/domains?status=deactivated"))
+        assert resp.json() == ["archived"]
 
         resp = await client.get(platform_path("/admin/modules/domains?q=nc"))
         assert resp.status_code == 200
@@ -494,7 +498,7 @@ class TestListModules:
         )
         assert {primary_from_response(m) for m in resp.json()["modules"]} == {"both"}
 
-    async def test_activated_date_uses_coalesce(self, client: AsyncClient, db_session: AsyncSession) -> None:
+    async def test_activated_date_filter(self, client: AsyncClient, db_session: AsyncSession) -> None:
         m = await _seed_module(
             db_session,
             title_localized=loc("reactivated"),
@@ -502,8 +506,7 @@ class TestListModules:
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
             created_at=datetime(2023, 1, 1, tzinfo=UTC),
         )
-        m.first_activated_at = datetime(2024, 6, 1, tzinfo=UTC)
-        m.last_reactivated_at = datetime(2025, 3, 15, tzinfo=UTC)
+        m.activated_at = datetime(2025, 3, 15, tzinfo=UTC)
         await db_session.commit()
 
         outside = await _seed_module(
@@ -512,7 +515,7 @@ class TestListModules:
             lifecycle_status="published",
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
         )
-        outside.first_activated_at = datetime(2024, 1, 15, tzinfo=UTC)
+        outside.activated_at = datetime(2024, 1, 15, tzinfo=UTC)
         await db_session.commit()
 
         resp = await client.get(
@@ -548,6 +551,24 @@ class TestListModules:
         body = resp.json()
         ids = [row["id"] for row in body["modules"]]
         assert ids.index(str(early.id)) < ids.index(str(late.id))
+
+    async def test_list_includes_updated_at_and_orders_by_it(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        older = await _seed_module(db_session, title_localized={"bn": "older-updated"})
+        newer = await _seed_module(db_session, title_localized={"bn": "newer-updated"})
+        older.updated_at = datetime(2024, 1, 1, tzinfo=UTC)
+        newer.updated_at = datetime(2025, 6, 1, tzinfo=UTC)
+        await db_session.flush()
+
+        resp = await client.get(platform_path("/admin/modules?sort_by=updated_at&sort_dir=desc"))
+        assert resp.status_code == 200
+        body = resp.json()
+        by_id = {row["id"]: row for row in body["modules"]}
+        assert by_id[str(older.id)]["updated_at"].startswith("2024-01-01T00:00:00")
+        assert by_id[str(newer.id)]["updated_at"].startswith("2025-06-01T00:00:00")
+        ids = [row["id"] for row in body["modules"]]
+        assert ids.index(str(newer.id)) < ids.index(str(older.id))
 
     async def test_list_orders_by_title_asc(self, client: AsyncClient, db_session: AsyncSession) -> None:
         beta = await _seed_module(db_session, title_localized={"bn": "Beta Module"})
@@ -588,6 +609,41 @@ class TestListModules:
         assert resp.status_code == 422
 
 
+class TestListModulesContentDomain:
+    async def test_content_domain_filter_single_and_multi(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        clinical = await _seed_module(
+            db_session,
+            title_localized=loc("clinical-lib"),
+            content_domain="clinical",
+        )
+        digital = await _seed_module(
+            db_session,
+            title_localized=loc("digital-lib"),
+            content_domain="digital",
+        )
+        await _seed_module(
+            db_session,
+            title_localized=loc("legacy-null"),
+            content_domain=None,
+        )
+
+        single = await client.get(platform_path("/admin/modules?content_domain=digital"))
+        assert single.status_code == 200
+        ids = {m["id"] for m in single.json()["modules"]}
+        assert ids == {str(digital.id)}
+
+        multi = await client.get(platform_path("/admin/modules?content_domain=clinical,digital"))
+        assert multi.status_code == 200
+        ids = {m["id"] for m in multi.json()["modules"]}
+        assert ids == {str(clinical.id), str(digital.id)}
+
+    async def test_invalid_content_domain_filter_returns_422(self, client: AsyncClient) -> None:
+        resp = await client.get(platform_path("/admin/modules?content_domain=not_a_domain"))
+        assert resp.status_code == 422
+
+
 class TestGetModuleDetail:
     async def test_returns_full_payload(self, client: AsyncClient, db_session: AsyncSession) -> None:
         m = await _seed_module(
@@ -607,6 +663,8 @@ class TestGetModuleDetail:
         # Detail-only fields are present.
         assert "difficulty_level" in data
         assert "pass_threshold_override" in data
+        assert "updated_at" in data
+        assert data["updated_at"]
         assert data["source_documents"] == []
 
     async def test_search_metadata_round_trips_when_set(
@@ -860,6 +918,37 @@ class TestCreateModule:
         assert link is not None
         assert link.is_primary is True
 
+    async def test_create_defaults_content_domain_to_clinical(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        resp = await client.post(
+            platform_path("/admin/modules"),
+            json={"title": loc("Default domain module")},
+        )
+        assert resp.status_code == 201
+        module_id = UUID(resp.json()["id"])
+        detail = await client.get(platform_path(f"/admin/modules/{module_id}"))
+        assert detail.status_code == 200
+        assert detail.json()["content_domain"] == "clinical"
+        row = await db_session.get(Module, module_id)
+        assert row is not None
+        assert row.content_domain == "clinical"
+
+    async def test_create_persists_explicit_content_domain(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        resp = await client.post(
+            platform_path("/admin/modules"),
+            json={"title": loc("Digital module"), "content_domain": "digital"},
+        )
+        assert resp.status_code == 201
+        module_id = UUID(resp.json()["id"])
+        detail = await client.get(platform_path(f"/admin/modules/{module_id}"))
+        assert detail.json()["content_domain"] == "digital"
+        row = await db_session.get(Module, module_id)
+        assert row is not None
+        assert row.content_domain == "digital"
+
     async def test_creates_manual_module_uses_provided_gaps(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
@@ -1039,6 +1128,44 @@ class TestEditModule:
         v2 = await db_session.get(Module, UUID(resp.json()["id"]))
         assert v2 is not None
         assert v2.chatbot_faqs_only is True
+
+    async def test_edit_omits_content_domain_copy_forward(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        v1 = await _seed_module(
+            db_session,
+            title_localized={"bn": "domain copy title"},
+            content_domain="operational",
+        )
+        resp = await client.put(
+            platform_path(f"/admin/modules/{v1.id}"),
+            json={"expected_version": v1.version, "title": loc("domain copy v2")},
+        )
+        assert resp.status_code == 200
+        v2 = await db_session.get(Module, UUID(resp.json()["id"]))
+        assert v2 is not None
+        assert v2.content_domain == "operational"
+
+    async def test_edit_content_domain_change_creates_version(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        v1 = await _seed_module(
+            db_session,
+            title_localized={"bn": "domain flip title"},
+            content_domain="clinical",
+        )
+        resp = await client.put(
+            platform_path(f"/admin/modules/{v1.id}"),
+            json={
+                "expected_version": v1.version,
+                "content_domain": "digital",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["version"] == 2
+        v2 = await db_session.get(Module, UUID(resp.json()["id"]))
+        assert v2 is not None
+        assert v2.content_domain == "digital"
 
     async def test_complete_snapshot_with_same_chatbot_faqs_only_is_noop(
         self, client: AsyncClient, db_session: AsyncSession
@@ -1638,7 +1765,7 @@ class TestPublishModule:
         body = resp.json()
         assert body["id"] == str(mod.id)
         assert body["lifecycle_status"] == "published"
-        assert body["first_activated_at"] is not None
+        assert body["activated_at"] is not None
 
         await db_session.refresh(mod)
         assert mod.lifecycle_status == "published"
@@ -1666,3 +1793,219 @@ class TestPublishModule:
     async def test_publish_nonexistent_module_returns_404(self, client: AsyncClient) -> None:
         resp = await client.post(platform_path(f"/admin/modules/{uuid4()}/publish"))
         assert resp.status_code == 404
+
+    async def test_publish_sets_published_by_from_spice_user(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        mod = await _seed_module(db_session, lifecycle_status="draft", published_at=None)
+
+        resp = await client.post(
+            platform_path(f"/admin/modules/{mod.id}/publish"),
+            headers={"x-mock-user-id": str(hierarchy.po_id), "x-mock-tenant-id": "1"},
+        )
+        assert resp.status_code == 200
+
+        await db_session.refresh(mod)
+        assert mod.published_by == hierarchy.po_id
+
+        detail = await client.get(platform_path(f"/admin/modules/{mod.id}"))
+        assert detail.status_code == 200
+        assert detail.json()["published_by"] == {"id": PO_ID, "name": "Test PO"}
+
+        listed = await client.get(platform_path("/admin/modules"))
+        row = next(m for m in listed.json()["modules"] if m["id"] == str(mod.id))
+        assert row["published_by"] == {"id": PO_ID, "name": "Test PO"}
+
+    async def test_publish_without_spice_user_leaves_published_by_null(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        mod = await _seed_module(db_session, lifecycle_status="draft", published_at=None)
+        resp = await client.post(platform_path(f"/admin/modules/{mod.id}/publish"))
+        assert resp.status_code == 200
+
+        await db_session.refresh(mod)
+        assert mod.published_by is None
+
+        detail = await client.get(platform_path(f"/admin/modules/{mod.id}"))
+        assert detail.status_code == 200
+        assert detail.json()["published_by"] is None
+
+
+# ─── created_by hierarchy user reference ─────────────────────────────────────
+
+
+class TestModuleCreatedBy:
+    async def test_create_sets_created_by_from_spice_user(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+
+        resp = await client.post(
+            platform_path("/admin/modules"),
+            json={"title": loc("Creator Module"), "domain": "clinical"},
+            headers={"x-mock-user-id": str(hierarchy.am_id), "x-mock-tenant-id": "1"},
+        )
+        assert resp.status_code == 201
+        module = await db_session.get(Module, UUID(resp.json()["id"]))
+        assert module is not None
+        assert module.created_by == hierarchy.am_id
+
+        listed = await client.get(platform_path("/admin/modules"))
+        row = next(m for m in listed.json()["modules"] if m["id"] == resp.json()["id"])
+        assert row["created_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+
+    async def test_edit_bump_sets_new_version_created_by(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        v1 = await _seed_module(db_session, title_localized={"bn": "v1"})
+        v1.created_by = hierarchy.am_id
+        await db_session.commit()
+
+        edit = await client.put(
+            platform_path(f"/admin/modules/{v1.id}"),
+            json={"expected_version": v1.version, "title": loc("v2 from PO")},
+            headers={"x-mock-user-id": str(hierarchy.po_id), "x-mock-tenant-id": "1"},
+        )
+        assert edit.status_code == 200
+        v2 = await db_session.get(Module, UUID(edit.json()["id"]))
+        assert v2 is not None
+        assert v2.version == 2
+        assert v2.created_by == hierarchy.po_id
+
+        v1_refreshed = await db_session.get(Module, v1.id)
+        assert v1_refreshed is not None
+        assert v1_refreshed.created_by == hierarchy.am_id
+
+    async def test_list_created_by_filter(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        am_module = await _seed_module(db_session, title_localized={"bn": "AM module"})
+        am_module.created_by = hierarchy.am_id
+        po_module = await _seed_module(db_session, title_localized={"bn": "PO module"})
+        po_module.created_by = hierarchy.po_id
+        orphan_module = await _seed_module(db_session, title_localized={"bn": "No creator"})
+        orphan_module.created_by = 999_999
+        await db_session.commit()
+
+        by_am = await client.get(platform_path(f"/admin/modules?created_by={AM_ID}"))
+        assert by_am.status_code == 200
+        titles = {primary_from_response(m["title"]) for m in by_am.json()["modules"]}
+        assert titles == {"AM module"}
+
+        by_multi = await client.get(platform_path(f"/admin/modules?created_by={AM_ID},{PO_ID}"))
+        assert by_multi.status_code == 200
+        titles_multi = {primary_from_response(m["title"]) for m in by_multi.json()["modules"]}
+        assert titles_multi == {"AM module", "PO module"}
+
+        by_unknown = await client.get(platform_path("/admin/modules?created_by=888888"))
+        assert by_unknown.status_code == 200
+        assert by_unknown.json()["modules"] == []
+
+    async def test_list_invalid_created_by_returns_422(self, client: AsyncClient) -> None:
+        resp = await client.get(platform_path("/admin/modules?created_by=abc"))
+        assert resp.status_code == 422
+
+    async def test_detail_includes_created_by(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        mod = await _seed_module(db_session, title_localized={"bn": "Detail creator"})
+        mod.created_by = hierarchy.po_id
+        await db_session.commit()
+
+        resp = await client.get(platform_path(f"/admin/modules/{mod.id}"))
+        assert resp.status_code == 200
+        assert resp.json()["created_by"] == {"id": PO_ID, "name": "Test PO"}
+
+    async def test_create_without_spice_user_leaves_created_by_null(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        resp = await client.post(
+            platform_path("/admin/modules"),
+            json={"title": loc("Anonymous Module"), "domain": "clinical"},
+        )
+        assert resp.status_code == 201
+        module = await db_session.get(Module, UUID(resp.json()["id"]))
+        assert module is not None
+        assert module.created_by is None
+
+        listed = await client.get(platform_path("/admin/modules"))
+        row = next(m for m in listed.json()["modules"] if m["id"] == resp.json()["id"])
+        assert row["created_by"] is None
+
+
+# ─── deactivated_by / activated_by hierarchy user references ─────────────────
+
+
+class TestModuleLifecycleActorRefs:
+    async def test_deactivate_sets_deactivated_by_from_spice_user(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        mod = await _seed_module(db_session, lifecycle_status="published")
+
+        resp = await client.post(
+            platform_path(f"/admin/modules/{mod.id}/deactivate"),
+            headers={"x-mock-user-id": str(hierarchy.po_id), "x-mock-tenant-id": "1"},
+        )
+        assert resp.status_code == 200
+
+        await db_session.refresh(mod)
+        assert mod.deactivated_by == hierarchy.po_id
+
+        detail = await client.get(platform_path(f"/admin/modules/{mod.id}"))
+        assert detail.status_code == 200
+        assert detail.json()["deactivated_by"] == {"id": PO_ID, "name": "Test PO"}
+
+        listed = await client.get(platform_path("/admin/modules?status=deactivated"))
+        row = next(m for m in listed.json()["modules"] if m["id"] == str(mod.id))
+        assert row["deactivated_by"] == {"id": PO_ID, "name": "Test PO"}
+
+    async def test_deactivate_without_spice_user_leaves_deactivated_by_null(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        mod = await _seed_module(db_session, lifecycle_status="published")
+        resp = await client.post(platform_path(f"/admin/modules/{mod.id}/deactivate"))
+        assert resp.status_code == 200
+
+        await db_session.refresh(mod)
+        assert mod.deactivated_by is None
+
+        detail = await client.get(platform_path(f"/admin/modules/{mod.id}"))
+        assert detail.status_code == 200
+        assert detail.json()["deactivated_by"] is None
+
+    async def test_reactivate_sets_activated_by_from_spice_user(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        mod = await _seed_module(db_session, lifecycle_status="published")
+        await client.post(platform_path(f"/admin/modules/{mod.id}/deactivate"))
+
+        resp = await client.post(
+            platform_path(f"/admin/modules/{mod.id}/reactivate"),
+            headers={"x-mock-user-id": str(hierarchy.am_id), "x-mock-tenant-id": "1"},
+        )
+        assert resp.status_code == 200
+
+        await db_session.refresh(mod)
+        assert mod.activated_by == hierarchy.am_id
+
+        detail = await client.get(platform_path(f"/admin/modules/{mod.id}"))
+        assert detail.status_code == 200
+        assert detail.json()["activated_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+
+    async def test_reactivate_without_spice_user_leaves_activated_by_null(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        mod = await _seed_module(db_session, lifecycle_status="published")
+        await client.post(platform_path(f"/admin/modules/{mod.id}/deactivate"))
+
+        resp = await client.post(platform_path(f"/admin/modules/{mod.id}/reactivate"))
+        assert resp.status_code == 200
+
+        await db_session.refresh(mod)
+        assert mod.activated_by is None
+
+        detail = await client.get(platform_path(f"/admin/modules/{mod.id}"))
+        assert detail.status_code == 200
+        assert detail.json()["activated_by"] is None

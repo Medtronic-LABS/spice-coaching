@@ -13,6 +13,8 @@ from mc_contracts.sync import (
     SourceDocumentsPresignResponse,
     SourceDocumentThumbnailPresignedUrlPayload,
     SourceDocumentThumbnailsPresignResponse,
+    StoragePathPresignedUrlPayload,
+    StoragePathsPresignResponse,
 )
 from mc_foundation.objectstore import (
     ObjectNotFoundError,
@@ -27,6 +29,10 @@ from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.repositories.module_repository import ModuleRepository
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.source_thumbnail_service import presign_thumbnail
+from platform_service.services.sync.storage_path import (
+    is_batch_presign_object_name,
+    sync_object_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +100,11 @@ class SyncPresignService:
                 missing_ids.append(doc_id)
                 continue
 
+            object_name = sync_object_name(storage_path, bucket_name=bucket_name)
+            if object_name is None:
+                missing_ids.append(doc_id)
+                continue
+
             try:
                 presigned = await storage.presigned_get_url(
                     object_name=storage_path,
@@ -116,7 +127,7 @@ class SyncPresignService:
             urls.append(
                 SourceDocumentPresignedUrlPayload(
                     source_document_id=doc.id,
-                    storage_path=storage_path,
+                    storage_path=object_name,
                     presigned_url=presigned.url,
                     expires_seconds=ttl,
                 )
@@ -181,6 +192,64 @@ class SyncPresignService:
             server_time_utc=datetime.now(UTC).isoformat(),
         )
 
+    async def get_presigned_urls_for_storage_paths(
+        self,
+        *,
+        storage_paths: list[str],
+        storage: ObjectStore,
+        settings: Settings | None = None,
+    ) -> StoragePathsPresignResponse:
+        """Return presigned GET URLs for object names (partial success).
+
+        Accepts object names only (same normalisation as ``GET /admin/files/presigned-url``).
+        Full ``bucket/key`` refs and filesystem paths are listed in ``missing_paths``.
+        Successful rows echo the client-supplied path.
+        """
+        settings = settings or get_settings()
+        ttl = settings.admin_file_presigned_max_seconds
+        bucket_name = settings.object_storage_bucket_name
+
+        urls: list[StoragePathPresignedUrlPayload] = []
+        missing_paths: list[str] = []
+
+        for storage_path in storage_paths:
+            if not is_batch_presign_object_name(storage_path, bucket_name=bucket_name):
+                logger.debug(
+                    "Skipping presign for non-object-name path=%s",
+                    storage_path,
+                )
+                missing_paths.append(storage_path)
+                continue
+
+            try:
+                presigned = await storage.presigned_get_url(
+                    object_name=storage_path,
+                    expires_seconds=ttl,
+                    disposition="auto",
+                )
+            except ObjectNotFoundError:
+                logger.warning("Presign: object missing for path=%s", storage_path)
+                missing_paths.append(storage_path)
+                continue
+            except (ObjectStorageError, ValueError) as exc:
+                logger.warning("Presign failed for path=%s: %s", storage_path, exc)
+                missing_paths.append(storage_path)
+                continue
+
+            urls.append(
+                StoragePathPresignedUrlPayload(
+                    storage_path=storage_path,
+                    presigned_url=presigned.url,
+                    expires_seconds=ttl,
+                )
+            )
+
+        return StoragePathsPresignResponse(
+            urls=urls,
+            missing_paths=missing_paths,
+            server_time_utc=datetime.now(UTC).isoformat(),
+        )
+
     async def _presign_thumbnail_batch(
         self,
         *,
@@ -193,6 +262,7 @@ class SyncPresignService:
     ) -> tuple[list[PayloadT], list[UUID]]:
         urls: list[PayloadT] = []
         missing_ids: list[UUID] = []
+        bucket_name = settings.object_storage_bucket_name
 
         for entity_id in entity_ids:
             entity = entity_by_id.get(entity_id)
@@ -214,7 +284,12 @@ class SyncPresignService:
                 missing_ids.append(entity_id)
                 continue
 
+            object_name = sync_object_name(storage_path, bucket_name=bucket_name)
+            if object_name is None:
+                missing_ids.append(entity_id)
+                continue
+
             presigned_url, expires_seconds = thumb_presign
-            urls.append(build_payload(entity_id, storage_path, presigned_url, expires_seconds))
+            urls.append(build_payload(entity_id, object_name, presigned_url, expires_seconds))
 
         return urls, missing_ids

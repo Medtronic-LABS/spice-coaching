@@ -32,9 +32,10 @@ def _escape_ilike_pattern(value: str) -> str:
 MODULE_SORT_KEYS = frozenset(
     {
         "created_at",
+        "updated_at",
         "published_at",
         "activated_at",
-        "last_deactivated_at",
+        "deactivated_at",
         "title",
         "domain",
         "lifecycle_status",
@@ -57,12 +58,14 @@ def _module_order_clauses(sort_by: str, sort_dir: str) -> list[Any]:
 
     if sort_by == "created_at":
         primary = order_fn(Module.created_at)
+    elif sort_by == "updated_at":
+        primary = order_fn(Module.updated_at)
     elif sort_by == "published_at":
         primary = _nullable_datetime_order(Module.published_at, descending=descending)
     elif sort_by == "activated_at":
-        primary = _nullable_datetime_order(ModuleReadRepository._activated_at_expr(), descending=descending)
-    elif sort_by == "last_deactivated_at":
-        primary = _nullable_datetime_order(Module.last_deactivated_at, descending=descending)
+        primary = _nullable_datetime_order(Module.activated_at, descending=descending)
+    elif sort_by == "deactivated_at":
+        primary = _nullable_datetime_order(Module.deactivated_at, descending=descending)
     elif sort_by == "title":
         primary_locale = deployment_locales()
         primary = order_fn(Module.title_localized[primary_locale].astext)
@@ -81,15 +84,6 @@ class ModuleReadRepository:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
-
-    @staticmethod
-    def _activated_at_expr():
-        """Matches dashboard ``getModuleActivatedAt`` coalesce order."""
-        return func.coalesce(
-            Module.last_reactivated_at,
-            Module.first_activated_at,
-            Module.published_at,
-        )
 
     @staticmethod
     def _apply_date_range(
@@ -112,6 +106,7 @@ class ModuleReadRepository:
         has_visibility_window: bool | None = None,
         has_quality_flags: bool | None = None,
         domain: str | None = None,
+        content_domains: list[str] | None = None,
         chatbot_faqs_only: bool | None = None,
         source_document_id: UUID | None = None,
         created_from: datetime | None = None,
@@ -125,6 +120,7 @@ class ModuleReadRepository:
         full_text_query: str | None = None,
         latest_version_only: bool = False,
         tenant_id: int | None = None,
+        created_by_ids: list[int] | None = None,
     ) -> Select[tuple[Module]]:
         """Shared filter tree for ``list_modules`` / ``count_modules`` (no order/limit)."""
         stmt = select(Module)
@@ -154,14 +150,18 @@ class ModuleReadRepository:
             )
         if domain:
             stmt = stmt.where(Module.domain == domain)
+        if content_domains:
+            stmt = stmt.where(Module.content_domain.in_(content_domains))
         if chatbot_faqs_only is not None:
             stmt = stmt.where(Module.chatbot_faqs_only.is_(chatbot_faqs_only))
         if source_document_id is not None:
             stmt = stmt.where(Module.source_document_ids.contains([source_document_id]))
+        if created_by_ids:
+            stmt = stmt.where(Module.created_by.in_(created_by_ids))
         stmt = self._apply_date_range(stmt, Module.created_at, created_from, created_to)
         stmt = self._apply_date_range(stmt, Module.published_at, published_from, published_to)
-        stmt = self._apply_date_range(stmt, self._activated_at_expr(), activated_from, activated_to)
-        stmt = self._apply_date_range(stmt, Module.last_deactivated_at, deactivated_from, deactivated_to)
+        stmt = self._apply_date_range(stmt, Module.activated_at, activated_from, activated_to)
+        stmt = self._apply_date_range(stmt, Module.deactivated_at, deactivated_from, deactivated_to)
         if full_text_query:
             escaped = _escape_ilike_pattern(full_text_query)
             pattern = f"%{escaped}%"
@@ -192,6 +192,7 @@ class ModuleReadRepository:
         has_visibility_window: bool | None = None,
         has_quality_flags: bool | None = None,
         domain: str | None = None,
+        content_domains: list[str] | None = None,
         chatbot_faqs_only: bool | None = None,
         source_document_id: UUID | None = None,
         created_from: datetime | None = None,
@@ -205,6 +206,7 @@ class ModuleReadRepository:
         full_text_query: str | None = None,
         latest_version_only: bool = False,
         tenant_id: int | None = None,
+        created_by_ids: list[int] | None = None,
         sort_by: str = DEFAULT_MODULE_SORT_BY,
         sort_dir: str = DEFAULT_MODULE_SORT_DIR,
         limit: int = 50,
@@ -216,6 +218,7 @@ class ModuleReadRepository:
             has_visibility_window=has_visibility_window,
             has_quality_flags=has_quality_flags,
             domain=domain,
+            content_domains=content_domains,
             chatbot_faqs_only=chatbot_faqs_only,
             source_document_id=source_document_id,
             created_from=created_from,
@@ -229,6 +232,7 @@ class ModuleReadRepository:
             full_text_query=full_text_query,
             latest_version_only=latest_version_only,
             tenant_id=tenant_id,
+            created_by_ids=created_by_ids,
         )
         stmt = stmt.order_by(*_module_order_clauses(sort_by, sort_dir)).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
@@ -242,6 +246,7 @@ class ModuleReadRepository:
         has_visibility_window: bool | None = None,
         has_quality_flags: bool | None = None,
         domain: str | None = None,
+        content_domains: list[str] | None = None,
         chatbot_faqs_only: bool | None = None,
         source_document_id: UUID | None = None,
         created_from: datetime | None = None,
@@ -255,6 +260,7 @@ class ModuleReadRepository:
         full_text_query: str | None = None,
         latest_version_only: bool = False,
         tenant_id: int | None = None,
+        created_by_ids: list[int] | None = None,
     ) -> int:
         """Count rows matching the same filters as ``list_modules`` (ignores limit/offset)."""
         base = self._modules_list_filtered_stmt(
@@ -263,6 +269,7 @@ class ModuleReadRepository:
             has_visibility_window=has_visibility_window,
             has_quality_flags=has_quality_flags,
             domain=domain,
+            content_domains=content_domains,
             chatbot_faqs_only=chatbot_faqs_only,
             source_document_id=source_document_id,
             created_from=created_from,
@@ -276,6 +283,7 @@ class ModuleReadRepository:
             full_text_query=full_text_query,
             latest_version_only=latest_version_only,
             tenant_id=tenant_id,
+            created_by_ids=created_by_ids,
         )
         # maintain_column_froms keeps the latest_version_only JOIN when we
         # project down to Module.id for counting.

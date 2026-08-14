@@ -65,9 +65,10 @@ class VideoVisualEnrichmentService:
         source_document_id: UUID,
         source_path: str | Path,
         pages: list[SourcePage],
+        empty_audio_fallback: bool = False,
     ) -> int:
         """Append visual markdown and persist frames. Returns frames persisted."""
-        if not self._settings.ingest_video_visual_extraction_enabled:
+        if not self._settings.ingest_video_visual_extraction_enabled and not empty_audio_fallback:
             return 0
 
         ranges = [

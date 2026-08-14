@@ -65,11 +65,14 @@ class IngestionRunRepository:
         *,
         status: str | None = None,
         filename_query: str | None = None,
+        ingested_by_ids: list[int] | None = None,
         sort_by: str = DEFAULT_INGESTION_RUN_SORT_BY,
     ) -> Select[tuple[IngestionRun]]:
         stmt = select(IngestionRun)
         if status is not None:
             stmt = stmt.where(IngestionRun.status == status)
+        if ingested_by_ids:
+            stmt = stmt.where(IngestionRun.ingested_by.in_(ingested_by_ids))
         if sort_by == "document_label" or filename_query:
             stmt = stmt.join(
                 SourceDocument,
@@ -91,8 +94,13 @@ class IngestionRunRepository:
         *,
         status: str | None = None,
         filename_query: str | None = None,
+        ingested_by_ids: list[int] | None = None,
     ) -> int:
-        base = self._ingestion_runs_filtered_stmt(status=status, filename_query=filename_query)
+        base = self._ingestion_runs_filtered_stmt(
+            status=status,
+            filename_query=filename_query,
+            ingested_by_ids=ingested_by_ids,
+        )
         count_stmt = select(func.count()).select_from(
             base.with_only_columns(IngestionRun.id, maintain_column_froms=True).subquery()
         )
@@ -104,6 +112,7 @@ class IngestionRunRepository:
         *,
         status: str | None = None,
         filename_query: str | None = None,
+        ingested_by_ids: list[int] | None = None,
         sort_by: str = DEFAULT_INGESTION_RUN_SORT_BY,
         sort_dir: str = DEFAULT_INGESTION_RUN_SORT_DIR,
         limit: int = 50,
@@ -113,6 +122,7 @@ class IngestionRunRepository:
             self._ingestion_runs_filtered_stmt(
                 status=status,
                 filename_query=filename_query,
+                ingested_by_ids=ingested_by_ids,
                 sort_by=sort_by,
             )
             .order_by(*_order_clauses(sort_by, sort_dir))

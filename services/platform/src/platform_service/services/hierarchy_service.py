@@ -1,4 +1,4 @@
-"""Admin orchestration for districts, upazilas, and hierarchy users."""
+"""Admin orchestration for divisions, districts, upazilas, and hierarchy users."""
 
 from __future__ import annotations
 
@@ -8,6 +8,10 @@ from mc_contracts.hierarchy import (
     DistrictListResponse,
     DistrictResponse,
     DistrictUpdateRequest,
+    DivisionCreateRequest,
+    DivisionListResponse,
+    DivisionResponse,
+    DivisionUpdateRequest,
     HierarchyUserCreateRequest,
     HierarchyUserListResponse,
     HierarchyUserResponse,
@@ -21,6 +25,7 @@ from mc_foundation.problem import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.district import District
+from platform_service.db.models.division import Division
 from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.upazila import Upazila
 from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
@@ -37,6 +42,88 @@ class HierarchyService:
         self._session = session
         self._repo = HierarchyRepository(session)
 
+    # ── Divisions ──────────────────────────────────────────────────────────
+
+    async def create_division(
+        self,
+        body: DivisionCreateRequest,
+        *,
+        tenant_id: int,
+        actor: str,
+    ) -> DivisionResponse:
+        division = await self._repo.create_division(
+            name=body.name,
+            tenant_id=tenant_id,
+            actor=actor,
+        )
+        await self._session.commit()
+        await self._session.refresh(division)
+        return self._division_response(division)
+
+    async def get_division(self, division_id: int, *, tenant_id: int) -> DivisionResponse:
+        division = await self._repo.get_division(division_id, tenant_id=tenant_id)
+        if division is None:
+            raise AppError(
+                ErrorCode.HIERARCHY_DIVISION_NOT_FOUND.value,
+                f"Division '{division_id}' not found.",
+                status=404,
+            )
+        return self._division_response(division)
+
+    async def list_divisions(
+        self,
+        *,
+        tenant_id: int,
+        name_query: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> DivisionListResponse:
+        divisions, total = await self._repo.list_divisions(
+            tenant_id=tenant_id,
+            name_query=name_query,
+            limit=limit,
+            offset=offset,
+        )
+        total_pages = (total + limit - 1) // limit if total > 0 else 0
+        return DivisionListResponse(
+            divisions=[self._division_response(d) for d in divisions],
+            total=total,
+            total_pages=total_pages,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def update_division(
+        self,
+        division_id: int,
+        body: DivisionUpdateRequest,
+        *,
+        tenant_id: int,
+        actor: str,
+    ) -> DivisionResponse:
+        division = await self._repo.get_division(division_id, tenant_id=tenant_id)
+        if division is None:
+            raise AppError(
+                ErrorCode.HIERARCHY_DIVISION_NOT_FOUND.value,
+                f"Division '{division_id}' not found.",
+                status=404,
+            )
+        await self._repo.update_division(division, name=body.name, actor=actor)
+        await self._session.commit()
+        await self._session.refresh(division)
+        return self._division_response(division)
+
+    async def delete_division(self, division_id: int, *, tenant_id: int) -> None:
+        division = await self._repo.get_division(division_id, tenant_id=tenant_id)
+        if division is None:
+            raise AppError(
+                ErrorCode.HIERARCHY_DIVISION_NOT_FOUND.value,
+                f"Division '{division_id}' not found.",
+                status=404,
+            )
+        await self._repo.delete_division(division)
+        await self._session.commit()
+
     # ── Districts ──────────────────────────────────────────────────────────
 
     async def create_district(
@@ -46,14 +133,17 @@ class HierarchyService:
         tenant_id: int,
         actor: str,
     ) -> DistrictResponse:
+        if body.division_id is not None:
+            await self._require_division(body.division_id, tenant_id=tenant_id)
         district = await self._repo.create_district(
             name=body.name,
+            division_id=body.division_id,
             tenant_id=tenant_id,
             actor=actor,
         )
         await self._session.commit()
         await self._session.refresh(district)
-        return self._district_response(district)
+        return await self._district_response(district, tenant_id=tenant_id)
 
     async def get_district(self, district_id: int, *, tenant_id: int) -> DistrictResponse:
         district = await self._repo.get_district(district_id, tenant_id=tenant_id)
@@ -63,25 +153,30 @@ class HierarchyService:
                 f"District '{district_id}' not found.",
                 status=404,
             )
-        return self._district_response(district)
+        return await self._district_response(district, tenant_id=tenant_id)
 
     async def list_districts(
         self,
         *,
         tenant_id: int,
+        division_id: int | None = None,
         name_query: str | None = None,
         limit: int,
         offset: int,
     ) -> DistrictListResponse:
         districts, total = await self._repo.list_districts(
             tenant_id=tenant_id,
+            division_id=division_id,
             name_query=name_query,
             limit=limit,
             offset=offset,
         )
+        division_names = await self._division_names_for_districts(districts, tenant_id=tenant_id)
         total_pages = (total + limit - 1) // limit if total > 0 else 0
         return DistrictListResponse(
-            districts=[self._district_response(d) for d in districts],
+            districts=[
+                self._district_response_with_names(d, division_names=division_names) for d in districts
+            ],
             total=total,
             total_pages=total_pages,
             limit=limit,
@@ -103,10 +198,18 @@ class HierarchyService:
                 f"District '{district_id}' not found.",
                 status=404,
             )
-        await self._repo.update_district(district, name=body.name, actor=actor)
+        if body.division_id is not None:
+            await self._require_division(body.division_id, tenant_id=tenant_id)
+        division_id = body.division_id if "division_id" in body.model_fields_set else district.division_id
+        await self._repo.update_district(
+            district,
+            name=body.name,
+            division_id=division_id,
+            actor=actor,
+        )
         await self._session.commit()
         await self._session.refresh(district)
-        return self._district_response(district)
+        return await self._district_response(district, tenant_id=tenant_id)
 
     async def delete_district(self, district_id: int, *, tenant_id: int) -> None:
         district = await self._repo.get_district(district_id, tenant_id=tenant_id)
@@ -265,7 +368,7 @@ class HierarchyService:
         )
         await self._session.commit()
         await self._session.refresh(user)
-        return self._user_response(user)
+        return await self._user_response(user, tenant_id=tenant_id)
 
     async def get_user(self, user_id: int, *, tenant_id: int) -> HierarchyUserResponse:
         user = await self.find_user(user_id, tenant_id=tenant_id)
@@ -281,13 +384,14 @@ class HierarchyService:
         user = await self._repo.get_user(user_id, tenant_id=tenant_id)
         if user is None:
             return None
-        return self._user_response(user)
+        return await self._user_response(user, tenant_id=tenant_id)
 
     async def list_users(
         self,
         *,
         tenant_id: int,
         district_id: int | None,
+        division_id: int | None,
         role: str | None,
         parent_id: int | None,
         upazila_id: int | None,
@@ -298,6 +402,7 @@ class HierarchyService:
         users, total = await self._repo.list_users(
             tenant_id=tenant_id,
             district_id=district_id,
+            division_id=division_id,
             role=role,
             parent_id=parent_id,
             upazila_id=upazila_id,
@@ -305,9 +410,10 @@ class HierarchyService:
             limit=limit,
             offset=offset,
         )
+        user_responses = await self._user_responses(users, tenant_id=tenant_id)
         total_pages = (total + limit - 1) // limit if total > 0 else 0
         return HierarchyUserListResponse(
-            users=[self._user_response(u) for u in users],
+            users=user_responses,
             total=total,
             total_pages=total_pages,
             limit=limit,
@@ -319,6 +425,7 @@ class HierarchyService:
         *,
         tenant_id: int,
         district_id: int | None = None,
+        division_id: int | None = None,
         role: str | None = None,
         parent_id: int | None = None,
         upazila_id: int | None = None,
@@ -332,6 +439,7 @@ class HierarchyService:
             page = await self.list_users(
                 tenant_id=tenant_id,
                 district_id=district_id,
+                division_id=division_id,
                 role=role,
                 parent_id=parent_id,
                 upazila_id=upazila_id,
@@ -352,6 +460,23 @@ class HierarchyService:
     ) -> dict[int, str]:
         districts = await self._repo.get_districts_by_ids(district_ids, tenant_id=tenant_id)
         return {d_id: d.name for d_id, d in districts.items()}
+
+    async def division_names_by_ids(
+        self,
+        division_ids: set[int],
+        *,
+        tenant_id: int,
+    ) -> dict[int, str]:
+        divisions = await self._repo.get_divisions_by_ids(division_ids, tenant_id=tenant_id)
+        return {d_id: d.name for d_id, d in divisions.items()}
+
+    async def districts_by_ids(
+        self,
+        district_ids: set[int],
+        *,
+        tenant_id: int,
+    ) -> dict[int, District]:
+        return await self._repo.get_districts_by_ids(district_ids, tenant_id=tenant_id)
 
     async def update_user(
         self,
@@ -400,7 +525,7 @@ class HierarchyService:
         )
         await self._session.commit()
         await self._session.refresh(user)
-        return self._user_response(user)
+        return await self._user_response(user, tenant_id=tenant_id)
 
     async def delete_user(self, user_id: int, *, tenant_id: int) -> None:
         user = await self._repo.get_user(user_id, tenant_id=tenant_id)
@@ -412,6 +537,16 @@ class HierarchyService:
             )
         await self._repo.delete_user(user)
         await self._session.commit()
+
+    async def _require_division(self, division_id: int, *, tenant_id: int) -> Division:
+        division = await self._repo.get_division(division_id, tenant_id=tenant_id)
+        if division is None:
+            raise AppError(
+                ErrorCode.HIERARCHY_DIVISION_NOT_FOUND.value,
+                f"Division '{division_id}' not found.",
+                status=404,
+            )
+        return division
 
     async def _validate_user_write(
         self,
@@ -453,11 +588,51 @@ class HierarchyService:
             upazilas_map=upazilas_map,
         )
 
+    async def _division_names_for_districts(
+        self,
+        districts: list[District],
+        *,
+        tenant_id: int,
+    ) -> dict[int, str]:
+        division_ids = {d.division_id for d in districts if d.division_id is not None}
+        return await self.division_names_by_ids(division_ids, tenant_id=tenant_id)
+
+    async def _district_response(self, district: District, *, tenant_id: int) -> DistrictResponse:
+        division_name: str | None = None
+        if district.division_id is not None:
+            names = await self.division_names_by_ids({district.division_id}, tenant_id=tenant_id)
+            division_name = names.get(district.division_id)
+        return self._district_response_with_names(
+            district,
+            division_names={district.division_id: division_name}
+            if district.division_id is not None and division_name is not None
+            else {},
+        )
+
     @staticmethod
-    def _district_response(district: District) -> DistrictResponse:
+    def _division_response(division: Division) -> DivisionResponse:
+        return DivisionResponse(
+            id=division.id,
+            name=division.name,
+            tenant_id=division.tenant_id,
+            created_at=division.created_at,
+            updated_at=division.updated_at,
+            created_by=division.created_by,
+            updated_by=division.updated_by,
+        )
+
+    @staticmethod
+    def _district_response_with_names(
+        district: District,
+        *,
+        division_names: dict[int, str],
+    ) -> DistrictResponse:
+        division_name = division_names.get(district.division_id) if district.division_id is not None else None
         return DistrictResponse(
             id=district.id,
             name=district.name,
+            division_id=district.division_id,
+            division=division_name,
             tenant_id=district.tenant_id,
             created_at=district.created_at,
             updated_at=district.updated_at,
@@ -478,14 +653,58 @@ class HierarchyService:
             updated_by=upazila.updated_by,
         )
 
+    async def _user_responses(
+        self,
+        users: list[HierarchyUser],
+        *,
+        tenant_id: int,
+    ) -> list[HierarchyUserResponse]:
+        if not users:
+            return []
+        districts = await self._repo.get_districts_by_ids(
+            {u.district_id for u in users},
+            tenant_id=tenant_id,
+        )
+        division_ids = {d.division_id for d in districts.values() if d.division_id is not None}
+        division_names = await self.division_names_by_ids(division_ids, tenant_id=tenant_id)
+        return [
+            self._user_response_with_context(
+                user,
+                district=districts.get(user.district_id),
+                division_names=division_names,
+            )
+            for user in users
+        ]
+
+    async def _user_response(self, user: HierarchyUser, *, tenant_id: int) -> HierarchyUserResponse:
+        district = await self._repo.get_district(user.district_id, tenant_id=tenant_id)
+        division_names: dict[int, str] = {}
+        if district is not None and district.division_id is not None:
+            division_names = await self.division_names_by_ids({district.division_id}, tenant_id=tenant_id)
+        return self._user_response_with_context(
+            user,
+            district=district,
+            division_names=division_names,
+        )
+
     @classmethod
-    def _user_response(cls, user: HierarchyUser) -> HierarchyUserResponse:
+    def _user_response_with_context(
+        cls,
+        user: HierarchyUser,
+        *,
+        district: District | None,
+        division_names: dict[int, str],
+    ) -> HierarchyUserResponse:
+        division_id = district.division_id if district is not None else None
+        division_name = division_names.get(division_id) if division_id is not None else None
         return HierarchyUserResponse(
             id=user.id,
             name=user.name,
             role=user.role,  # type: ignore[arg-type]
             parent_id=user.parent_id,
             district_id=user.district_id,
+            division_id=division_id,
+            division=division_name,
             upazilas=[cls._upazila_response(u) for u in user.upazilas],
             tenant_id=user.tenant_id,
             created_at=user.created_at,

@@ -7,11 +7,12 @@ from typing import Any
 from uuid import UUID
 
 from mc_contracts.dashboard import (
+    DigitalHelpModuleQuestionItem,
     DigitalHelpModuleQuestionsResponse,
+    DigitalHelpModuleRequestItem,
     DigitalHelpModuleRequestsResponse,
     DigitalHelpModuleUsageItem,
     DigitalHelpModuleUsageResponse,
-    TeamMemberQuestionItem,
 )
 from mc_contracts.localized import LocalizedString
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from platform_service.clickhouse.client import ClickHouseClient
 from platform_service.clickhouse.question_sql import QUESTION_EXTRACT_SQL, QUESTION_NORMALIZE_KEY_SQL
 from platform_service.db.repositories.module_repository import ModuleRepository
+from platform_service.services.dashboard_hierarchy import (
+    OrgUser,
+    dashboard_user_summary,
+    org_user_index,
+)
 
 _DIGITAL_HELP_EVENT = "digital_help_used"
 _MODULE_REQUESTED_EVENT = "module_requested"
@@ -198,7 +204,11 @@ class DashboardAnalyticsService:
             chw_ids=chw_ids,
         )
 
-        questions: list[TeamMemberQuestionItem] = []
+        users: dict[int, OrgUser] = {}
+        if self._session is not None:
+            users = await org_user_index(self._session, tenant_id=tenant_id)
+
+        questions: list[DigitalHelpModuleQuestionItem] = []
         for row in rows:
             question = str(row.get("question") or "").strip()
             if not question:
@@ -206,11 +216,15 @@ class DashboardAnalyticsService:
             last_asked_at = _to_datetime(row.get("last_asked_at"))
             if last_asked_at is None:
                 continue
+            sample_chw_id = _to_int(row.get("sample_chw_id"), default=-1)
+            if sample_chw_id < 0:
+                continue
             questions.append(
-                TeamMemberQuestionItem(
+                DigitalHelpModuleQuestionItem(
                     question=question,
                     occurrence_count=_to_int(row.get("occurrence_count")),
                     last_asked_at=last_asked_at,
+                    asked_by=dashboard_user_summary(sample_chw_id, users),
                 )
             )
 
@@ -233,44 +247,71 @@ class DashboardAnalyticsService:
         tenant_id: int | None,
         from_date: date,
         to_date: date,
+        limit: int = 50,
+        offset: int = 0,
         chw_ids: frozenset[int] | None = None,
     ) -> DigitalHelpModuleRequestsResponse:
-        """Aggregate ``module_requested`` count for one concrete module_id."""
+        """Paginated ``module_requested`` events for one concrete module_id."""
         if chw_ids is not None and len(chw_ids) == 0:
             return DigitalHelpModuleRequestsResponse(
                 module_id=module_id,
                 title=await self._module_title(module_id, tenant_id),
                 from_date=from_date,
                 to_date=to_date,
-                module_requested_count=0,
+                requests=[],
+                total_requests=0,
+                total_pages=0,
+                limit=limit,
+                offset=offset,
             )
 
-        tenant_clause, tenant_params = self._tenant_clause(tenant_id)
-        chw_clause, chw_params = self._chw_clause(chw_ids)
-        query = f"""
-        SELECT count() AS module_requested_count
-        FROM coaching_events
-        WHERE event_type = {{event_type:String}}
-          AND event_date >= {{from_date:Date}}
-          AND event_date <= {{to_date:Date}}
-          AND module_id = {{module_id:UUID}}
-        {tenant_clause}{chw_clause}"""
-        parameters: dict[str, Any] = {
-            "event_type": _MODULE_REQUESTED_EVENT,
-            "from_date": from_date,
-            "to_date": to_date,
-            "module_id": module_id,
-            **tenant_params,
-            **chw_params,
-        }
-        rows = await self._ch.query_rows(query, parameters=parameters)
-        count = _to_int(rows[0].get("module_requested_count")) if rows else 0
+        total_requests = await self._count_module_requests(
+            module_id=module_id,
+            from_date=from_date,
+            to_date=to_date,
+            tenant_id=tenant_id,
+            chw_ids=chw_ids,
+        )
+        total_pages = (total_requests + limit - 1) // limit if total_requests > 0 else 0
+        rows = await self._fetch_module_requests_page(
+            module_id=module_id,
+            from_date=from_date,
+            to_date=to_date,
+            tenant_id=tenant_id,
+            limit=limit,
+            offset=offset,
+            chw_ids=chw_ids,
+        )
+
+        users: dict[int, OrgUser] = {}
+        if self._session is not None:
+            users = await org_user_index(self._session, tenant_id=tenant_id)
+
+        requests: list[DigitalHelpModuleRequestItem] = []
+        for row in rows:
+            chw_id = _to_int(row.get("chw_id"), default=-1)
+            requested_at = _to_datetime(row.get("requested_at"))
+            if chw_id < 0 or requested_at is None:
+                continue
+            reason = str(row.get("reason") or "").strip() or None
+            requests.append(
+                DigitalHelpModuleRequestItem(
+                    requested_at=requested_at,
+                    reason=reason,
+                    requested_by=dashboard_user_summary(chw_id, users),
+                )
+            )
+
         return DigitalHelpModuleRequestsResponse(
             module_id=module_id,
             title=await self._module_title(module_id, tenant_id),
             from_date=from_date,
             to_date=to_date,
-            module_requested_count=count,
+            requests=requests,
+            total_requests=total_requests,
+            total_pages=total_pages,
+            limit=limit,
+            offset=offset,
         )
 
     def _tenant_clause(self, tenant_id: int | None) -> tuple[str, dict[str, Any]]:
@@ -408,6 +449,7 @@ class DashboardAnalyticsService:
               AND event_type = {{event_type:String}}
               AND event_date >= {{from_date:Date}}
               AND event_date <= {{to_date:Date}}
+              AND chw_id IS NOT NULL
             {tenant_clause}{chw_clause})
           WHERE length(question_key) > 0
           GROUP BY question_key
@@ -443,17 +485,20 @@ class DashboardAnalyticsService:
         SELECT
           argMax(raw_question, timestamp_utc) AS question,
           count() AS occurrence_count,
-          max(timestamp_utc) AS last_asked_at
+          max(timestamp_utc) AS last_asked_at,
+          argMax(chw_id, timestamp_utc) AS sample_chw_id
         FROM (
           SELECT
             {QUESTION_NORMALIZE_KEY_SQL} AS question_key,
             {QUESTION_EXTRACT_SQL} AS raw_question,
-            timestamp_utc
+            timestamp_utc,
+            chw_id
           FROM coaching_events
           WHERE module_id = {{module_id:UUID}}
             AND event_type = {{event_type:String}}
             AND event_date >= {{from_date:Date}}
             AND event_date <= {{to_date:Date}}
+            AND chw_id IS NOT NULL
           {tenant_clause}{chw_clause})
         WHERE length(question_key) > 0
         GROUP BY question_key
@@ -466,6 +511,79 @@ class DashboardAnalyticsService:
             "event_type": _DIGITAL_HELP_EVENT,
             "from_date": from_date,
             "to_date": to_date,
+            "limit": limit,
+            "offset": offset,
+            **tenant_params,
+            **chw_params,
+        }
+        return await self._ch.query_rows(query, parameters=parameters)
+
+    async def _count_module_requests(
+        self,
+        *,
+        module_id: UUID,
+        from_date: date,
+        to_date: date,
+        tenant_id: int | None,
+        chw_ids: frozenset[int] | None = None,
+    ) -> int:
+        tenant_clause, tenant_params = self._tenant_clause(tenant_id)
+        chw_clause, chw_params = self._chw_clause(chw_ids)
+        query = f"""
+        SELECT count() AS total_requests
+        FROM coaching_events
+        WHERE event_type = {{event_type:String}}
+          AND event_date >= {{from_date:Date}}
+          AND event_date <= {{to_date:Date}}
+          AND module_id = {{module_id:UUID}}
+          AND chw_id IS NOT NULL
+        {tenant_clause}{chw_clause}"""
+        parameters: dict[str, Any] = {
+            "event_type": _MODULE_REQUESTED_EVENT,
+            "from_date": from_date,
+            "to_date": to_date,
+            "module_id": module_id,
+            **tenant_params,
+            **chw_params,
+        }
+        rows = await self._ch.query_rows(query, parameters=parameters)
+        if not rows:
+            return 0
+        return _to_int(rows[0].get("total_requests"))
+
+    async def _fetch_module_requests_page(
+        self,
+        *,
+        module_id: UUID,
+        from_date: date,
+        to_date: date,
+        tenant_id: int | None,
+        limit: int,
+        offset: int,
+        chw_ids: frozenset[int] | None = None,
+    ) -> list[dict[str, Any]]:
+        tenant_clause, tenant_params = self._tenant_clause(tenant_id)
+        chw_clause, chw_params = self._chw_clause(chw_ids)
+        query = f"""
+        SELECT
+          chw_id,
+          timestamp_utc AS requested_at,
+          nullIf(trimBoth(JSONExtractString(payload_json, 'reason')), '') AS reason
+        FROM coaching_events
+        WHERE event_type = {{event_type:String}}
+          AND event_date >= {{from_date:Date}}
+          AND event_date <= {{to_date:Date}}
+          AND module_id = {{module_id:UUID}}
+          AND chw_id IS NOT NULL
+        {tenant_clause}{chw_clause}ORDER BY requested_at DESC
+        LIMIT {{limit:UInt32}}
+        OFFSET {{offset:UInt32}}
+        """
+        parameters: dict[str, Any] = {
+            "event_type": _MODULE_REQUESTED_EVENT,
+            "from_date": from_date,
+            "to_date": to_date,
+            "module_id": module_id,
             "limit": limit,
             "offset": offset,
             **tenant_params,

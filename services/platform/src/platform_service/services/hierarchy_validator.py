@@ -35,6 +35,14 @@ class ParentSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class DivisionSnapshot:
+    """Minimal division fields needed to validate a district row."""
+
+    id: int
+    tenant_id: int
+
+
+@dataclass(frozen=True, slots=True)
 class DistrictSnapshot:
     """Minimal district fields needed to validate a user row."""
 

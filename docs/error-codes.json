@@ -401,6 +401,14 @@
       "retryable": false,
       "audience": "operator"
     },
+    "hierarchy_division_not_found": {
+      "title": "Hierarchy Division Not Found",
+      "description": "Division id does not exist for the selected tenant.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
     "hierarchy_district_not_found": {
       "title": "Hierarchy District Not Found",
       "description": "District id does not exist for the selected tenant.",
@@ -604,6 +612,8 @@
     "pipeline_crashed": {
       "title": "Pipeline Crashed",
       "description": "Ingest pipeline worker crashed while processing a run.",
+      "user_message": "Processing was interrupted unexpectedly. Please retry the ingestion.",
+      "action_hint": "Retry the ingestion from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -612,6 +622,8 @@
     "stage_failed": {
       "title": "Stage Failed",
       "description": "A generic pipeline stage failed without a more specific code.",
+      "user_message": "Something went wrong while processing this file. Try re-uploading or contact support if the problem persists.",
+      "action_hint": "Re-upload the file or retry the ingestion.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -620,6 +632,8 @@
     "extract_failed": {
       "title": "Extract Failed",
       "description": "Source extract stage failed, including when extracted or transcribed text is empty or below the configured minimum character threshold.",
+      "user_message": "We couldn't extract content from this file. Try re-exporting it from the original source.",
+      "action_hint": "Re-export the document or media from the original application and upload again.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -628,6 +642,8 @@
     "identify_failed": {
       "title": "Identify Failed",
       "description": "Module identify stage failed.",
+      "user_message": "We couldn't identify training modules in this document. Try a document with clearer sections or headings.",
+      "action_hint": "Use a document with clearer headings and section structure, then retry.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -636,6 +652,8 @@
     "identify_no_candidates": {
       "title": "Identify No Candidates",
       "description": "Module identify stage completed without emitting any candidates.",
+      "user_message": "We couldn't find any training modules in this document. Try a document with clearer sections or headings.",
+      "action_hint": "Use a document with clearer headings and section structure, then retry.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -644,6 +662,8 @@
     "draft_failed": {
       "title": "Draft Failed",
       "description": "Card draft generation stage failed.",
+      "user_message": "We couldn't draft module cards for one or more candidates. Try retrying or reviewing the source document.",
+      "action_hint": "Review the source document and retry drafting from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -652,6 +672,8 @@
     "fusion_failed": {
       "title": "Fusion Failed",
       "description": "Cross-source fusion stage failed.",
+      "user_message": "We couldn't merge content across multiple sources. Please retry the batch.",
+      "action_hint": "Retry the batch ingestion.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -660,6 +682,8 @@
     "thumbnail_failed": {
       "title": "Thumbnail Failed",
       "description": "Thumbnail generation worker failed.",
+      "user_message": "We couldn't generate a preview image for this file.",
+      "action_hint": "Ingestion can continue; retry later if a preview is needed.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -668,6 +692,8 @@
     "embedding_failed": {
       "title": "Embedding Failed",
       "description": "Module embedding worker failed.",
+      "user_message": "We couldn't generate search embeddings for this module. Please retry.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -676,6 +702,8 @@
     "search_metadata_failed": {
       "title": "Search Metadata Failed",
       "description": "Search metadata generation worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -684,6 +712,8 @@
     "card_search_metadata_failed": {
       "title": "Card Search Metadata Failed",
       "description": "Per-card search metadata generation worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -692,6 +722,8 @@
     "trigger_binding_failed": {
       "title": "Trigger Binding Failed",
       "description": "Trigger binding worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -700,6 +732,8 @@
     "gap_classification_failed": {
       "title": "Gap Classification Failed",
       "description": "Gap classification worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -708,6 +742,8 @@
     "quiz_generation_failed": {
       "title": "Quiz Generation Failed",
       "description": "Quiz generation worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -716,6 +752,8 @@
     "enqueue_failed": {
       "title": "Enqueue Failed",
       "description": "Failed to enqueue a follow-on pipeline or worker job.",
+      "user_message": "A background task could not be started. Please retry the ingestion.",
+      "action_hint": "Retry the ingestion from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -724,6 +762,8 @@
     "module_has_no_text": {
       "title": "Module Has No Text",
       "description": "Embedding or generation requires module text that is empty.",
+      "user_message": "This module has no text content to process for the next step.",
+      "action_hint": "Review the drafted module content before retrying.",
       "typical_status": 400,
       "domain": "worker",
       "retryable": false,
@@ -732,6 +772,8 @@
     "generation_failed": {
       "title": "Generation Failed",
       "description": "Generic AI generation step failed in a worker pipeline.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,

@@ -54,6 +54,7 @@ def _summary_from_document(doc: SourceDocument) -> SourceDocumentSummary:
         original_filename=doc.original_filename,
         description=doc.description,
         thumbnail_storage_path=doc.thumbnail_storage_path,
+        duration_ms=doc.duration_ms,
         uploaded_date=doc.uploaded_date,
         ingested_at=doc.ingested_at,
         updated_at=doc.updated_at,
@@ -85,11 +86,13 @@ def _list_item_from_document(
         original_filename=doc.original_filename,
         description=doc.description,
         thumbnail_storage_path=doc.thumbnail_storage_path,
+        duration_ms=doc.duration_ms,
         uploaded_date=doc.uploaded_date,
         ingested_at=doc.ingested_at,
         updated_at=doc.updated_at,
         uploaded_by=_actor_ref(doc.uploaded_by, users_by_id),
         updated_by=_actor_ref(doc.updated_by, users_by_id),
+        ingested_by=_actor_ref(doc.ingested_by, users_by_id),
         assigned=doc.id in assigned_ids,
     )
 
@@ -256,7 +259,9 @@ async def list_source_documents(
         limit=limit,
         offset=offset,
     )
-    actor_ids = {uid for doc in docs for uid in (doc.uploaded_by, doc.updated_by) if uid is not None}
+    actor_ids = {
+        uid for doc in docs for uid in (doc.uploaded_by, doc.updated_by, doc.ingested_by) if uid is not None
+    }
     users_by_id = await HierarchyRepository(session).get_users_by_ids(list(actor_ids))
     assigned_ids = await DocumentAssignmentRepository(session).source_document_ids_with_assignments(
         [doc.id for doc in docs]
@@ -302,6 +307,8 @@ async def update_source_document_metadata(
     if doc is None:
         raise HTTPException(status_code=404, detail="source document not found")
     await session.commit()
+    # Re-load server-generated columns (e.g. updated_at onupdate) before sync DTO mapping.
+    await session.refresh(doc)
     return _summary_from_document(doc)
 
 

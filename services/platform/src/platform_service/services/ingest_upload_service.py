@@ -18,7 +18,6 @@ import anyio
 from fastapi import UploadFile
 from mc_contracts.enums import AssessmentMode, ContentDomain
 from mc_contracts.errors import ErrorCode
-from mc_contracts.internal_ai import GEMINI_INLINE_TRANSCRIPTION_MAX_BYTES
 from mc_foundation.objectstore import (
     ObjectStorageError,
     ObjectStore,
@@ -35,6 +34,7 @@ from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.attribution_audit import record_attribution_event
 from platform_service.services.file_digest import sha256_hex_file
 from platform_service.services.ingest_errors import IngestValidationError
+from platform_service.services.media_duration import MediaDurationError, probe_media_duration_ms
 from platform_service.services.upload_provenance import (
     build_upload_metadata,
     record_file_upload,
@@ -132,11 +132,9 @@ class IngestUploadService:
     def source_type_from_suffix(suffix: str) -> str:
         return _SOURCE_TYPE_BY_SUFFIX[suffix]
 
-    @staticmethod
-    def media_upload_limit_bytes(provider: str) -> int:
-        """Return the strict provider inline transcription limit."""
-        _ = provider
-        return GEMINI_INLINE_TRANSCRIPTION_MAX_BYTES
+    def media_upload_limit_bytes(self) -> int:
+        """Return the configured max bytes for ingest audio/video uploads."""
+        return self._settings.ingest_media_max_upload_bytes
 
     @staticmethod
     def validate_file_count(files: list[UploadFile]) -> None:
@@ -509,6 +507,11 @@ class IngestUploadService:
             ) from None
 
         storage_path = stored.storage_path
+        duration_ms = await anyio.to_thread.run_sync(
+            duration_ms_for_staged_upload,
+            item.staging_path,
+            item.source_type,
+        )
         await record_file_upload(
             file_upload_repo=FileUploadRepository(self._db),
             bucket_name=stored.bucket_name,
@@ -532,6 +535,7 @@ class IngestUploadService:
             original_filename=item.original_filename,
             uploaded_by=params.uploaded_by_user_id,
             description=item.description,
+            duration_ms=duration_ms,
             sync_published_visible=False,
             status="uploaded",
             tenant_id=params.tenant_id,
@@ -565,7 +569,7 @@ class IngestUploadService:
         staging_dir = Path(self._settings.upload_dir) / "ingest_staging"
         staging_dir.mkdir(parents=True, exist_ok=True)
         staging_path = staging_dir / f".ingest-{uuid.uuid4()}.part"
-        max_media_bytes = self.media_upload_limit_bytes("google")
+        max_media_bytes = self.media_upload_limit_bytes()
         await stream_upload_to_path(
             file,
             staging_path,
@@ -594,6 +598,29 @@ class IngestUploadService:
         )
 
 
+def duration_ms_for_staged_upload(staging_path: Path, source_type: str) -> int | None:
+    """Probe audio/video duration; return None for documents or on probe failure."""
+    if source_type not in _MEDIA_SOURCE_TYPES:
+        return None
+    try:
+        duration_ms = probe_media_duration_ms(staging_path)
+    except MediaDurationError:
+        logger.warning(
+            "Failed to probe media duration for %s; storing duration_ms=null",
+            staging_path.name,
+            exc_info=True,
+        )
+        return None
+    if duration_ms <= 0:
+        logger.warning(
+            "Non-positive media duration for %s (%sms); storing duration_ms=null",
+            staging_path.name,
+            duration_ms,
+        )
+        return None
+    return duration_ms
+
+
 def _append_bytes_to_path(dest: Path, chunk: bytes, first: bool) -> None:
     mode = "wb" if first else "ab"
     with dest.open(mode) as fh:
@@ -616,10 +643,7 @@ async def stream_upload_to_path(
             bytes_seen += len(chunk)
             if source_type in _MEDIA_SOURCE_TYPES and bytes_seen > max_media_bytes:
                 raise IngestValidationError(
-                    (
-                        f"media upload exceeds {max_media_bytes} bytes; "
-                        "larger audio/video requires chunking or provider file upload support"
-                    ),
+                    f"media upload exceeds {max_media_bytes} bytes",
                     status_code=413,
                     code=ErrorCode.PAYLOAD_TOO_LARGE.value,
                 )

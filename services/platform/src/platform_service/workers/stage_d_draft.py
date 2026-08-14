@@ -11,10 +11,10 @@ Per `docs/ARCHITECTURE_RESET.md`:
   family: secondary = LLM-merged cards, primary = current-document cards,
   both as `review_pending`, linked to each other and the matched tip.
   The matched tip is left untouched until an admin override-merge.
-- Quiz, search metadata, embedding (chained), and gap-classification are
-  separate post-publish Celery workers; this stage enqueues them via
-  ``DraftPipeline.enqueue_post_publish`` once module rows have been committed.
-  Per-card search metadata is generated before module-level search metadata.
+- Quiz and gap-classification are separate post-publish Celery workers; this
+  stage enqueues them via ``DraftPipeline.enqueue_post_publish`` once module
+  rows have been committed. Card/module search metadata and embeddings run
+  synchronously at admin publish (see ``module_publish_enrichment``).
 - `module_card_validator` runs on each drafted card; cards with hard
   violations are dropped, soft warnings are annotated as `field_flags`.
 - If the validator strips the module below `card_min_count`, the candidate
@@ -198,6 +198,7 @@ class StageDOrchestrator:
         enqueue_post_publish: bool,
     ) -> StageDResult:
         tenant_id = await self._resolve_tenant_id_from_sources(source_document_ids)
+        created_by_user_id = await self._resolve_created_by_from_sources(source_document_ids)
         family = await self._drafter_repo.get_or_create_module_family(
             proposed_title=candidate_dict.get("proposed_title", "Untitled Module"),
             tenant_id=tenant_id,
@@ -208,6 +209,7 @@ class StageDOrchestrator:
             cards=cards,
             source_document_ids=source_document_ids,
             quality_flags=candidate.quality_flags_jsonb,
+            created_by_user_id=created_by_user_id,
         )
         await self._session.flush()
         await CardImageAssigner(self._session).assign_for_module(
@@ -245,6 +247,18 @@ class StageDOrchestrator:
             )
         return tenants.pop()
 
+    async def _resolve_created_by_from_sources(self, source_document_ids: list[UUID]) -> int | None:
+        """Attribute pipeline-created modules to the first linked doc uploader."""
+        if not source_document_ids:
+            return None
+        docs = await SourceRepository(self._session).list_source_documents_by_ids(source_document_ids)
+        docs_by_id = {doc.id: doc for doc in docs}
+        for doc_id in source_document_ids:
+            doc = docs_by_id.get(doc_id)
+            if doc is not None and doc.uploaded_by is not None:
+                return doc.uploaded_by
+        return None
+
     async def _persist_dual_path_merge(
         self,
         *,
@@ -273,6 +287,8 @@ class StageDOrchestrator:
             qf["flags"] = flags
             quality_flags = qf
 
+        created_by_user_id = await self._resolve_created_by_from_sources(source_document_ids)
+
         # Secondary first (vN+1) = LLM-merged cards; primary (vN+2) = new_cards.
         secondary = await self._drafter_repo.create_review_pending_in_matched_family(
             matched=matched,
@@ -282,6 +298,7 @@ class StageDOrchestrator:
             quality_flags=quality_flags,
             match_rationale=proposal.match_rationale,
             is_merge_secondary=True,
+            created_by_user_id=created_by_user_id,
         )
         primary = await self._drafter_repo.create_review_pending_in_matched_family(
             matched=matched,
@@ -291,6 +308,7 @@ class StageDOrchestrator:
             quality_flags=quality_flags,
             match_rationale=proposal.match_rationale,
             is_merge_secondary=False,
+            created_by_user_id=created_by_user_id,
         )
         primary.merge_secondary_module_id = secondary.id
         primary.merge_source_module_id = matched.id

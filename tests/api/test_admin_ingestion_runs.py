@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.api.conftest import _seed_module
 from tests.conftest import platform_path, requires_db
+from tests.helpers.hierarchy_fixtures import AM_ID, PO_ID, seed_basic_hierarchy
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -29,6 +30,7 @@ class TestIngestionRunEndpoints:
         completed_offset_seconds: int | None = None,
         title: str | None = None,
         original_filename: str | None = None,
+        ingested_by: int | None = None,
     ) -> IngestionRun:
         # Need a source_document for the FK.
         sd = SourceDocument(
@@ -54,6 +56,7 @@ class TestIngestionRunEndpoints:
             status=status,
             started_at=started_at,
             completed_at=completed_at,
+            ingested_by=ingested_by,
         )
         session.add(run)
         await session.flush()
@@ -66,7 +69,14 @@ class TestIngestionRunEndpoints:
         run: IngestionRun,
         *,
         module_id: str | None,
+        secondary_module_id: str | None = None,
+        was_published_merge: bool | None = None,
     ) -> None:
+        output_summary: dict[str, object] = {"module_id": module_id}
+        if secondary_module_id is not None:
+            output_summary["secondary_module_id"] = secondary_module_id
+        if was_published_merge is not None:
+            output_summary["was_published_merge"] = was_published_merge
         session.add(
             IngestionRunStep(
                 ingestion_run_id=run.id,
@@ -74,7 +84,7 @@ class TestIngestionRunEndpoints:
                 status="succeeded",
                 started_at=datetime.now(UTC),
                 completed_at=datetime.now(UTC),
-                output_summary_jsonb={"module_id": module_id},
+                output_summary_jsonb=output_summary,
             )
         )
         await session.commit()
@@ -456,6 +466,207 @@ class TestIngestionRunEndpoints:
         assert data["generated_module_count"] == 1
         assert data["generated_card_count"] == 4
         assert data["generated_quiz_count"] == 1
+
+    async def test_list_and_detail_count_dual_path_merge_as_one_module(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        run = await self._seed_run(
+            db_session,
+            title="Merge Doc",
+            original_filename="merge.pdf",
+        )
+        primary = await _seed_module(
+            db_session,
+            lifecycle_status="review_pending",
+            module_json={
+                "cards": [
+                    {"title": {"bn": "1"}, "body": {"bn": "a"}},
+                    {"title": {"bn": "2"}, "body": {"bn": "b"}},
+                    {"title": {"bn": "3"}, "body": {"bn": "c"}},
+                ]
+            },
+        )
+        secondary = await _seed_module(
+            db_session,
+            lifecycle_status="review_pending",
+            module_json={
+                "cards": [
+                    {"title": {"bn": "4"}, "body": {"bn": "d"}},
+                    {"title": {"bn": "5"}, "body": {"bn": "e"}},
+                    {"title": {"bn": "6"}, "body": {"bn": "f"}},
+                    {"title": {"bn": "7"}, "body": {"bn": "g"}},
+                ]
+            },
+        )
+        db_session.add(
+            ModuleQuizQuestion(
+                module_id=primary.id,
+                question_order=1,
+                question_family_id=uuid4(),
+                question_version=1,
+                question_localized={"bn": "P1"},
+                question_type="single_select",
+                options_localized={"bn": ["a", "b", "c", "d"]},
+                correct_indices=[0],
+            )
+        )
+        db_session.add(
+            ModuleQuizQuestion(
+                module_id=primary.id,
+                question_order=2,
+                question_family_id=uuid4(),
+                question_version=1,
+                question_localized={"bn": "P2"},
+                question_type="single_select",
+                options_localized={"bn": ["a", "b", "c", "d"]},
+                correct_indices=[1],
+            )
+        )
+        db_session.add(
+            ModuleQuizQuestion(
+                module_id=secondary.id,
+                question_order=1,
+                question_family_id=uuid4(),
+                question_version=1,
+                question_localized={"bn": "S1"},
+                question_type="single_select",
+                options_localized={"bn": ["a", "b", "c", "d"]},
+                correct_indices=[0],
+            )
+        )
+        await db_session.commit()
+        await self._add_card_draft_step(
+            db_session,
+            run,
+            module_id=str(primary.id),
+            secondary_module_id=str(secondary.id),
+            was_published_merge=True,
+        )
+
+        list_resp = await client.get(platform_path("/admin/ingestion-runs"))
+        assert list_resp.status_code == 200
+        row = next(r for r in list_resp.json()["runs"] if r["id"] == str(run.id))
+        assert row["generated_module_count"] == 1
+        assert row["generated_card_count"] == 3
+        assert row["generated_quiz_count"] == 2
+
+        detail_resp = await client.get(platform_path(f"/admin/ingestion-runs/{run.id}"))
+        assert detail_resp.status_code == 200
+        detail = detail_resp.json()
+        assert detail["generated_module_count"] == 1
+        assert detail["generated_card_count"] == 3
+        assert detail["generated_quiz_count"] == 2
+
+    async def test_list_excludes_secondary_module_id_on_second_card_draft_step(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        run = await self._seed_run(
+            db_session,
+            title="Merge Retry Doc",
+            original_filename="merge-retry.pdf",
+        )
+        primary = await _seed_module(
+            db_session,
+            lifecycle_status="review_pending",
+            module_json={
+                "cards": [
+                    {"title": {"bn": "1"}, "body": {"bn": "a"}},
+                    {"title": {"bn": "2"}, "body": {"bn": "b"}},
+                ]
+            },
+        )
+        secondary = await _seed_module(
+            db_session,
+            lifecycle_status="review_pending",
+            module_json={
+                "cards": [
+                    {"title": {"bn": "3"}, "body": {"bn": "c"}},
+                    {"title": {"bn": "4"}, "body": {"bn": "d"}},
+                    {"title": {"bn": "5"}, "body": {"bn": "e"}},
+                ]
+            },
+        )
+        db_session.add(
+            ModuleQuizQuestion(
+                module_id=primary.id,
+                question_order=1,
+                question_family_id=uuid4(),
+                question_version=1,
+                question_localized={"bn": "P"},
+                question_type="single_select",
+                options_localized={"bn": ["a", "b", "c", "d"]},
+                correct_indices=[0],
+            )
+        )
+        db_session.add(
+            ModuleQuizQuestion(
+                module_id=secondary.id,
+                question_order=1,
+                question_family_id=uuid4(),
+                question_version=1,
+                question_localized={"bn": "S"},
+                question_type="single_select",
+                options_localized={"bn": ["a", "b", "c", "d"]},
+                correct_indices=[0],
+            )
+        )
+        await db_session.commit()
+        await self._add_card_draft_step(
+            db_session,
+            run,
+            module_id=str(primary.id),
+            secondary_module_id=str(secondary.id),
+            was_published_merge=True,
+        )
+        # A second card_draft whose module_id is the secondary must not double-count.
+        await self._add_card_draft_step(db_session, run, module_id=str(secondary.id))
+
+        resp = await client.get(platform_path("/admin/ingestion-runs"))
+        assert resp.status_code == 200
+        row = next(r for r in resp.json()["runs"] if r["id"] == str(run.id))
+        assert row["generated_module_count"] == 1
+        assert row["generated_card_count"] == 2
+        assert row["generated_quiz_count"] == 1
+
+    async def test_list_and_detail_include_ingested_by_actor(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        await seed_basic_hierarchy(db_session, tenant_id=1)
+        await db_session.commit()
+        run = await self._seed_run(db_session, ingested_by=AM_ID, started_offset_seconds=0)
+        await self._seed_run(db_session, ingested_by=888_888, started_offset_seconds=10)
+
+        list_resp = await client.get(platform_path("/admin/ingestion-runs"))
+        assert list_resp.status_code == 200
+        by_id = {row["id"]: row for row in list_resp.json()["runs"]}
+        assert by_id[str(run.id)]["ingested_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+        missing_user_row = next(row for row in list_resp.json()["runs"] if row["id"] != str(run.id))
+        assert missing_user_row["ingested_by"] is None
+
+        detail = await client.get(platform_path(f"/admin/ingestion-runs/{run.id}"))
+        assert detail.status_code == 200
+        assert detail.json()["ingested_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+
+    async def test_list_filters_by_ingested_by(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        await seed_basic_hierarchy(db_session, tenant_id=1)
+        await db_session.commit()
+        match = await self._seed_run(db_session, ingested_by=AM_ID, started_offset_seconds=0)
+        await self._seed_run(db_session, ingested_by=PO_ID, started_offset_seconds=10)
+        await self._seed_run(db_session, ingested_by=None, started_offset_seconds=20)
+
+        resp = await client.get(platform_path(f"/admin/ingestion-runs?ingested_by={AM_ID}"))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total_runs"] == 1
+        assert body["runs"][0]["id"] == str(match.id)
+        assert body["runs"][0]["ingested_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+
+        multi = await client.get(platform_path(f"/admin/ingestion-runs?ingested_by={AM_ID},{PO_ID}"))
+        assert multi.status_code == 200
+        assert multi.json()["total_runs"] == 2
+
+        invalid = await client.get(platform_path("/admin/ingestion-runs?ingested_by=not-an-id"))
+        assert invalid.status_code == 422
 
     async def test_detail_404_for_unknown(self, client: AsyncClient) -> None:
         resp = await client.get(platform_path(f"/admin/ingestion-runs/{uuid4()}"))

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 
 class SourceDocumentActorRef(BaseModel):
-    """Hierarchy user reference for source-document upload/update actors."""
+    """Hierarchy user reference for source-document upload/update/ingest actors."""
 
     id: int
     name: str
@@ -27,6 +27,7 @@ class SourceDocumentSummary(BaseModel):
     original_filename: str | None = None
     description: str | None = None
     thumbnail_storage_path: str | None = None
+    duration_ms: int | None = None
     uploaded_date: datetime
     ingested_at: datetime
     updated_at: datetime
@@ -37,6 +38,7 @@ class SourceDocumentListItem(SourceDocumentSummary):
 
     uploaded_by: SourceDocumentActorRef | None = None
     updated_by: SourceDocumentActorRef | None = None
+    ingested_by: SourceDocumentActorRef | None = None
     assigned: bool = False
 
 

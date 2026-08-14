@@ -7,10 +7,7 @@ from uuid import UUID
 from platform_service.celery_tasks import (
     bind_assessment_triggers_task,
     classify_module_gaps_task,
-    generate_module_card_search_metadata_batch_task,
-    generate_module_embedding_task,
     generate_module_quiz_task,
-    generate_module_search_metadata_task,
     generate_source_thumbnail_task,
     retry_ingest_fusion_task,
     retry_ingest_pipeline_task,
@@ -19,11 +16,8 @@ from platform_service.celery_tasks import (
 from platform_service.config import get_settings
 from platform_service.services.ingest_upload_service import IngestedSourceResult
 from platform_service.services.run_state_service import (
-    STAGE_CARD_SEARCH_METADATA_GENERATION,
-    STAGE_EMBEDDING_GENERATION,
     STAGE_GAP_CLASSIFICATION,
     STAGE_QUIZ_GENERATION,
-    STAGE_SEARCH_METADATA_GENERATION,
     STAGE_TRIGGER_BINDING,
 )
 from platform_service.workers.ingest_worker import IngestJob, ingest_job_to_dict
@@ -131,27 +125,10 @@ def enqueue_post_publish_step_retry(
     if stage == STAGE_QUIZ_GENERATION:
         generate_module_quiz_task.delay(mid, sid)
         return
-    if stage == STAGE_EMBEDDING_GENERATION:
-        generate_module_embedding_task.delay(mid, sid)
-        return
-    if stage == STAGE_SEARCH_METADATA_GENERATION:
-        generate_module_search_metadata_task.delay(mid, sid, None, None, False)
-        return
     if stage == STAGE_GAP_CLASSIFICATION:
         classify_module_gaps_task.delay(mid, sid)
         return
     if stage == STAGE_TRIGGER_BINDING:
         bind_assessment_triggers_task.delay(mid, sid)
-        return
-    if stage == STAGE_CARD_SEARCH_METADATA_GENERATION:
-        generate_module_card_search_metadata_batch_task.delay(
-            mid,
-            sid,
-            None,
-            None,
-            None,
-            False,
-            False,
-        )
         return
     raise ValueError(f"unsupported post-publish stage for retry: {stage!r}")

@@ -20,7 +20,8 @@ pytestmark = [requires_db, pytest.mark.asyncio]
 
 _BUCKET = "medtronics-storage"
 _STORAGE_PATH = f"{_BUCKET}/source-documents/manual.pdf"
-_THUMB_PATH = f"{_BUCKET}/ingest/thumbnails/{uuid4()}.png"
+_THUMB_OBJECT_KEY = f"ingest/thumbnails/{uuid4()}.png"
+_THUMB_PATH = f"{_BUCKET}/{_THUMB_OBJECT_KEY}"
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -77,7 +78,7 @@ async def test_presign_source_document_thumbnail_found(db_session: AsyncSession)
 
     assert len(resp.urls) == 1
     assert resp.urls[0].source_document_id == doc.id
-    assert resp.urls[0].storage_path == _THUMB_PATH
+    assert resp.urls[0].storage_path == _THUMB_OBJECT_KEY
     assert resp.urls[0].presigned_url == "https://minio.example/thumb"
     assert resp.urls[0].expires_seconds == 600
     assert resp.missing_ids == []

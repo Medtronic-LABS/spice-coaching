@@ -33,7 +33,9 @@ from tests.helpers.hierarchy_fixtures import SK_ID, seed_basic_hierarchy
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 _STORAGE_PATH = "medtronics-storage/source-documents/manual.pdf"
+_OBJECT_KEY = "source-documents/manual.pdf"
 _THUMB_PATH = "medtronics-storage/ingest/thumbnails/doc.png"
+_THUMB_OBJECT_KEY = "ingest/thumbnails/doc.png"
 _THUMB_URL = "https://minio.example/module-thumb"
 
 _SAMPLE_SEARCH_METADATA = {
@@ -174,9 +176,13 @@ async def test_modules_bundle_includes_source_document_details(db_session: Async
     assert first.version_label == "2026-Q1"
     assert first.publication_date == date(2026, 1, 15)
     assert first.original_filename == "manual.pdf"
+    assert first.storage_path == _OBJECT_KEY
+    assert first.thumbnail_storage_path == _THUMB_OBJECT_KEY
     assert first.has_thumbnail is True
 
     assert second.title == "Doc B"
+    assert second.storage_path == _OBJECT_KEY
+    assert second.thumbnail_storage_path is None
     assert second.has_thumbnail is False
 
     assert by_id[with_docs.id].content_domain == "clinical"
@@ -236,12 +242,15 @@ async def test_modules_bundle_includes_thumbnail_presigned_url(db_session: Async
 
     by_id = {m.id: m for m in bundle.modules}
     assert by_id[with_thumb.id].has_thumbnail is True
+    assert by_id[with_thumb.id].thumbnail_storage_path == "ingest/thumbnails/abc.png"
     assert by_id[with_thumb.id].thumbnail_presigned_url == _THUMB_URL
     assert by_id[with_thumb.id].thumbnail_presigned_expires_seconds == expires
     assert by_id[without_thumb.id].has_thumbnail is False
+    assert by_id[without_thumb.id].thumbnail_storage_path is None
     assert by_id[without_thumb.id].thumbnail_presigned_url is None
     assert by_id[without_thumb.id].thumbnail_presigned_expires_seconds is None
     assert by_id[soft_fail.id].has_thumbnail is True
+    assert by_id[soft_fail.id].thumbnail_storage_path == "not-a-valid-object-path.png"
     assert by_id[soft_fail.id].thumbnail_presigned_url is None
     assert by_id[soft_fail.id].thumbnail_presigned_expires_seconds is None
 

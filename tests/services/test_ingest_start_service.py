@@ -7,9 +7,11 @@ from uuid import uuid4
 import pytest
 from mc_foundation.problem import AppError
 from platform_service.db.models.ingest_batch import IngestBatch
+from platform_service.db.models.ingestion_run import IngestionRun
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.services.ingest_start_service import IngestStartParams, IngestStartService
 from platform_service.services.ingest_upload_service import IngestUploadService
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import requires_db
@@ -50,10 +52,11 @@ async def _seed_ingested(db_session: AsyncSession) -> SourceDocument:
     return doc
 
 
-def _params() -> IngestStartParams:
+def _params(*, ingested_by_user_id: int | None = None) -> IngestStartParams:
     return IngestStartParams(
         assessment_mode="with_quiz",
         actor="tester",
+        ingested_by_user_id=ingested_by_user_id,
     )
 
 
@@ -65,15 +68,18 @@ async def test_start_uploaded_document_sets_ingesting(db_session: AsyncSession) 
 
     result = await service.start(
         source_document_ids=[staged.id],
-        params=_params(),
+        params=_params(ingested_by_user_id=42),
         override_flags=[False],
     )
 
     assert len(result.sources) == 1
     assert result.sources[0].source_document_id == staged.id
+    assert result.sources[0].ingested_by_user_id == 42
+    assert result.sources[0].ingested_at == staged.ingested_at
     await db_session.refresh(staged)
     assert staged.status == "ingesting"
     assert staged.content_domain == "digital"
+    assert staged.ingested_by == 42
 
     batch = await db_session.get(IngestBatch, result.batch_id)
     assert batch is not None
@@ -81,6 +87,44 @@ async def test_start_uploaded_document_sets_ingesting(db_session: AsyncSession) 
     assert batch.ingestion_instructions is None
     assert batch.cards_per_module is None
     assert batch.quizzes_per_module is None
+    assert batch.ingested_by == 42
+
+    runs = list(
+        (
+            await db_session.execute(
+                select(IngestionRun).where(IngestionRun.ingest_batch_id == result.batch_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(runs) == 1
+    assert runs[0].ingested_by == 42
+
+
+async def test_start_multi_document_stamps_ingested_by(db_session: AsyncSession) -> None:
+    first = await _seed_uploaded(db_session, title="First")
+    second = await _seed_uploaded(db_session, title="Second")
+    first_ingested_at = first.ingested_at
+    second_ingested_at = second.ingested_at
+    service = IngestStartService(db_session)
+
+    result = await service.start(
+        source_document_ids=[first.id, second.id],
+        params=_params(ingested_by_user_id=77),
+        override_flags=[False, False],
+    )
+
+    assert len(result.sources) == 2
+    await db_session.refresh(first)
+    await db_session.refresh(second)
+    assert first.status == "ingesting"
+    assert second.status == "ingesting"
+    assert first.ingested_by == 77
+    assert second.ingested_by == 77
+    assert first.ingested_at == first_ingested_at
+    assert second.ingested_at == second_ingested_at
+    assert {s.ingested_by_user_id for s in result.sources} == {77}
 
 
 async def test_start_missing_source_raises_not_found(db_session: AsyncSession) -> None:
@@ -140,20 +184,26 @@ async def test_start_mixed_batch_any_conflict_raises_without_mutations(db_sessio
 async def test_start_ingested_with_override_clones_row(db_session: AsyncSession) -> None:
     ingested = await _seed_ingested(db_session)
     ingested.content_domain = "digital"
+    ingested.source_type = "video"
+    ingested.duration_ms = 12_345
     await db_session.flush()
     service = IngestStartService(db_session)
 
     result = await service.start(
         source_document_ids=[ingested.id],
-        params=_params(),
+        params=_params(ingested_by_user_id=88),
         override_flags=[True],
     )
 
     assert len(result.sources) == 1
     assert result.sources[0].source_document_id != ingested.id
+    assert result.sources[0].ingested_by_user_id == 88
     clone = await db_session.get(SourceDocument, result.sources[0].source_document_id)
     assert clone is not None
     assert clone.content_domain == "digital"
+    assert clone.duration_ms == 12_345
+    assert clone.ingested_by == 88
+    assert clone.status == "ingesting"
 
 
 async def test_resolve_override_flags_length_mismatch(db_session: AsyncSession) -> None:

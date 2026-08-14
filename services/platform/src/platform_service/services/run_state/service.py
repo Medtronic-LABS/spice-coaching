@@ -85,7 +85,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
         ingestion_instructions: str | None = None,
         cards_per_module: int | None = None,
         quizzes_per_module: int | None = None,
-        triggered_by: UUID | None = None,
+        ingested_by_user_id: int | None = None,
         tenant_id: int = DEFAULT_TENANT_ID,
     ) -> IngestBatch:
         batch = IngestBatch(
@@ -94,7 +94,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
             ingestion_instructions=ingestion_instructions,
             cards_per_module=cards_per_module,
             quizzes_per_module=quizzes_per_module,
-            triggered_by=triggered_by,
+            ingested_by=ingested_by_user_id,
             tenant_id=tenant_id,
         )
         self._session.add(batch)
@@ -117,7 +117,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
         *,
         source_document_id: UUID,
         ingest_batch_id: UUID,
-        triggered_by: UUID | None = None,
+        ingested_by_user_id: int | None = None,
     ) -> IngestionRun:
         await self._lock_source_document(source_document_id)
         existing = await self.find_active_run(source_document_id)
@@ -127,7 +127,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
             source_document_id=source_document_id,
             ingest_batch_id=ingest_batch_id,
             status=RUN_QUEUED,
-            triggered_by=triggered_by,
+            ingested_by=ingested_by_user_id,
         )
         self._session.add(run)
         try:
@@ -195,7 +195,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
         self,
         *,
         source_document_id: UUID,
-        triggered_by: UUID | None = None,
+        ingested_by_user_id: int | None = None,
         ingest_batch_id: UUID | None = None,
     ) -> IngestionRun:
         await self._lock_source_document(source_document_id)
@@ -206,7 +206,7 @@ class RunStateService(RunClaimMixin, RunStepMixin):
             source_document_id=source_document_id,
             ingest_batch_id=ingest_batch_id,
             status=RUN_RUNNING,
-            triggered_by=triggered_by,
+            ingested_by=ingested_by_user_id,
         )
         self._session.add(run)
         try:

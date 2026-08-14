@@ -82,10 +82,15 @@ class TestBadgesBundleBuilder:
         # Available badges should contain b1 only (active, tenant 1)
         avail_ids = [b.id for b in bundle.available_badges]
         assert avail_ids == [b1.id]
+        assert bundle.available_badges[0].image_storage_path == "badges/b1.png"
 
         # Earned badges should contain both b1 and b3 (soft-deleted included)
         earned_ids = [b.id for b in bundle.earned_badges]
         assert set(earned_ids) == {b1.id, b3.id}
+        assert {b.image_storage_path for b in bundle.earned_badges} == {
+            "badges/b1.png",
+            "badges/b3.png",
+        }
 
     async def test_unearned_chw_gets_empty_earned(self, db_session: AsyncSession) -> None:
         badge_repo = BadgeRepository(db_session)
@@ -126,5 +131,6 @@ class TestBadgesBundleBuilder:
         assert len(bundle.available_badges) == 1
         payload = bundle.available_badges[0]
         assert payload.module_ids == [mod_id]
+        assert payload.image_storage_path == "invalid_path_no_bucket.png"
         # Invalid path presign should soft-fail to None
         assert payload.image_presigned_url is None

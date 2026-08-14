@@ -1,4 +1,4 @@
-"""Repository for district, upazila, and hierarchy users tables."""
+"""Repository for division, district, upazila, and hierarchy users tables."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.district import District
+from platform_service.db.models.division import Division
 from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.upazila import Upazila
 from platform_service.db.models.user_upazila import UserUpazila
@@ -20,17 +21,94 @@ class HierarchyRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    # ── Divisions ──────────────────────────────────────────────────────────
+
+    async def create_division(
+        self,
+        *,
+        name: str,
+        tenant_id: int,
+        actor: str,
+    ) -> Division:
+        division = Division(
+            name=name,
+            tenant_id=tenant_id,
+            created_by=actor,
+            updated_by=actor,
+        )
+        self._session.add(division)
+        await self._session.flush()
+        return division
+
+    async def get_division(self, division_id: int, *, tenant_id: int) -> Division | None:
+        stmt = select(Division).where(
+            Division.id == division_id,
+            Division.tenant_id == tenant_id,
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def get_divisions_by_ids(
+        self,
+        division_ids: set[int],
+        *,
+        tenant_id: int,
+    ) -> dict[int, Division]:
+        if not division_ids:
+            return {}
+        stmt = select(Division).where(
+            Division.tenant_id == tenant_id,
+            Division.id.in_(division_ids),
+        )
+        rows = list((await self._session.execute(stmt)).scalars().all())
+        return {d.id: d for d in rows}
+
+    async def list_divisions(
+        self,
+        *,
+        tenant_id: int,
+        name_query: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[Division], int]:
+        filters = [Division.tenant_id == tenant_id]
+        if name_query:
+            pattern = f"%{_escape_ilike_pattern(name_query.strip())}%"
+            filters.append(Division.name.ilike(pattern, escape="\\"))
+        count_stmt = select(func.count()).select_from(Division).where(*filters)
+        total = int((await self._session.execute(count_stmt)).scalar_one())
+        stmt = select(Division).where(*filters).order_by(Division.id.asc()).limit(limit).offset(offset)
+        rows = list((await self._session.execute(stmt)).scalars().all())
+        return rows, total
+
+    async def update_division(
+        self,
+        division: Division,
+        *,
+        name: str,
+        actor: str,
+    ) -> Division:
+        division.name = name
+        division.updated_by = actor
+        await self._session.flush()
+        return division
+
+    async def delete_division(self, division: Division) -> None:
+        await self._session.delete(division)
+        await self._session.flush()
+
     # ── Districts ──────────────────────────────────────────────────────────
 
     async def create_district(
         self,
         *,
         name: str,
+        division_id: int | None,
         tenant_id: int,
         actor: str,
     ) -> District:
         district = District(
             name=name,
+            division_id=division_id,
             tenant_id=tenant_id,
             created_by=actor,
             updated_by=actor,
@@ -69,11 +147,14 @@ class HierarchyRepository:
         self,
         *,
         tenant_id: int,
+        division_id: int | None = None,
         name_query: str | None = None,
         limit: int,
         offset: int,
     ) -> tuple[list[District], int]:
         filters = [District.tenant_id == tenant_id]
+        if division_id is not None:
+            filters.append(District.division_id == division_id)
         if name_query:
             pattern = f"%{_escape_ilike_pattern(name_query.strip())}%"
             filters.append(District.name.ilike(pattern, escape="\\"))
@@ -88,9 +169,11 @@ class HierarchyRepository:
         district: District,
         *,
         name: str,
+        division_id: int | None,
         actor: str,
     ) -> District:
         district.name = name
+        district.division_id = division_id
         district.updated_by = actor
         await self._session.flush()
         return district
@@ -229,6 +312,7 @@ class HierarchyRepository:
         *,
         tenant_id: int,
         district_id: int | None,
+        division_id: int | None,
         role: str | None,
         parent_id: int | None,
         upazila_id: int | None,
@@ -239,6 +323,16 @@ class HierarchyRepository:
         filters = [HierarchyUser.tenant_id == tenant_id]
         if district_id is not None:
             filters.append(HierarchyUser.district_id == district_id)
+        if division_id is not None:
+            filters.append(
+                select(District.id)
+                .where(
+                    District.id == HierarchyUser.district_id,
+                    District.division_id == division_id,
+                    District.tenant_id == tenant_id,
+                )
+                .exists()
+            )
         if role is not None:
             filters.append(HierarchyUser.role == role)
         if parent_id is not None:

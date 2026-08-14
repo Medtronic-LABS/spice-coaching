@@ -33,41 +33,20 @@ class ModuleLifecycleState:
     module_id: UUID
     module_family_id: UUID
     lifecycle_status: str
-    first_activated_at: datetime | None
-    last_deactivated_at: datetime | None
-    last_reactivated_at: datetime | None
+    activated_at: datetime | None
+    deactivated_at: datetime | None
 
 
 class ModuleLifecycleRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def record_first_activation(
-        self,
-        module_id: UUID,
-        *,
-        at: datetime | None = None,
-        actor_id: UUID | None = None,
-    ) -> None:
-        module = await self._session.get(Module, module_id)
-        if module is None:
-            return
-        ts = at or datetime.now(UTC)
-        if module.first_activated_at is None:
-            module.first_activated_at = ts
-            await self._append_event(
-                module_id=module_id,
-                event_type="activated",
-                occurred_at=ts,
-                actor_id=actor_id,
-            )
-        await self._session.flush()
-
     async def deactivate(
         self,
         module_id: UUID,
         *,
         actor_id: UUID | None = None,
+        deactivated_by_user_id: int | None = None,
         reason: str | None = None,
     ) -> ModuleLifecycleState:
         module = await self._session.get(Module, module_id)
@@ -82,8 +61,8 @@ class ModuleLifecycleRepository:
 
         ts = datetime.now(UTC)
         module.lifecycle_status = LIFECYCLE_DEACTIVATED
-        module.last_deactivated_at = ts
-        module.deactivated_by = actor_id
+        module.deactivated_at = ts
+        module.deactivated_by = deactivated_by_user_id
         await self._append_event(
             module_id=module_id,
             event_type="deactivated",
@@ -99,6 +78,7 @@ class ModuleLifecycleRepository:
         module_id: UUID,
         *,
         actor_id: UUID | None = None,
+        activated_by_user_id: int | None = None,
         reason: str | None = None,
     ) -> ModuleLifecycleState:
         module = await self._session.get(Module, module_id)
@@ -111,10 +91,8 @@ class ModuleLifecycleRepository:
 
         ts = datetime.now(UTC)
         module.lifecycle_status = LIFECYCLE_PUBLISHED
-        module.last_reactivated_at = ts
-        module.reactivated_by = actor_id
-        if module.first_activated_at is None:
-            module.first_activated_at = ts
+        module.activated_at = ts
+        module.activated_by = activated_by_user_id
         await self._append_event(
             module_id=module_id,
             event_type="reactivated",
@@ -130,6 +108,7 @@ class ModuleLifecycleRepository:
         module_id: UUID,
         *,
         actor_id: UUID | None = None,
+        published_by_user_id: int | None = None,
         reason: str | None = None,
     ) -> ModuleLifecycleState:
         module = await self._session.get(Module, module_id)
@@ -143,8 +122,10 @@ class ModuleLifecycleRepository:
             module.lifecycle_status = LIFECYCLE_PUBLISHED
             if module.published_at is None:
                 module.published_at = ts
-            if module.first_activated_at is None:
-                module.first_activated_at = ts
+            if module.published_by is None:
+                module.published_by = published_by_user_id
+            if module.activated_at is None:
+                module.activated_at = ts
 
             family = await self._session.get(ModuleFamily, module.module_family_id)
             if family is not None:
@@ -187,7 +168,6 @@ class ModuleLifecycleRepository:
             module_id=module.id,
             module_family_id=module.module_family_id,
             lifecycle_status=module.lifecycle_status,
-            first_activated_at=module.first_activated_at,
-            last_deactivated_at=module.last_deactivated_at,
-            last_reactivated_at=module.last_reactivated_at,
+            activated_at=module.activated_at,
+            deactivated_at=module.deactivated_at,
         )

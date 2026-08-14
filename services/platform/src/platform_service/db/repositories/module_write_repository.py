@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from mc_contracts.enums import ContentDomain
 from mc_contracts.localized import LocalizedString
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -42,10 +43,11 @@ class ModuleWriteRepository:
         estimated_minutes: int = 10,
         difficulty_level: str = "moderate",
         module_json: dict[str, Any] | None = None,
-        creator_id: UUID | None = None,
+        created_by_user_id: int | None = None,
         behavioural_gap_ids: list[UUID] | None = None,
         primary_gap_id: UUID | None = None,
         chatbot_faqs_only: bool = False,
+        content_domain: str = ContentDomain.CLINICAL.value,
         tenant_id: int = DEFAULT_TENANT_ID,
     ) -> Module:
         if chatbot_faqs_only and behavioural_gap_ids:
@@ -66,7 +68,6 @@ class ModuleWriteRepository:
             if row is None:
                 family = ModuleFamily(
                     module_code=candidate_code,
-                    created_by=creator_id,
                     tenant_id=tenant_id,
                 )
                 self._session.add(family)
@@ -82,6 +83,7 @@ class ModuleWriteRepository:
             description_localized=description,
             domain=domain,
             sub_domain=sub_domain,
+            content_domain=content_domain,
             module_type=module_type,
             estimated_minutes=estimated_minutes,
             difficulty_level=difficulty_level,
@@ -91,6 +93,7 @@ class ModuleWriteRepository:
             published_at=None,
             chatbot_faqs_only=chatbot_faqs_only,
             tenant_id=tenant_id,
+            created_by=created_by_user_id,
         )
         self._session.add(new_module)
         await self._session.flush()
@@ -188,8 +191,9 @@ class ModuleWriteRepository:
         module_json: dict[str, Any] | None = None,
         visibility_window: Any | None = None,
         thumbnail_storage_path: str | None | object = THUMBNAIL_UNSET,
-        editor_id: UUID | None = None,
+        created_by_user_id: int | None = None,
         chatbot_faqs_only: bool | None = None,
+        content_domain: str | None | object = THUMBNAIL_UNSET,
     ) -> Module:
         current = await self.get_editable_module_tip(
             module_id,
@@ -202,6 +206,11 @@ class ModuleWriteRepository:
         else:
             next_thumbnail = thumbnail_storage_path
 
+        if content_domain is THUMBNAIL_UNSET:
+            next_content_domain = current.content_domain
+        else:
+            next_content_domain = content_domain
+
         next_title_localized = title if title is not None else current.title_localized
         next_description_localized = description if description is not None else current.description_localized
 
@@ -212,6 +221,7 @@ class ModuleWriteRepository:
             description_localized=next_description_localized,
             domain=current.domain,
             sub_domain=current.sub_domain,
+            content_domain=next_content_domain,
             module_type=current.module_type,
             tenant_id=current.tenant_id,
             primary_gap_id=current.primary_gap_id,
@@ -234,6 +244,7 @@ class ModuleWriteRepository:
             lifecycle_status="draft",
             published_at=None,
             supersedes_module_id=current.id,
+            created_by=created_by_user_id,
         )
         self._session.add(new_module)
         try:

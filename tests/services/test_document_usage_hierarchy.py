@@ -31,7 +31,7 @@ pytestmark = [requires_db, pytest.mark.asyncio]
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_and_seed(db_session: AsyncSession) -> AsyncIterator[None]:
     await db_session.execute(
-        text('TRUNCATE "users", district, upazila, user_upazila RESTART IDENTITY CASCADE')
+        text('TRUNCATE "users", district, upazila, user_upazila, division RESTART IDENTITY CASCADE')
     )
     await db_session.commit()
     await seed_basic_hierarchy(db_session)
@@ -39,7 +39,7 @@ async def _wipe_and_seed(db_session: AsyncSession) -> AsyncIterator[None]:
     yield
     await db_session.rollback()
     await db_session.execute(
-        text('TRUNCATE "users", district, upazila, user_upazila RESTART IDENTITY CASCADE')
+        text('TRUNCATE "users", district, upazila, user_upazila, division RESTART IDENTITY CASCADE')
     )
     await db_session.commit()
 
@@ -168,6 +168,18 @@ class TestApplyDocumentUsageFilters:
         index = await org_user_index(db_session, tenant_id=0)
         assert all(index[uid].district == "Lalmonirhat" for uid in result)
 
+    async def test_division_filter_from_unrestricted(self, db_session: AsyncSession) -> None:
+        result = await apply_document_usage_filters(
+            db_session,
+            None,
+            tenant_id=0,
+            division="Rangpur",
+        )
+        assert result is not None
+        assert len(result) > 0
+        index = await org_user_index(db_session, tenant_id=0)
+        assert all(index[uid].division == "Rangpur" for uid in result)
+
     async def test_upazila_filter_from_unrestricted(self, db_session: AsyncSession) -> None:
         result = await apply_document_usage_filters(
             db_session,
@@ -179,6 +191,63 @@ class TestApplyDocumentUsageFilters:
         assert len(result) > 0
         index = await org_user_index(db_session, tenant_id=0)
         assert all("Lalmonirhat Sadar" in index[uid].upazila_names for uid in result)
+
+    async def test_filter_users_by_chw_ids_none_passthrough(self) -> None:
+        from platform_service.services.document_usage_hierarchy import (
+            OrgUser,
+            filter_users_by_chw_ids,
+        )
+
+        users = [
+            OrgUser(
+                id=1,
+                name="A",
+                role="PO",
+                district_id=1,
+                district="Lalmonirhat",
+                division_id=1,
+                division="Rangpur",
+                upazila_ids=frozenset({1}),
+                upazila_names=frozenset({"Lalmonirhat Sadar"}),
+                parent_id=None,
+            )
+        ]
+        assert filter_users_by_chw_ids(users, None) == users
+
+    async def test_filter_users_by_chw_ids_intersects(self) -> None:
+        from platform_service.services.document_usage_hierarchy import (
+            OrgUser,
+            filter_users_by_chw_ids,
+        )
+
+        users = [
+            OrgUser(
+                id=1,
+                name="A",
+                role="PO",
+                district_id=1,
+                district="Lalmonirhat",
+                division_id=1,
+                division="Rangpur",
+                upazila_ids=frozenset({1}),
+                upazila_names=frozenset({"Lalmonirhat Sadar"}),
+                parent_id=None,
+            ),
+            OrgUser(
+                id=2,
+                name="B",
+                role="SHASTIYA_KORMI",
+                district_id=1,
+                district="Lalmonirhat",
+                division_id=1,
+                division="Rangpur",
+                upazila_ids=frozenset({2}),
+                upazila_names=frozenset({"Aditmari"}),
+                parent_id=1,
+            ),
+        ]
+        filtered = filter_users_by_chw_ids(users, frozenset({2}))
+        assert [u.id for u in filtered] == [2]
 
     async def test_user_display_known_and_unknown(self, db_session: AsyncSession) -> None:
         index = await org_user_index(db_session, tenant_id=0)

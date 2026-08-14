@@ -18,6 +18,7 @@ BEARER_PREFIX = "Bearer "
 # failures (timeout / connection / 5xx). Auth rejections (4xx) are not retried.
 _AUTHENTICATE_MAX_ATTEMPTS = 3
 _AUTHENTICATE_RETRY_DELAY_SECONDS = 0.05
+AUTH_UPSTREAM_FAILURE_DETAIL = "unable to authenticate"
 
 
 class _NoStoreCookieJar(CookieJar):
@@ -98,7 +99,7 @@ class SpiceAuthClient:
             try:
                 resp = await self._client.post(self._authenticate_url, headers=headers)
             except httpx.TimeoutException as exc:
-                last_error = SpiceAuthError(503, "authentication service unavailable")
+                last_error = SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL)
                 logger.warning(
                     "spice auth-service timeout attempt=%d/%d: %s",
                     attempt,
@@ -110,7 +111,7 @@ class SpiceAuthClient:
                     continue
                 raise last_error from exc
             except httpx.RequestError as exc:
-                last_error = SpiceAuthError(503, "authentication service unavailable")
+                last_error = SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL)
                 logger.warning(
                     "spice auth-service unreachable attempt=%d/%d: %s",
                     attempt,
@@ -123,7 +124,7 @@ class SpiceAuthClient:
                 raise last_error from exc
 
             if resp.status_code >= 500:
-                last_error = SpiceAuthError(503, "authentication service unavailable")
+                last_error = SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL)
                 logger.warning(
                     "spice auth-service returned %s attempt=%d/%d: %s",
                     resp.status_code,
@@ -164,7 +165,7 @@ class SpiceAuthClient:
             return resp
         except httpx.TimeoutException as exc:
             logger.error("spice auth-service session timeout: %s", exc)
-            raise SpiceAuthError(503, "authentication service unavailable") from exc
+            raise SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL) from exc
         except httpx.RequestError as exc:
             logger.error("spice auth-service session unreachable: %s", exc)
-            raise SpiceAuthError(503, "authentication service unavailable") from exc
+            raise SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL) from exc

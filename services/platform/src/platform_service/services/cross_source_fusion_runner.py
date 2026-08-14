@@ -50,6 +50,7 @@ from platform_service.services.cross_source_fuser import CrossSourceFuser, Cross
 from platform_service.services.fusion_candidate_loader import load_fusion_candidates
 from platform_service.services.fusion_draft_orchestrator import FusionDraftOrchestrator
 from platform_service.services.fusion_retire_policy import FusionRetirePolicy
+from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.ingestion_cardinality import load_batch_for_run, resolve_from_batch
 from platform_service.services.run_state_service import (
     RUN_FAILED,
@@ -156,11 +157,15 @@ class CrossSourceFusionRunner:
             logger.exception("Stage 2b fuser failed for fusion_run %s", fusion_run_id)
             async with SessionLocal() as session:
                 run_state = RunStateService(session)
+                user_message, error = build_step_failure(
+                    error_code=ErrorCode.FUSION_FAILED.value,
+                    exc=exc,
+                )
                 await run_state.fail_step(
                     fuse_step_id,
                     error_code=ErrorCode.FUSION_FAILED.value,
-                    error_message=str(exc)[:500],
-                    error={"type": type(exc).__name__, "message": str(exc)[:500]},
+                    error_message=user_message,
+                    error=error,
                 )
                 await run_state.complete_run(fusion_run_id, status=RUN_FAILED)
                 await session.commit()
@@ -198,11 +203,15 @@ class CrossSourceFusionRunner:
         except Exception as exc:
             logger.exception("Stage 2b fuser failed for fusion_run %s", fusion_run_id)
             run_state = RunStateService(session)
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.FUSION_FAILED.value,
+                exc=exc,
+            )
             await run_state.fail_step(
                 fuse_step_id,
                 error_code=ErrorCode.FUSION_FAILED.value,
-                error_message=str(exc)[:500],
-                error={"type": type(exc).__name__, "message": str(exc)[:500]},
+                error_message=user_message,
+                error=error,
             )
             await run_state.complete_run(fusion_run_id, status=RUN_FAILED)
             await session.commit()
@@ -452,14 +461,21 @@ class CrossSourceFusionRunner:
             if module_id is not None:
                 await run_state.complete_step(draft_step_id, output_summary=draft_summary)
             else:
-                await run_state.fail_step(
-                    draft_step_id,
+                technical = reason or "draft_failed"
+                user_message, error = build_step_failure(
                     error_code=ErrorCode.DRAFT_FAILED.value,
-                    error_message=reason or "draft_failed",
-                    error={
+                    reason="draft_failed",
+                    technical_message=technical,
+                    extra={
                         "candidate_id": str(fc_id),
                         "insufficient_reason": reason or "draft_failed",
                     },
+                )
+                await run_state.fail_step(
+                    draft_step_id,
+                    error_code=ErrorCode.DRAFT_FAILED.value,
+                    error_message=user_message,
+                    error=error,
                 )
             await draft_session.commit()
             return module_id, cards_count, reason, coverage_ok, draft_summary

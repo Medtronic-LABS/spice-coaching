@@ -61,7 +61,8 @@ class TeamActivityMemberDetail(BaseModel):
     """One current-level team-activity row (AM, PO, or SK).
 
     AM/PO metrics are rolled up from descendant SKs. ``can_drill_down`` is true
-    for AM/PO rows and false for SK rows.
+    for AM/PO rows and false for SK rows. AM/PO rows include SK-counted
+    ``summary`` (same fields as the envelope); SK rows are ``null``.
     """
 
     user_id: int
@@ -79,6 +80,7 @@ class TeamActivityMemberDetail(BaseModel):
     chatbot_modules: list[TeamMemberChatbotModuleUsage] = Field(default_factory=list)
     refreshers_generated: int = 0
     refreshers_completed: int = 0
+    summary: TeamActivitySummary | None = None
 
 
 class TeamActivityResponse(BaseModel):
@@ -89,8 +91,10 @@ class TeamActivityResponse(BaseModel):
     (query param, not echoed) selects a deeper member level under that focus.
     ``members`` is the current level only (no nesting). ``limit``/``offset``/
     ``total_pages`` page ``members``; ``total_users`` and ``summary.*`` always
-    count Shastiya Kormi (SKs) under the effective focus. ``focus_user_id``
-    echoes the query param when set, otherwise null.
+    count Shastiya Kormi (SKs) under the effective focus. Drillable members
+    (AM/PO) each include a nested SK-counted ``summary`` for that member's
+    subtree; SK members have ``summary`` null. ``focus_user_id`` echoes the
+    query param when set, otherwise null.
     """
 
     from_date: date
@@ -124,6 +128,26 @@ class TeamMemberQuestionsResponse(BaseModel):
     server_time_utc: str
 
 
+class DashboardUserSummary(BaseModel):
+    """Display fields for a CHW referenced by dashboard demand analytics."""
+
+    user_id: int | None = None
+    user_name: str | None = None
+    user_role: str | None = None
+    division: str | None = None
+    district: str | None = None
+    upazila: str | None = None
+
+
+class DigitalHelpModuleQuestionItem(BaseModel):
+    """One deduplicated chatbot question for a module with the latest asker."""
+
+    question: str
+    occurrence_count: int
+    last_asked_at: datetime
+    asked_by: DashboardUserSummary
+
+
 class DigitalHelpModuleQuestionsResponse(BaseModel):
     """Paginated deduplicated chatbot questions for one module."""
 
@@ -131,21 +155,33 @@ class DigitalHelpModuleQuestionsResponse(BaseModel):
     title: LocalizedString | None = None
     from_date: date
     to_date: date
-    questions: list[TeamMemberQuestionItem] = Field(default_factory=list)
+    questions: list[DigitalHelpModuleQuestionItem] = Field(default_factory=list)
     total_questions: int
     total_pages: int
     limit: int
     offset: int
 
 
+class DigitalHelpModuleRequestItem(BaseModel):
+    """One module_requested event for a concrete module."""
+
+    requested_at: datetime
+    reason: str | None = None
+    requested_by: DashboardUserSummary
+
+
 class DigitalHelpModuleRequestsResponse(BaseModel):
-    """Aggregate module_requested count for one concrete module_id."""
+    """Paginated module_requested events for one concrete module_id."""
 
     module_id: UUID
     title: LocalizedString | None = None
     from_date: date
     to_date: date
-    module_requested_count: int
+    requests: list[DigitalHelpModuleRequestItem] = Field(default_factory=list)
+    total_requests: int
+    total_pages: int
+    limit: int
+    offset: int
 
 
 class ModuleCreationSuggestionEvidenceItem(BaseModel):
@@ -155,7 +191,7 @@ class ModuleCreationSuggestionEvidenceItem(BaseModel):
     text: str
     occurrence_count: int
     last_seen_at: datetime | None = None
-    sample_chw_id: int | None = None
+    prompted_by: DashboardUserSummary
 
 
 class ModuleCreationSuggestionListItem(BaseModel):
@@ -189,6 +225,14 @@ class ModuleCreationSuggestionDetailResponse(BaseModel):
     suggestion: ModuleCreationSuggestionListItem
     questions: list[ModuleCreationSuggestionEvidenceItem] = Field(default_factory=list)
     requests: list[ModuleCreationSuggestionEvidenceItem] = Field(default_factory=list)
+
+
+class ModuleDemandSummaryResponse(BaseModel):
+    """Human-readable module demand summary for a dashboard date range."""
+
+    from_date: date
+    to_date: date
+    summary: str
 
 
 class PublishedModuleCompletionItem(BaseModel):

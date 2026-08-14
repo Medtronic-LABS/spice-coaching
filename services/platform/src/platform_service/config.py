@@ -388,6 +388,8 @@ class Settings(BaseAppSettings):
     admin_file_upload_prefix: str = "uploads"
     admin_file_max_upload_bytes: int = 100 * 1024 * 1024
     admin_file_presigned_max_seconds: int = 24 * 60 * 60
+    # Max bytes for audio/video at POST /admin/ingest/upload (Stage A chunks before transcription).
+    ingest_media_max_upload_bytes: int = 100 * 1024 * 1024
 
     # ── Coaching RAG ────────────────────────────────────────────
     coaching_rag_module_limit: int = Field(5, ge=1, le=20)

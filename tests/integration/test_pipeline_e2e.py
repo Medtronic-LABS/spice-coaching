@@ -404,6 +404,9 @@ class TestHappyPath:
         assert result.candidates_emitted >= 1
         assert result.drafts_produced >= 1
 
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "ingested"
+
         # Stage D lands modules as ``lifecycle_status="draft"`` per the
         # gated-publish flow. The test asserts Stage D's outputs end up in
         # the draft bucket and the attribution graph is wired
@@ -465,6 +468,9 @@ class TestOutlineEmptyFailsRun:
         assert run.status == "failed"
         assert run.error_jsonb["failed_stage"] == "extract"
 
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "failed"
+
 
 # ─── Scenario 3: Stage C zero candidates ──────────────────────────────────
 
@@ -512,6 +518,9 @@ class TestStageCZeroCandidatesFailsIdentify:
             "message": "zero candidates were identified",
         }
 
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "failed"
+
 
 # ─── Scenario 4: Per-candidate Stage D failure ────────────────────────────
 
@@ -557,6 +566,9 @@ class TestStageDPerCandidateFailure:
         ).scalar_one()
         assert run.error_jsonb["draft_failures"] == 1
         assert run.error_jsonb["drafts_produced"] == 2
+
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "failed"
 
 
 # ─── Scenario 5: Resume after partial failure ─────────────────────────────

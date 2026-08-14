@@ -40,6 +40,8 @@ class SourceDocument(TenantMixin, Base):
     original_storage_path: Mapped[str] = mapped_column(Text, nullable=False)
     # Object-storage path to ingest thumbnail PNG ({bucket}/ingest/thumbnails/{id}.png).
     thumbnail_storage_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Audio/video length in milliseconds; null for documents and when ffprobe fails.
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Optional audit / dedup (populated by ingest when bytes are available).
     content_sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -69,7 +71,8 @@ class SourceDocument(TenantMixin, Base):
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    ingested_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Spice / hierarchy user id (see users.id); no hard FK — soft-join at list time.
+    ingested_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

@@ -93,11 +93,12 @@ class SourceRepository:
         source_document_family_id: UUID | None = None,
         version_label: str | None = None,
         publication_date: date | None = None,
-        ingested_by: UUID | None = None,
+        ingested_by: int | None = None,
         content_sha256: str | None = None,
         original_filename: str | None = None,
         uploaded_by: int | None = None,
         description: str | None = None,
+        duration_ms: int | None = None,
         sync_published_visible: bool = False,
         status: str = "ingesting",
         uploaded_date: datetime | None = None,
@@ -118,6 +119,7 @@ class SourceRepository:
             original_filename=original_filename,
             uploaded_by=uploaded_by,
             description=description,
+            duration_ms=duration_ms,
             sync_published_visible=sync_published_visible,
             status=status,
             tenant_id=tenant_id,
@@ -354,21 +356,36 @@ class SourceRepository:
             content_sha256=source.content_sha256,
             original_filename=source.original_filename,
             uploaded_by=uploaded_by if uploaded_by is not None else source.uploaded_by,
+            duration_ms=source.duration_ms,
             sync_published_visible=source.sync_published_visible,
             status="uploaded",
             tenant_id=source.tenant_id,
         )
 
+    async def mark_source_document_ingest_failed(self, document_id: UUID) -> None:
+        """Mark a source document failed after terminal ingest failure (skip retired)."""
+        doc = await self.get_source_document(document_id)
+        if doc is None or doc.status == "retired":
+            return
+        await self.update_status(document_id, "failed")
+
     async def update_status(
-        self, document_id: UUID, status: str, *, calibration: dict[str, Any] | None = None
+        self,
+        document_id: UUID,
+        status: str,
+        *,
+        calibration: dict[str, Any] | None = None,
+        ingested_by: int | None = None,
     ) -> None:
-        """Update status and (optionally) the extraction calibration result."""
+        """Update status and (optionally) calibration / ingest starter user id."""
         doc = await self.get_source_document(document_id)
         if doc is None:
             raise ValueError(f"source_document {document_id} not found")
         doc.status = status
         if calibration is not None:
             doc.extraction_calibration_jsonb = calibration
+        if ingested_by is not None:
+            doc.ingested_by = ingested_by
         await self._session.flush()
 
     async def update_outline(

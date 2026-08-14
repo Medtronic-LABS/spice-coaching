@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from mc_contracts.source_documents import SourceDocumentActorRef
+
 
 class IngestionRunSummary(BaseModel):
     id: UUID
@@ -19,10 +21,12 @@ class IngestionRunSummary(BaseModel):
     # Prefer original_filename when present; otherwise source_document.title.
     document_label: str = ""
     # Populated for succeeded runs only (else 0). Totals across modules
-    # produced by this run's card_draft steps (distinct module_id).
+    # produced by this run's card_draft steps (distinct primary module_id;
+    # dual-path review_pending secondaries are excluded).
     generated_module_count: int = 0
     generated_card_count: int = 0
     generated_quiz_count: int = 0
+    ingested_by: SourceDocumentActorRef | None = None
 
 
 class IngestionRunListResponse(BaseModel):

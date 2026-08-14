@@ -108,7 +108,7 @@ class StageAExtractor:
         resolved_primary_language = primary_language or get_settings().deployment_primary_locale
         total_pages = await self._count_pages_or_fail(source_document_id, source_path, source_type)
         if total_pages == 0:
-            await self._repo.update_status(source_document_id, "failed")
+            await self._repo.mark_source_document_ingest_failed(source_document_id)
             await self._session.commit()
             raise Stage1DocumentEmptyError()
 
@@ -148,7 +148,7 @@ class StageAExtractor:
                 source_document_id,
                 source_path,
             )
-            await self._repo.update_status(source_document_id, "failed")
+            await self._repo.mark_source_document_ingest_failed(source_document_id)
             raise TextExtractionError(f"Stage A: cannot count pages: {exc}") from exc
 
     async def _extract_source_or_fail(
@@ -160,7 +160,7 @@ class StageAExtractor:
     ):
         extractor = self._extractors.get(source_type)
         if extractor is None:
-            await self._repo.update_status(source_document_id, "failed")
+            await self._repo.mark_source_document_ingest_failed(source_document_id)
             raise UnsupportedSourceTypeError(
                 f"no Stage A extractor registered for source_type={source_type!r}"
             )
@@ -171,7 +171,7 @@ class StageAExtractor:
                 primary_language=primary_language,
             )
         except TextExtractionError:
-            await self._repo.update_status(source_document_id, "failed")
+            await self._repo.mark_source_document_ingest_failed(source_document_id)
             raise
 
 

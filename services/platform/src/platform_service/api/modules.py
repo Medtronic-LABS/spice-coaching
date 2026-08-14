@@ -12,6 +12,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
+from mc_contracts.enums import ContentDomain
 from mc_contracts.errors import ErrorCode
 from mc_contracts.modules import (
     ModuleCreateRequest,
@@ -25,10 +26,12 @@ from mc_foundation.objectstore import ObjectStore
 from mc_foundation.problem import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from platform_service.auth.spice_user import get_selected_tenant_id
+from platform_service.auth.spice_user import get_selected_tenant_id, resolve_spice_user_id
 from platform_service.config import Settings, get_settings
+from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.module import Module
 from platform_service.db.module_availability import VALID_LIFECYCLE_STATUSES
+from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
 from platform_service.db.repositories.module_gap_repository import (
     ModuleGapLinkError,
     ModuleGapRepository,
@@ -77,6 +80,7 @@ from platform_service.services.module_presenter import (
     summary_from_module,
     visibility_window_bounds,
 )
+from platform_service.services.module_publish_enrichment import ModulePublishEnrichmentError
 from platform_service.services.module_publish_service import ModulePublishService
 from platform_service.services.module_quiz_service import ModuleQuizService
 from platform_service.services.module_retire_service import ModuleRetireService
@@ -84,6 +88,21 @@ from platform_service.services.module_thumbnail_service import validate_module_t
 
 router = APIRouter(prefix="/admin", tags=["admin-dashboard"])
 logger = logging.getLogger(__name__)
+
+
+def _normalize_csv_query_values(raw: list[str] | None) -> list[str] | None:
+    """Accept repeated params and/or comma-separated values; dedupe, preserve order."""
+    if not raw:
+        return None
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in raw:
+        for part in item.split(","):
+            token = part.strip()
+            if token and token not in seen:
+                seen.add(token)
+                out.append(token)
+    return out or None
 
 
 @router.post("/modules", status_code=201)
@@ -121,10 +140,11 @@ async def create_new_module(
             estimated_minutes=body.estimated_minutes,
             difficulty_level=body.difficulty_level,
             module_json=module_json,
-            creator_id=body.creator_id,
+            created_by_user_id=resolve_spice_user_id(request),
             behavioural_gap_ids=body.behavioural_gap_ids,
             primary_gap_id=body.primary_gap_id,
             chatbot_faqs_only=body.chatbot_faqs_only,
+            content_domain=body.content_domain.value,
             tenant_id=get_selected_tenant_id(request),
         )
     except ValueError as exc:
@@ -157,7 +177,7 @@ async def list_modules(
         None,
         description=(
             "draft | published | retired | deactivated | review_pending — "
-            "omit for All (retired + deactivated excluded; review_pending included)"
+            "omit for All (retired excluded; deactivated + review_pending included)"
         ),
     ),
     clinically_reviewed: bool | None = Query(None),
@@ -167,6 +187,14 @@ async def list_modules(
         description="true → only modules with non-empty quality_flags_jsonb (the 'needs attention' view)",
     ),
     domain: str | None = Query(None, description="Domain filter (module.domain)"),
+    content_domain: list[str] | None = Query(
+        None,
+        description=(
+            "Optional filter on module.content_domain; repeat and/or comma-separate: "
+            "clinical | digital | operational "
+            "(e.g. content_domain=digital&content_domain=operational or content_domain=clinical,digital)"
+        ),
+    ),
     chatbot_faqs_only: bool | None = Query(
         None,
         description=(
@@ -177,6 +205,13 @@ async def list_modules(
     source_document_id: UUID | None = Query(
         default=None,
         description="Optional filter: only modules linked to this source_document_id",
+    ),
+    created_by: list[str] | None = Query(
+        None,
+        description=(
+            "Optional filter by creator hierarchy user id(s); repeat and/or comma-separate "
+            "(e.g. created_by=101&created_by=102 or created_by=101,102)"
+        ),
     ),
     created_from: datetime | None = Query(
         None, description="Inclusive Created Date range start (module.created_at)."
@@ -192,23 +227,17 @@ async def list_modules(
     ),
     activated_from: datetime | None = Query(
         None,
-        description=(
-            "Inclusive Activated Date range start. Uses "
-            "coalesce(last_reactivated_at, first_activated_at, published_at)."
-        ),
+        description="Inclusive Activated Date range start (module.activated_at).",
     ),
     activated_to: datetime | None = Query(
         None,
-        description=(
-            "Inclusive Activated Date range end. Uses "
-            "coalesce(last_reactivated_at, first_activated_at, published_at)."
-        ),
+        description="Inclusive Activated Date range end (module.activated_at).",
     ),
     deactivated_from: datetime | None = Query(
-        None, description="Inclusive Deactivated Date range start (module.last_deactivated_at)."
+        None, description="Inclusive Deactivated Date range start (module.deactivated_at)."
     ),
     deactivated_to: datetime | None = Query(
-        None, description="Inclusive Deactivated Date range end (module.last_deactivated_at)."
+        None, description="Inclusive Deactivated Date range end (module.deactivated_at)."
     ),
     q: str | None = Query(None, description="full-text query against title + description"),
     latest_version_only: bool = Query(
@@ -218,7 +247,7 @@ async def list_modules(
     sort_by: str = Query(
         DEFAULT_MODULE_SORT_BY,
         description=(
-            "created_at | published_at | activated_at | last_deactivated_at | "
+            "created_at | updated_at | published_at | activated_at | deactivated_at | "
             "title | domain | lifecycle_status"
         ),
     ),
@@ -249,6 +278,35 @@ async def list_modules(
             f"status must be one of: {', '.join(sorted(VALID_LIFECYCLE_STATUSES))}",
             status=422,
         )
+    created_by_raw = _normalize_csv_query_values(created_by)
+    created_by_ids: list[int] | None = None
+    if created_by_raw is not None:
+        created_by_ids = []
+        invalid_created_by: list[str] = []
+        for token in created_by_raw:
+            try:
+                created_by_ids.append(int(token))
+            except ValueError:
+                invalid_created_by.append(token)
+        if invalid_created_by:
+            raise AppError(
+                ErrorCode.INVALID_QUERY.value,
+                f"created_by must be integer user id(s); got invalid: {', '.join(invalid_created_by)}",
+                status=422,
+            )
+    content_domain_raw = _normalize_csv_query_values(content_domain)
+    content_domains: list[str] | None = None
+    if content_domain_raw is not None:
+        allowed = frozenset(e.value for e in ContentDomain)
+        invalid_domains = [token for token in content_domain_raw if token not in allowed]
+        if invalid_domains:
+            raise AppError(
+                ErrorCode.INVALID_QUERY.value,
+                f"content_domain must be one of: {', '.join(sorted(allowed))}; "
+                f"got invalid: {', '.join(invalid_domains)}",
+                status=422,
+            )
+        content_domains = content_domain_raw
     if sort_by not in MODULE_SORT_KEYS:
         raise AppError(
             ErrorCode.INVALID_QUERY.value,
@@ -269,6 +327,7 @@ async def list_modules(
         "has_visibility_window": has_visibility_window,
         "has_quality_flags": has_quality_flags,
         "domain": domain,
+        "content_domains": content_domains,
         "chatbot_faqs_only": chatbot_faqs_only,
         "source_document_id": source_document_id,
         "created_from": created_from,
@@ -282,6 +341,7 @@ async def list_modules(
         "full_text_query": q,
         "latest_version_only": latest_version_only,
         "tenant_id": effective_tenant,
+        "created_by_ids": created_by_ids,
     }
     total_modules = await repo.count_modules(**list_filters)
     modules = await repo.list_modules(
@@ -293,12 +353,20 @@ async def list_modules(
     )
     quiz_counts = await get_quiz_counts(session, [m.id for m in modules])
     card_counts = await get_card_counts(session, [m.id for m in modules])
+    creator_ids = {m.created_by for m in modules if m.created_by is not None}
+    publisher_ids = {m.published_by for m in modules if m.published_by is not None}
+    deactivated_ids = {m.deactivated_by for m in modules if m.deactivated_by is not None}
+    activated_ids = {m.activated_by for m in modules if m.activated_by is not None}
+    users_by_id = await HierarchyRepository(session).get_users_by_ids(
+        list(creator_ids | publisher_ids | deactivated_ids | activated_ids)
+    )
     summaries = [
         await summary_from_module(
             m,
             card_count=card_counts.get(m.id, 0),
             quiz_count=quiz_counts.get(m.id, 0),
             storage=storage,
+            users_by_id=users_by_id,
         )
         for m in modules
     ]
@@ -319,7 +387,7 @@ async def list_module_domains(
         None,
         description=(
             "draft | published | retired | deactivated | review_pending — "
-            "omit for All (retired + deactivated excluded; review_pending included)"
+            "omit for All (retired excluded; deactivated + review_pending included)"
         ),
     ),
     latest_version_only: bool = Query(
@@ -375,11 +443,24 @@ async def get_module(
         presigned_expires_by_doc=presigned_expires_by_doc,
     )
     module_attachments = list(module_payload.get("attachments", []))
+    user_ids: list[int] = []
+    if module.created_by is not None:
+        user_ids.append(module.created_by)
+    if module.published_by is not None and module.published_by not in user_ids:
+        user_ids.append(module.published_by)
+    if module.deactivated_by is not None and module.deactivated_by not in user_ids:
+        user_ids.append(module.deactivated_by)
+    if module.activated_by is not None and module.activated_by not in user_ids:
+        user_ids.append(module.activated_by)
+    users_by_id: dict[int, HierarchyUser] = {}
+    if user_ids:
+        users_by_id = await HierarchyRepository(session).get_users_by_ids(user_ids)
     summary = await summary_from_module(
         module,
         card_count=len(cards),
         quiz_count=len(quiz),
         storage=storage,
+        users_by_id=users_by_id,
     )
     window_lower, window_upper = visibility_window_bounds(module)
     gap_repo = ModuleGapRepository(session)
@@ -404,6 +485,7 @@ async def get_module(
 async def edit_module(
     module_id: UUID,
     body: ModuleEditRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db),
     storage: ObjectStore = Depends(get_object_storage_client),
     settings: Settings = Depends(get_settings),
@@ -453,10 +535,16 @@ async def edit_module(
             and body.chatbot_faqs_only is not None
             and body.chatbot_faqs_only != current.chatbot_faqs_only
         )
+        content_domain_changed = (
+            "content_domain" in body.model_fields_set
+            and body.content_domain is not None
+            and body.content_domain.value != current.content_domain
+        )
         if (
             is_complete_edit_snapshot(body)
             and "thumbnail_storage_path" in thumbnail_kw
             and not chatbot_faqs_only_changed
+            and not content_domain_changed
             and edit_content_matches(
                 request_title=body.title,
                 request_description=body.description,
@@ -474,6 +562,10 @@ async def edit_module(
         edit_kwargs: dict[str, Any] = {}
         if "chatbot_faqs_only" in body.model_fields_set:
             edit_kwargs["chatbot_faqs_only"] = body.chatbot_faqs_only
+        if "content_domain" in body.model_fields_set:
+            edit_kwargs["content_domain"] = (
+                body.content_domain.value if body.content_domain is not None else None
+            )
 
         new_module = await repo.edit_module(
             module_id,
@@ -481,7 +573,7 @@ async def edit_module(
             title=body.title,
             description=body.description,
             module_json=module_json,
-            editor_id=body.editor_id,
+            created_by_user_id=resolve_spice_user_id(request),
             **thumbnail_kw,
             **edit_kwargs,
         )
@@ -539,6 +631,7 @@ async def edit_module(
 
 @router.post("/modules/{module_id}/publish")
 async def publish_module(
+    request: Request,
     module_id: UUID,
     body: ModuleLifecycleActionRequest | None = None,
     session: AsyncSession = Depends(get_db),
@@ -547,18 +640,25 @@ async def publish_module(
     service = ModulePublishService(session)
     action = body or ModuleLifecycleActionRequest()
     try:
-        state = await service.publish(module_id, actor_id=action.actor_id, reason=action.reason)
+        state = await service.publish(
+            module_id,
+            actor_id=action.actor_id,
+            published_by_user_id=resolve_spice_user_id(request),
+            reason=action.reason,
+        )
     except ModuleNotFoundError as exc:
         raise AppError(ErrorCode.MODULE_NOT_FOUND.value, str(exc), status=404) from exc
     except ModuleLifecycleError as exc:
         raise AppError(ErrorCode.MODULE_LIFECYCLE_ERROR.value, exc.message, status=409) from exc
+    except ModulePublishEnrichmentError as exc:
+        raise AppError(exc.error_code.value, exc.message, status=502) from exc
 
     await session.commit()
     return {
         "id": str(state.module_id),
         "module_family_id": str(state.module_family_id),
         "lifecycle_status": state.lifecycle_status,
-        "first_activated_at": state.first_activated_at,
+        "activated_at": state.activated_at,
     }
 
 
@@ -567,14 +667,14 @@ def _lifecycle_state_payload(state: ModuleLifecycleState) -> ModuleLifecycleStat
         module_id=state.module_id,
         module_family_id=state.module_family_id,
         lifecycle_status=state.lifecycle_status,
-        first_activated_at=state.first_activated_at,
-        last_deactivated_at=state.last_deactivated_at,
-        last_reactivated_at=state.last_reactivated_at,
+        activated_at=state.activated_at,
+        deactivated_at=state.deactivated_at,
     )
 
 
 @router.post("/modules/{module_id}/deactivate", response_model=ModuleLifecycleStatePayload)
 async def deactivate_module(
+    request: Request,
     module_id: UUID,
     body: ModuleLifecycleActionRequest | None = None,
     session: AsyncSession = Depends(get_db),
@@ -582,7 +682,12 @@ async def deactivate_module(
     repo = ModuleLifecycleRepository(session)
     action = body or ModuleLifecycleActionRequest()
     try:
-        state = await repo.deactivate(module_id, actor_id=action.actor_id, reason=action.reason)
+        state = await repo.deactivate(
+            module_id,
+            actor_id=action.actor_id,
+            deactivated_by_user_id=resolve_spice_user_id(request),
+            reason=action.reason,
+        )
     except LifecycleModuleNotFoundError as exc:
         raise AppError(ErrorCode.MODULE_NOT_FOUND.value, str(exc), status=404) from exc
     except ModuleLifecycleError as exc:
@@ -606,6 +711,7 @@ async def deactivate_module(
 
 @router.post("/modules/{module_id}/reactivate", response_model=ModuleLifecycleStatePayload)
 async def reactivate_module(
+    request: Request,
     module_id: UUID,
     body: ModuleLifecycleActionRequest | None = None,
     session: AsyncSession = Depends(get_db),
@@ -613,7 +719,12 @@ async def reactivate_module(
     repo = ModuleLifecycleRepository(session)
     action = body or ModuleLifecycleActionRequest()
     try:
-        state = await repo.reactivate(module_id, actor_id=action.actor_id, reason=action.reason)
+        state = await repo.reactivate(
+            module_id,
+            actor_id=action.actor_id,
+            activated_by_user_id=resolve_spice_user_id(request),
+            reason=action.reason,
+        )
     except LifecycleModuleNotFoundError as exc:
         raise AppError(ErrorCode.MODULE_NOT_FOUND.value, str(exc), status=404) from exc
     except ModuleLifecycleError as exc:

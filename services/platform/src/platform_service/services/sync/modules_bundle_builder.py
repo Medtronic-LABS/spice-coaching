@@ -19,7 +19,7 @@ from mc_contracts.sync import (
 from mc_foundation.objectstore import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from platform_service.config import Settings
+from platform_service.config import Settings, get_settings
 from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
@@ -34,17 +34,24 @@ from platform_service.services.card_provenance import (
 )
 from platform_service.services.source_thumbnail_service import presign_thumbnail
 from platform_service.services.sync.module_assignment_resolver import resolve_assigned_modules
+from platform_service.services.sync.storage_path import sync_object_name
 
 
 def build_source_document_sync_payloads(
     doc_ids: list[UUID],
     doc_by_id: dict[UUID, SourceDocument],
+    *,
+    bucket_name: str,
 ) -> list[SourceDocumentSyncPayload]:
     payloads: list[SourceDocumentSyncPayload] = []
     for doc_id in doc_ids:
         doc = doc_by_id.get(doc_id)
         if doc is None:
             continue
+        object_name = sync_object_name(doc.original_storage_path, bucket_name=bucket_name)
+        if object_name is None:
+            continue
+        thumb_object_name = sync_object_name(doc.thumbnail_storage_path, bucket_name=bucket_name)
         payloads.append(
             SourceDocumentSyncPayload(
                 source_document_id=doc.id,
@@ -55,7 +62,9 @@ def build_source_document_sync_payloads(
                 version_label=doc.version_label,
                 publication_date=doc.publication_date,
                 original_filename=doc.original_filename,
-                has_thumbnail=bool(doc.thumbnail_storage_path),
+                storage_path=object_name,
+                thumbnail_storage_path=thumb_object_name,
+                has_thumbnail=bool(thumb_object_name),
             )
         )
     return payloads
@@ -141,6 +150,9 @@ class ModulesBundleBuilder:
         all_cards = [card for _, cards in module_cards for card in cards]
         provenance_context = await resolve_card_provenance(self._session, all_cards, storage=None)
 
+        settings = settings or get_settings()
+        bucket_name = settings.object_storage_bucket_name
+
         payloads = []
         for module, cards in module_cards:
             enriched_cards = []
@@ -152,7 +164,9 @@ class ModulesBundleBuilder:
                 )
                 enriched_cards.append(payload)
             doc_ids = list(module.source_document_ids or [])
-            source_documents = build_source_document_sync_payloads(doc_ids, doc_by_id)
+            source_documents = build_source_document_sync_payloads(
+                doc_ids, doc_by_id, bucket_name=bucket_name
+            )
             thumb_url: str | None = None
             thumb_expires: int | None = None
             if storage is not None:
@@ -163,6 +177,7 @@ class ModulesBundleBuilder:
                 )
                 if thumb is not None:
                     thumb_url, thumb_expires = thumb
+            thumb_object_name = sync_object_name(module.thumbnail_storage_path, bucket_name=bucket_name)
             payloads.append(
                 ModuleSyncPayload(
                     id=module.id,
@@ -182,7 +197,8 @@ class ModulesBundleBuilder:
                     published_at=module.published_at,
                     updated_at=module.updated_at,
                     source_documents=source_documents,
-                    has_thumbnail=bool(module.thumbnail_storage_path),
+                    has_thumbnail=bool(thumb_object_name),
+                    thumbnail_storage_path=thumb_object_name,
                     thumbnail_presigned_url=thumb_url,
                     thumbnail_presigned_expires_seconds=thumb_expires,
                     search_metadata=module.search_metadata_jsonb,

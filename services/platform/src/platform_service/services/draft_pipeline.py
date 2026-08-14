@@ -14,14 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from platform_service.celery_tasks import (
     bind_assessment_triggers_task,
     classify_module_gaps_task,
-    generate_module_card_search_metadata_batch_task,
-    generate_module_embedding_task,
     generate_module_quiz_task,
-    generate_module_search_metadata_task,
 )
 from platform_service.config import get_settings
 from platform_service.db.models.content_block import ContentBlock
-from platform_service.db.models.module import Module
 from platform_service.db.models.module_candidate_draft import ModuleCandidateDraft
 from platform_service.db.models.source_page import SourcePage
 from platform_service.services.card_drafter import (
@@ -29,6 +25,7 @@ from platform_service.services.card_drafter import (
     CardDrafterError,
     CardDrafterResult,
 )
+from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.ingestion_cardinality import resolve_for_candidate
 from platform_service.services.module_card_validator import (
     ModuleCardValidator,
@@ -37,27 +34,17 @@ from platform_service.services.module_card_validator import (
 from platform_service.services.plain_text import block_content_to_plain_text
 from platform_service.services.post_publish import should_generate_quiz_for_run
 from platform_service.services.run_state_service import (
-    STAGE_CARD_SEARCH_METADATA_GENERATION,
-    STAGE_EMBEDDING_GENERATION,
     STAGE_GAP_CLASSIFICATION,
     STAGE_QUIZ_GENERATION,
-    STAGE_SEARCH_METADATA_GENERATION,
     STAGE_TRIGGER_BINDING,
     RunStateService,
 )
 
 logger = logging.getLogger(__name__)
 
-_PUBLISHED_MODULE_MERGED_FLAG = "published_module_merged"
-
 
 def _sanitize_cited_block_text(*, block_type: str, content_text: str) -> str:
     return block_content_to_plain_text(block_type=block_type, content_text=content_text)
-
-
-def _module_requires_metadata_regeneration(module: Module) -> bool:
-    flags = (module.quality_flags_jsonb or {}).get("flags") or []
-    return _PUBLISHED_MODULE_MERGED_FLAG in flags
 
 
 @dataclass(frozen=True)
@@ -163,39 +150,17 @@ class DraftPipeline:
         ingestion_run_id: UUID,
         candidate_id: UUID,
     ) -> None:
-        """Enqueue post-publish embedding and (when allowed) quiz workers.
+        """Enqueue post-publish quiz and optional gap/trigger workers.
 
-        Creates ``ingestion_run_step`` rows so ingest polling can track
-        quiz/embedding progress. Imported lazily so orchestrator unit tests
-        that mock the session don't need a real Redis broker.
+        Card/module search metadata and embeddings run synchronously at admin
+        publish (see ``module_publish_enrichment``). Creates ``ingestion_run_step``
+        rows so ingest polling can track quiz/gap/trigger progress.
         """
         run_state = RunStateService(self._session)
         input_summary = {
             "candidate_id": str(candidate_id),
             "module_id": str(module_id),
         }
-        embedding_step = await run_state.start_step(
-            run_id=ingestion_run_id,
-            stage=STAGE_EMBEDDING_GENERATION,
-            input_summary=input_summary,
-        )
-        card_metadata_step_id: UUID | None = None
-        metadata_step_id: UUID | None = None
-        settings = get_settings()
-        if settings.post_publish_search_metadata_enabled:
-            if settings.post_publish_card_search_metadata_enabled:
-                card_metadata_step = await run_state.start_step(
-                    run_id=ingestion_run_id,
-                    stage=STAGE_CARD_SEARCH_METADATA_GENERATION,
-                    input_summary=input_summary,
-                )
-                card_metadata_step_id = card_metadata_step.id
-            metadata_step = await run_state.start_step(
-                run_id=ingestion_run_id,
-                stage=STAGE_SEARCH_METADATA_GENERATION,
-                input_summary=input_summary,
-            )
-            metadata_step_id = metadata_step.id
         gap_step_id: UUID | None = None
         if get_settings().post_publish_gap_classification_enabled:
             gap_step = await run_state.start_step(
@@ -247,11 +212,6 @@ class DraftPipeline:
                 module_id,
             )
 
-        force_card_metadata = False
-        module = await self._session.get(Module, module_id)
-        if module is not None:
-            force_card_metadata = _module_requires_metadata_regeneration(module)
-
         await self._session.commit()
 
         try:
@@ -261,31 +221,11 @@ class DraftPipeline:
                     str(quiz_step_id),
                     quiz_size=quiz_size,
                 )
-            if metadata_step_id is not None:
-                if card_metadata_step_id is not None:
-                    generate_module_card_search_metadata_batch_task.delay(
-                        str(module_id),
-                        str(card_metadata_step_id),
-                        str(metadata_step_id),
-                        str(embedding_step.id),
-                        str(trigger_binding_step_id) if trigger_binding_step_id else None,
-                        force=force_card_metadata,
-                    )
-                else:
-                    generate_module_search_metadata_task.delay(
-                        str(module_id),
-                        str(metadata_step_id),
-                        str(embedding_step.id),
-                        str(trigger_binding_step_id) if trigger_binding_step_id else None,
-                    )
-            elif trigger_binding_step_id is not None:
+            if trigger_binding_step_id is not None:
                 bind_assessment_triggers_task.delay(
                     str(module_id),
                     str(trigger_binding_step_id),
-                    str(embedding_step.id),
                 )
-            else:
-                generate_module_embedding_task.delay(str(module_id), str(embedding_step.id))
             if gap_step_id is not None:
                 classify_module_gaps_task.delay(str(module_id), str(gap_step_id))
         except Exception:
@@ -295,57 +235,43 @@ class DraftPipeline:
                 module_id,
             )
             if quiz_step_id is not None:
+                user_message, error = build_step_failure(
+                    error_code=ErrorCode.ENQUEUE_FAILED.value,
+                    reason="enqueue_failed",
+                    technical_message="failed to enqueue quiz Celery task",
+                    error_type="EnqueueError",
+                )
                 await run_state.fail_step(
                     quiz_step_id,
                     error_code=ErrorCode.ENQUEUE_FAILED.value,
-                    error_message="failed to enqueue quiz Celery task",
-                    error={"type": "EnqueueError", "message": "failed to enqueue quiz Celery task"},
+                    error_message=user_message,
+                    error=error,
                 )
-            if metadata_step_id is not None:
-                await run_state.fail_step(
-                    metadata_step_id,
-                    error_code=ErrorCode.ENQUEUE_FAILED.value,
-                    error_message="failed to enqueue search metadata Celery task",
-                    error={
-                        "type": "EnqueueError",
-                        "message": "failed to enqueue search metadata Celery task",
-                    },
-                )
-            if card_metadata_step_id is not None:
-                await run_state.fail_step(
-                    card_metadata_step_id,
-                    error_code=ErrorCode.ENQUEUE_FAILED.value,
-                    error_message="failed to enqueue card search metadata Celery task",
-                    error={
-                        "type": "EnqueueError",
-                        "message": "failed to enqueue card search metadata Celery task",
-                    },
-                )
-            await run_state.fail_step(
-                embedding_step.id,
-                error_code=ErrorCode.ENQUEUE_FAILED.value,
-                error_message="failed to enqueue embedding Celery task",
-                error={"type": "EnqueueError", "message": "failed to enqueue embedding Celery task"},
-            )
             if gap_step_id is not None:
+                user_message, error = build_step_failure(
+                    error_code=ErrorCode.ENQUEUE_FAILED.value,
+                    reason="enqueue_failed",
+                    technical_message="failed to enqueue gap classification Celery task",
+                    error_type="EnqueueError",
+                )
                 await run_state.fail_step(
                     gap_step_id,
                     error_code=ErrorCode.ENQUEUE_FAILED.value,
-                    error_message="failed to enqueue gap classification Celery task",
-                    error={
-                        "type": "EnqueueError",
-                        "message": "failed to enqueue gap classification Celery task",
-                    },
+                    error_message=user_message,
+                    error=error,
                 )
             if trigger_binding_step_id is not None:
+                user_message, error = build_step_failure(
+                    error_code=ErrorCode.ENQUEUE_FAILED.value,
+                    reason="enqueue_failed",
+                    technical_message="failed to enqueue trigger binding Celery task",
+                    error_type="EnqueueError",
+                )
                 await run_state.fail_step(
                     trigger_binding_step_id,
                     error_code=ErrorCode.ENQUEUE_FAILED.value,
-                    error_message="failed to enqueue trigger binding Celery task",
-                    error={
-                        "type": "EnqueueError",
-                        "message": "failed to enqueue trigger binding Celery task",
-                    },
+                    error_message=user_message,
+                    error=error,
                 )
             await self._session.commit()
             await run_state.maybe_finalize_ingestion_run(ingestion_run_id)

@@ -35,7 +35,7 @@ async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[No
     yield
     await db_session.rollback()
     await db_session.execute(
-        text('TRUNCATE "users", district, upazila, user_upazila RESTART IDENTITY CASCADE')
+        text('TRUNCATE "users", district, upazila, user_upazila, division RESTART IDENTITY CASCADE')
     )
     await db_session.commit()
 
@@ -451,3 +451,83 @@ class TestHierarchyNameQuery:
         assert role_narrow.status_code == 200
         assert {u["id"] for u in role_narrow.json()["users"]} == {SK_OTHER_ID}
         assert role_narrow.json()["total"] == 1
+
+
+class TestAdminDivisions:
+    async def test_division_district_and_user_chain(self, client: AsyncClient) -> None:
+        create_division = await client.post(
+            platform_path("/admin/divisions"),
+            json={"name": "Dhaka Division"},
+        )
+        assert create_division.status_code == 201
+        division = create_division.json()
+        division_id = division["id"]
+        assert division["name"] == "Dhaka Division"
+
+        create_district = await client.post(
+            platform_path("/admin/districts"),
+            json={"name": "Dhaka", "division_id": division_id},
+        )
+        assert create_district.status_code == 201
+        district = create_district.json()
+        assert district["division_id"] == division_id
+        assert district["division"] == "Dhaka Division"
+
+        update_district = await client.put(
+            platform_path(f"/admin/districts/{district['id']}"),
+            json={"name": "Dhaka Metro", "division_id": division_id},
+        )
+        assert update_district.status_code == 200
+        assert update_district.json()["name"] == "Dhaka Metro"
+
+        list_districts = await client.get(
+            platform_path("/admin/districts"),
+            params={"division_id": division_id},
+        )
+        assert list_districts.status_code == 200
+        assert list_districts.json()["total"] == 1
+
+        missing_division = await client.post(
+            platform_path("/admin/districts"),
+            json={"name": "No Division", "division_id": division_id + 999},
+        )
+        assert missing_division.status_code == 404
+        assert missing_division.json()["code"] == ErrorCode.HIERARCHY_DIVISION_NOT_FOUND.value
+
+    async def test_list_users_filters_by_division_id(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        seed = await seed_basic_hierarchy(db_session, tenant_id=0)
+        await db_session.commit()
+
+        resp = await client.get(
+            platform_path("/admin/hierarchy/users"),
+            params={"division_id": seed.division_id},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 5
+        assert all(u["division_id"] == seed.division_id for u in resp.json()["users"])
+
+        empty = await client.get(
+            platform_path("/admin/hierarchy/users"),
+            params={"division_id": seed.division_id + 999},
+        )
+        assert empty.status_code == 200
+        assert empty.json()["total"] == 0
+
+    async def test_delete_division_cascades_districts(self, client: AsyncClient) -> None:
+        division = (
+            await client.post(platform_path("/admin/divisions"), json={"name": "Khulna Division"})
+        ).json()
+        district = (
+            await client.post(
+                platform_path("/admin/districts"),
+                json={"name": "Khulna", "division_id": division["id"]},
+            )
+        ).json()
+
+        delete = await client.delete(platform_path(f"/admin/divisions/{division['id']}"))
+        assert delete.status_code == 204
+
+        missing_district = await client.get(platform_path(f"/admin/districts/{district['id']}"))
+        assert missing_district.status_code == 404

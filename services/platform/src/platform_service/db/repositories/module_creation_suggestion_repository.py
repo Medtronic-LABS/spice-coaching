@@ -149,6 +149,38 @@ class ModuleCreationSuggestionRepository:
         )
         return rows, total
 
+    async def list_all_in_range(
+        self,
+        *,
+        tenant_id: int | None,
+        from_date: date,
+        to_date: date,
+        visible_chw_ids: frozenset[int] | None = None,
+    ) -> list[ModuleCreationSuggestion]:
+        """Return all suggestions in range (no pagination), with evidence loaded."""
+        filters = [
+            ModuleCreationSuggestion.suggestion_date >= from_date,
+            ModuleCreationSuggestion.suggestion_date <= to_date,
+        ]
+        if tenant_id is not None:
+            filters.append(self._scope_filter(tenant_id))
+        if visible_chw_ids is not None:
+            if len(visible_chw_ids) == 0:
+                return []
+            filters.append(self._visible_evidence_exists(visible_chw_ids))
+
+        stmt = (
+            select(ModuleCreationSuggestion)
+            .where(*filters)
+            .order_by(
+                ModuleCreationSuggestion.suggestion_date.desc(),
+                ModuleCreationSuggestion.rank.asc(),
+            )
+            .options(selectinload(ModuleCreationSuggestion.evidence))
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().unique().all())
+
     async def get_detail(
         self,
         *,

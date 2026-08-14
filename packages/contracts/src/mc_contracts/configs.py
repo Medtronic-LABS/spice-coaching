@@ -19,6 +19,7 @@ class ConfigThresholdResponse(BaseModel):
     description: str | None = None
     created_at: datetime
     updated_at: datetime
+    updated_by: str | None = None
 
 
 class ConfigThresholdCreateRequest(BaseModel):
@@ -32,3 +33,20 @@ class ConfigThresholdUpdateRequest(BaseModel):
     value_json: Any
     title: str | None = None
     description: str | None = None
+
+
+class ConfigThresholdChangeItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    previous_value_json: Any | None
+    current_value_json: Any
+    updated_by: str
+    updated_at: datetime
+
+
+class ConfigThresholdChangeListResponse(BaseModel):
+    changes: list[ConfigThresholdChangeItem]
+    total_changes: int
+    total_pages: int
+    limit: int
+    offset: int

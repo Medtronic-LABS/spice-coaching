@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from mc_contracts.errors import ErrorCode
@@ -37,6 +38,7 @@ class IngestStartParams:
     target_cards_per_module: int | None = None
     target_quizzes_per_module: int | None = None
     tenant_id: int = 0
+    ingested_by_user_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +48,8 @@ class IngestStartSourcePayload:
     title: str
     source_type: str
     stored_path: str
+    ingested_at: datetime
+    ingested_by_user_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -128,13 +132,18 @@ class IngestStartService:
             targets.append(resolved)
 
         for doc in targets:
-            await self._source_repo.update_status(doc.id, status="ingesting")
+            await self._source_repo.update_status(
+                doc.id,
+                status="ingesting",
+                ingested_by=params.ingested_by_user_id,
+            )
 
         batch = await self._run_state.create_batch(
             assessment_mode=params.assessment_mode,
             ingestion_instructions=params.ingestion_instructions,
             cards_per_module=params.target_cards_per_module,
             quizzes_per_module=params.target_quizzes_per_module,
+            ingested_by_user_id=params.ingested_by_user_id,
             tenant_id=params.tenant_id,
         )
         source_payloads: list[IngestStartSourcePayload] = []
@@ -144,6 +153,7 @@ class IngestStartService:
                 run = await self._run_state.create_queued_run(
                     source_document_id=doc.id,
                     ingest_batch_id=batch.id,
+                    ingested_by_user_id=params.ingested_by_user_id,
                 )
                 result = IngestedSourceResult(
                     source_document_id=doc.id,
@@ -166,6 +176,12 @@ class IngestStartService:
                         title=doc.title,
                         source_type=doc.source_type,
                         stored_path=doc.original_storage_path,
+                        ingested_at=doc.ingested_at,
+                        ingested_by_user_id=(
+                            params.ingested_by_user_id
+                            if params.ingested_by_user_id is not None
+                            else doc.ingested_by
+                        ),
                     )
                 )
                 await self._record_ingest_started(doc, params)

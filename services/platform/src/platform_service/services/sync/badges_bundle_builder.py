@@ -13,6 +13,7 @@ from platform_service.config import Settings, get_settings
 from platform_service.db.repositories.badge_repository import BadgeRepository
 from platform_service.db.repositories.chw_badge_repository import CHWBadgeRepository
 from platform_service.services.source_thumbnail_service import presign_thumbnail
+from platform_service.services.sync.storage_path import sync_object_name
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class BadgesBundleBuilder:
         settings: Settings | None = None,
     ) -> BadgesSyncBundle:
         settings = settings or get_settings()
+        bucket_name = settings.object_storage_bucket_name
 
         active_badges = await self._badge_repo.list_active_for_tenant(tenant_id)
         earned_tuples = await self._chw_badge_repo.list_earned_for_chw(
@@ -44,6 +46,9 @@ class BadgesBundleBuilder:
 
         available_badges: list[AvailableBadgePayload] = []
         for badge in active_badges:
+            image_object_name = sync_object_name(badge.image_storage_path, bucket_name=bucket_name)
+            if image_object_name is None:
+                continue
             thumb = await presign_thumbnail(
                 storage,
                 thumbnail_storage_path=badge.image_storage_path,
@@ -54,7 +59,7 @@ class BadgesBundleBuilder:
                     id=badge.id,
                     name=badge.name,
                     domain=badge.domain,
-                    image_storage_path=badge.image_storage_path,
+                    image_storage_path=image_object_name,
                     image_presigned_url=thumb[0] if thumb else None,
                     image_presigned_expires_seconds=thumb[1] if thumb else None,
                     sequence=badge.sequence,
@@ -64,6 +69,9 @@ class BadgesBundleBuilder:
 
         earned_badges: list[EarnedBadgePayload] = []
         for chw_badge, badge in earned_tuples:
+            image_object_name = sync_object_name(badge.image_storage_path, bucket_name=bucket_name)
+            if image_object_name is None:
+                continue
             thumb = await presign_thumbnail(
                 storage,
                 thumbnail_storage_path=badge.image_storage_path,
@@ -74,7 +82,7 @@ class BadgesBundleBuilder:
                     id=badge.id,
                     name=badge.name,
                     domain=badge.domain,
-                    image_storage_path=badge.image_storage_path,
+                    image_storage_path=image_object_name,
                     image_presigned_url=thumb[0] if thumb else None,
                     image_presigned_expires_seconds=thumb[1] if thumb else None,
                     sequence=badge.sequence,

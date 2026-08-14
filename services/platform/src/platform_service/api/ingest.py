@@ -34,6 +34,7 @@ from mc_contracts.ingest import (
     IngestUploadedSource,
     IngestUploadResponse,
 )
+from mc_contracts.source_documents import SourceDocumentActorRef
 from mc_foundation.objectstore import ObjectStore
 from mc_foundation.problem import AppError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,6 +45,8 @@ from platform_service.auth.spice_user import (
     resolve_spice_user_id,
 )
 from platform_service.config import get_settings
+from platform_service.db.models.hierarchy_user import HierarchyUser
+from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
 from platform_service.deps import get_db, get_object_storage_client
 from platform_service.services.ingest_batch_poll_presenter import IngestBatchPollPresenter
 from platform_service.services.ingest_enqueue_service import enqueue_thumbnail_and_batch
@@ -106,6 +109,15 @@ def _resolve_optional_positive_int(
             status=422,
         )
     return value
+
+
+def _actor_ref(user_id: int | None, users_by_id: dict[int, HierarchyUser]) -> SourceDocumentActorRef | None:
+    if user_id is None:
+        return None
+    user = users_by_id.get(user_id)
+    if user is None:
+        return None
+    return SourceDocumentActorRef(id=user.id, name=user.name)
 
 
 @router.post("/ingest/upload", status_code=201, response_model=IngestUploadResponse)
@@ -205,6 +217,7 @@ async def start_ingest(
         body.source_document_ids,
     )
     uploaded_by = resolve_spice_actor(request)
+    ingested_by_user_id = resolve_spice_user_id(request)
     params = IngestStartParams(
         assessment_mode=body.assessment_mode,
         actor=uploaded_by,
@@ -212,6 +225,7 @@ async def start_ingest(
         target_cards_per_module=target_cards,
         target_quizzes_per_module=target_quizzes,
         tenant_id=tenant_id,
+        ingested_by_user_id=ingested_by_user_id,
     )
     result = await IngestStartService(db).start(
         source_document_ids=body.source_document_ids,
@@ -225,6 +239,10 @@ async def start_ingest(
         batch_id=result.batch_id,
     )
 
+    actor_ids = {
+        source.ingested_by_user_id for source in result.sources if source.ingested_by_user_id is not None
+    }
+    users_by_id = await HierarchyRepository(db).get_users_by_ids(list(actor_ids))
     return IngestStartResponse(
         batch_id=result.batch_id,
         poll_url=get_settings().api_path(f"/admin/ingest/batches/{result.batch_id}"),
@@ -235,6 +253,8 @@ async def start_ingest(
                 title=source.title,
                 source_type=source.source_type,
                 stored_path=source.stored_path,
+                ingested_at=source.ingested_at,
+                ingested_by=_actor_ref(source.ingested_by_user_id, users_by_id),
             )
             for source in result.sources
         ],

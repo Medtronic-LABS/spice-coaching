@@ -37,6 +37,7 @@ async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[No
         text(
             "TRUNCATE module_quiz_question, module, module_family, "
             "document_assignment, content_block, source_page, source_document, "
+            "config_threshold_change, config_threshold, "
             "users, upazila, district "
             "RESTART IDENTITY CASCADE"
         )
@@ -97,6 +98,65 @@ class TestSyncRoutes:
         assert "mirror" not in locales
         assert locales["supported"] == settings.deployment_locale_config.supported
 
+    async def test_config_sync_returns_selected_tenant_latest_values(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Unscoped sync used to collapse keys across tenants and return stale values."""
+        key = "quiz_reattempt_validity_days"
+        await db_session.execute(
+            text(
+                """
+                INSERT INTO config_threshold (tenant_id, key, title, description) VALUES
+                (1, :key, 'Tenant A', 'A'),
+                (2, :key, 'Tenant B', 'B')
+                """
+            ),
+            {"key": key},
+        )
+        await db_session.execute(
+            text(
+                """
+                INSERT INTO config_threshold_change (
+                    tenant_id, config_threshold_id, key,
+                    previous_value_json, current_value_json, version, updated_by
+                )
+                SELECT ct.tenant_id, ct.id, ct.key, NULL, '7'::jsonb, 1, 'seed'
+                FROM config_threshold AS ct
+                WHERE ct.key = :key AND ct.tenant_id IN (1, 2)
+                """
+            ),
+            {"key": key},
+        )
+        await db_session.execute(
+            text(
+                """
+                INSERT INTO config_threshold_change (
+                    tenant_id, config_threshold_id, key,
+                    previous_value_json, current_value_json, version, updated_by
+                )
+                SELECT ct.tenant_id, ct.id, ct.key, '7'::jsonb, '45'::jsonb, 2, 'admin'
+                FROM config_threshold AS ct
+                WHERE ct.key = :key AND ct.tenant_id = 1
+                """
+            ),
+            {"key": key},
+        )
+        await db_session.commit()
+
+        resp_a = await client.get(
+            platform_path("/sync/config"),
+            headers={"x-mock-tenant-id": "1"},
+        )
+        assert resp_a.status_code == 200
+        assert resp_a.json()["thresholds"][key] == 45
+
+        resp_b = await client.get(
+            platform_path("/sync/config"),
+            headers={"x-mock-tenant-id": "2"},
+        )
+        assert resp_b.status_code == 200
+        assert resp_b.json()["thresholds"][key] == 7
+
     async def test_modules_sync_requires_since(self, client: AsyncClient) -> None:
         resp = await client.get(platform_path("/sync/modules"))
         assert resp.status_code == 422
@@ -140,6 +200,7 @@ class TestSourceDocumentsSync:
         entry = data["source_documents"][0]
         assert entry["source_document_id"] == str(doc.id)
         assert entry["title"] == doc.title
+        assert entry["description"] is None
         assert entry["source_type"] == doc.source_type
         assert entry["assigned_at"] is None
         assert data["assigned_documents"] == []

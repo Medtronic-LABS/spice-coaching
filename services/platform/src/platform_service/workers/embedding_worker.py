@@ -1,15 +1,14 @@
 """Post-publish embedding worker.
 
-Per `docs/ARCHITECTURE_RESET.md`. Triggered on module publish (Stage 3
-enqueues a Celery task per `module_id`). Reads card text from ``module_card`` rows,
-calls ai-runtime `/embed`, and writes the vector via the configured
-``VectorStore`` (pgvector adapter persists to ``module.embedding`` today).
+Generates a per-module vector at admin publish time (via
+``module_publish_enrichment``) and can still be invoked from Celery for
+standalone retries. Reads card text from ``module_card`` rows, calls ai-runtime
+``/embed``, and writes the vector via the configured ``VectorStore`` (pgvector
+adapter persists to ``module.embedding`` today).
 
 The embedding is per-module (not per-card). It serves admin/web semantic
 search inside this repo; the Android repo's runtime grounding flow uses it
-via a standard fetch endpoint (added in step 11). Failure does not block
-the module — the module remains readable in the dashboard via title and
-full-text search until a later embedding run succeeds.
+via a standard fetch endpoint (added in step 11).
 """
 
 from __future__ import annotations

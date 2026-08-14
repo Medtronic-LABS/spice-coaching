@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from mc_contracts.enums import HierarchyRole
 from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.district import District
+from platform_service.db.models.division import Division
 from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.upazila import Upazila
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +23,8 @@ SK_OTHER_ID = 3002
 @dataclass(frozen=True, slots=True)
 class HierarchySeed:
     tenant_id: int
+    division_id: int
+    division_name: str
     district_id: int
     upazila_id: int
     upazila_other_id: int
@@ -39,6 +42,7 @@ async def seed_basic_hierarchy(
     session: AsyncSession,
     *,
     tenant_id: int = DEFAULT_TENANT_ID,
+    division_name: str = "Rangpur",
     district_name: str = "Lalmonirhat",
     upazila_name: str = "Lalmonirhat Sadar",
     upazila_other_name: str = "Aditmari",
@@ -48,9 +52,19 @@ async def seed_basic_hierarchy(
     sk_id: int = SK_ID,
     sk_other_id: int = SK_OTHER_ID,
 ) -> HierarchySeed:
-    """Insert district + upazilas + AM → two POs → two SKs (one under each PO)."""
+    """Insert division + district + upazilas + AM → two POs → two SKs (one under each PO)."""
+    division = Division(
+        name=division_name,
+        tenant_id=tenant_id,
+        created_by="test",
+        updated_by="test",
+    )
+    session.add(division)
+    await session.flush()
+
     district = District(
         name=district_name,
+        division_id=division.id,
         tenant_id=tenant_id,
         created_by="test",
         updated_by="test",
@@ -146,6 +160,8 @@ async def seed_basic_hierarchy(
 
     return HierarchySeed(
         tenant_id=tenant_id,
+        division_id=division.id,
+        division_name=division_name,
         district_id=district.id,
         upazila_id=upazila.id,
         upazila_other_id=upazila_other.id,
@@ -160,4 +176,6 @@ async def seed_basic_hierarchy(
     )
 
 
-HIERARCHY_TRUNCATE_SQL = 'TRUNCATE "users", district, upazila, user_upazila RESTART IDENTITY CASCADE'
+HIERARCHY_TRUNCATE_SQL = (
+    'TRUNCATE "users", district, upazila, user_upazila, division RESTART IDENTITY CASCADE'
+)

@@ -45,9 +45,7 @@ class TestListModules:
         assert "Live" in titles
         assert "Gone" not in titles
 
-    async def test_default_includes_review_pending_excludes_deactivated(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_default_includes_review_pending_and_deactivated(self, db_session: AsyncSession) -> None:
         fam = await _make_family(db_session)
         await _make_module(
             db_session,
@@ -67,7 +65,7 @@ class TestListModules:
         rows = await repo.list_modules()
         titles = {m.title_localized["bn"] for m in rows}
         assert "PendingReview" in titles
-        assert "Deactivated" not in titles
+        assert "Deactivated" in titles
 
     async def test_status_retired_filter_returns_only_retired(self, db_session: AsyncSession) -> None:
         fam = await _make_family(db_session)
@@ -303,6 +301,28 @@ class TestListModules:
         rows = await repo.list_modules(domain=domain, sort_by="created_at", sort_dir="asc")
         assert [m.id for m in rows] == [early.id, late.id]
 
+    async def test_orders_by_updated_at_desc(self, db_session: AsyncSession) -> None:
+        domain = f"sort-updated-{uuid4().hex[:6]}"
+        older = await _make_module(
+            db_session,
+            family=await _make_family(db_session),
+            title_localized={"bn": "older-updated"},
+            domain=domain,
+        )
+        newer = await _make_module(
+            db_session,
+            family=await _make_family(db_session),
+            title_localized={"bn": "newer-updated"},
+            domain=domain,
+        )
+        older.updated_at = datetime(2024, 1, 1, tzinfo=UTC)
+        newer.updated_at = datetime(2025, 6, 1, tzinfo=UTC)
+        await db_session.flush()
+
+        repo = ModuleRepository(db_session)
+        rows = await repo.list_modules(domain=domain, sort_by="updated_at", sort_dir="desc")
+        assert [m.id for m in rows] == [newer.id, older.id]
+
     async def test_orders_by_published_at_asc(self, db_session: AsyncSession) -> None:
         domain = f"sort-published-{uuid4().hex[:6]}"
         old = await _make_module(
@@ -357,7 +377,7 @@ class TestListModules:
             domain=domain,
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
         )
-        older.first_activated_at = datetime(2024, 6, 1, tzinfo=UTC)
+        older.activated_at = datetime(2024, 6, 1, tzinfo=UTC)
         newer = await _make_module(
             db_session,
             family=await _make_family(db_session),
@@ -365,14 +385,14 @@ class TestListModules:
             domain=domain,
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
         )
-        newer.last_reactivated_at = datetime(2025, 3, 15, tzinfo=UTC)
+        newer.activated_at = datetime(2025, 3, 15, tzinfo=UTC)
         await db_session.flush()
 
         repo = ModuleRepository(db_session)
         rows = await repo.list_modules(domain=domain, sort_by="activated_at", sort_dir="desc")
         assert [m.id for m in rows] == [newer.id, older.id]
 
-    async def test_orders_by_last_deactivated_at_desc(self, db_session: AsyncSession) -> None:
+    async def test_orders_by_deactivated_at_desc(self, db_session: AsyncSession) -> None:
         domain = f"sort-deactivated-{uuid4().hex[:6]}"
         early = await _make_module(
             db_session,
@@ -383,7 +403,7 @@ class TestListModules:
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
             set_family_pointer=False,
         )
-        early.last_deactivated_at = datetime(2025, 1, 1, tzinfo=UTC)
+        early.deactivated_at = datetime(2025, 1, 1, tzinfo=UTC)
         late = await _make_module(
             db_session,
             family=await _make_family(db_session),
@@ -393,14 +413,14 @@ class TestListModules:
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
             set_family_pointer=False,
         )
-        late.last_deactivated_at = datetime(2025, 6, 1, tzinfo=UTC)
+        late.deactivated_at = datetime(2025, 6, 1, tzinfo=UTC)
         await db_session.flush()
 
         repo = ModuleRepository(db_session)
         rows = await repo.list_modules(
             status="deactivated",
             domain=domain,
-            sort_by="last_deactivated_at",
+            sort_by="deactivated_at",
             sort_dir="desc",
         )
         assert [m.id for m in rows] == [late.id, early.id]
@@ -515,7 +535,7 @@ class TestListModules:
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
             set_family_pointer=False,
         )
-        match.last_deactivated_at = datetime(2025, 5, 10, tzinfo=UTC)
+        match.deactivated_at = datetime(2025, 5, 10, tzinfo=UTC)
         await db_session.flush()
 
         other = await _make_module(
@@ -525,7 +545,7 @@ class TestListModules:
             lifecycle_status="published",
             published_at=datetime(2024, 1, 1, tzinfo=UTC),
         )
-        other.last_deactivated_at = None
+        other.deactivated_at = None
         await db_session.flush()
 
         repo = ModuleRepository(db_session)

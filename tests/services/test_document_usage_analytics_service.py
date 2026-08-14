@@ -39,6 +39,8 @@ def _org_user(
         role=role,
         district_id=1,
         district=None,
+        division_id=None,
+        division=None,
         upazila_ids=frozenset(),
         upazila_names=frozenset(),
         parent_id=parent_id,

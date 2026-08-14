@@ -20,13 +20,18 @@ Implementation notes:
   drop video via ``-vn`` before encoding audio.
 """
 
-import json
 import logging
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+
+from platform_service.services.media_duration import (
+    MediaDurationError,
+    probe_media_duration_ms,
+    probe_media_has_audio_stream,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +43,10 @@ MIN_TRANSCRIBABLE_CHUNK_BYTES = 4_096
 
 class MediaSplitterError(RuntimeError):
     """Raised when ffmpeg/ffprobe fails or media duration cannot be determined."""
+
+    def __init__(self, message: str, *, reason: str = "media_unreadable") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -54,45 +63,19 @@ class MediaChunk:
 def _require_binary(name: str) -> str:
     path = shutil.which(name)
     if path is None:
-        raise MediaSplitterError(f"{name!r} not found on PATH; install ffmpeg in the platform image")
-    return path
-
-
-def probe_media_duration_ms(source_path: str | Path) -> int:
-    """Return the source's total duration in milliseconds via ffprobe."""
-    path = Path(source_path)
-    ffprobe = _require_binary("ffprobe")
-    cmd = [
-        ffprobe,
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "json",
-        str(path),
-    ]
-    try:
-        completed = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
-    except subprocess.CalledProcessError as exc:
-        raise MediaSplitterError(f"ffprobe failed for {path.name}: {exc.stderr.strip()}") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise MediaSplitterError(f"ffprobe timed out for {path.name}") from exc
-
-    try:
-        payload = json.loads(completed.stdout)
-        seconds = float(payload["format"]["duration"])
-    except (KeyError, ValueError, json.JSONDecodeError) as exc:
         raise MediaSplitterError(
-            f"ffprobe returned unparseable duration for {path.name}: {completed.stdout!r}"
-        ) from exc
-
-    return int(seconds * 1000)
+            f"{name!r} not found on PATH; install ffmpeg in the platform image",
+            reason="media_unreadable",
+        )
+    return path
 
 
 def _probe_duration_ms(source_path: Path) -> int:
     """Return the source's total duration in milliseconds via ffprobe."""
-    return probe_media_duration_ms(source_path)
+    try:
+        return probe_media_duration_ms(source_path)
+    except MediaDurationError as exc:
+        raise MediaSplitterError(str(exc)) from exc
 
 
 def iter_media_time_windows(
@@ -164,10 +147,14 @@ def _encode_chunk(
         subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120)
     except subprocess.CalledProcessError as exc:
         raise MediaSplitterError(
-            f"ffmpeg chunk encode failed (start_ms={start_ms}): {exc.stderr.strip()}"
+            f"ffmpeg chunk encode failed (start_ms={start_ms}): {exc.stderr.strip()}",
+            reason="media_encode_failed",
         ) from exc
     except subprocess.TimeoutExpired as exc:
-        raise MediaSplitterError(f"ffmpeg chunk encode timed out (start_ms={start_ms})") from exc
+        raise MediaSplitterError(
+            f"ffmpeg chunk encode timed out (start_ms={start_ms})",
+            reason="media_encode_timeout",
+        ) from exc
 
 
 def split_into_chunks(
@@ -199,11 +186,25 @@ def split_into_chunks(
 
     path = Path(source_path)
     if not path.is_file():
-        raise MediaSplitterError(f"media file not found: {path}")
+        raise MediaSplitterError(f"media file not found: {path}", reason="media_file_not_found")
 
     total_duration_ms = _probe_duration_ms(path)
     if total_duration_ms <= 0:
-        raise MediaSplitterError(f"media has non-positive duration: {path.name}")
+        raise MediaSplitterError(
+            f"media has non-positive duration: {path.name}",
+            reason="media_no_duration",
+        )
+
+    if source_type == "video":
+        try:
+            has_audio = probe_media_has_audio_stream(path)
+        except MediaDurationError as exc:
+            raise MediaSplitterError(str(exc)) from exc
+        if not has_audio:
+            raise MediaSplitterError(
+                f"no transcribable audio chunks for {path.name}: video has no audio stream",
+                reason="media_unreadable",
+            )
 
     windows = iter_media_time_windows(
         total_duration_ms,
@@ -251,7 +252,8 @@ def split_into_chunks(
         raise MediaSplitterError(
             f"no transcribable audio chunks for {path.name}: "
             f"all {skipped_undersized} encoded window(s) were below "
-            f"{min_chunk_bytes} bytes"
+            f"{min_chunk_bytes} bytes",
+            reason="media_unreadable",
         )
 
     logger.info(

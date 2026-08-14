@@ -1,4 +1,4 @@
-"""District / hierarchy-user API contracts."""
+"""Division / district / hierarchy-user API contracts."""
 
 from __future__ import annotations
 
@@ -9,17 +9,47 @@ from pydantic import BaseModel, Field
 from mc_contracts.enums import HierarchyRole
 
 
+class DivisionCreateRequest(BaseModel):
+    name: str = Field(min_length=1)
+
+
+class DivisionUpdateRequest(BaseModel):
+    name: str = Field(min_length=1)
+
+
+class DivisionResponse(BaseModel):
+    id: int
+    name: str
+    tenant_id: int
+    created_at: datetime
+    updated_at: datetime
+    created_by: str
+    updated_by: str
+
+
+class DivisionListResponse(BaseModel):
+    divisions: list[DivisionResponse]
+    total: int
+    total_pages: int
+    limit: int
+    offset: int
+
+
 class DistrictCreateRequest(BaseModel):
     name: str = Field(min_length=1)
+    division_id: int | None = None
 
 
 class DistrictUpdateRequest(BaseModel):
     name: str = Field(min_length=1)
+    division_id: int | None = None
 
 
 class DistrictResponse(BaseModel):
     id: int
     name: str
+    division_id: int | None
+    division: str | None = None
     tenant_id: int
     created_at: datetime
     updated_at: datetime
@@ -87,6 +117,8 @@ class HierarchyUserResponse(BaseModel):
     role: HierarchyRole
     parent_id: int | None
     district_id: int
+    division_id: int | None = None
+    division: str | None = None
     upazilas: list[UpazilaResponse] = Field(default_factory=list)
     tenant_id: int
     created_at: datetime

@@ -2,11 +2,12 @@
 
 Canonical paths:
   GET /scenarios/sync?since_version=N → ScenarioSyncBundle
-  GET /config/sync                    → ConfigSyncBundle
+  GET /sync/config                    → ConfigSyncBundle
   GET  /sync/source-documents?since=<ISO-8601> → SourceDocumentsSyncBundle
   GET  /sync/chat-faqs?since=<ISO-8601> → ChatFaqsSyncBundle
   GET  /sync/badges                       → BadgesSyncBundle
   GET  /sync/video-progress?since=<ISO-8601> → VideoProgressSyncBundle
+  POST /sync/presigned-urls               → StoragePathsPresignResponse (object names)
 """
 
 from __future__ import annotations
@@ -21,6 +22,8 @@ from mc_contracts.sync import (
     GapsSyncBundle,
     ModulesSyncBundle,
     SourceDocumentsSyncBundle,
+    StoragePathsPresignRequest,
+    StoragePathsPresignResponse,
     TriggersSyncBundle,
     VideoProgressSyncBundle,
 )
@@ -75,10 +78,11 @@ async def sync_source_documents(
 
 @router.get("/config", response_model=ConfigSyncBundle)
 async def sync_config(
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> ConfigSyncBundle:
     """Return current config threshold snapshot for offline device use."""
-    return await SyncService(db).get_config_bundle()
+    return await SyncService(db).get_config_bundle(tenant_id=_effective_tenant_id(request))
 
 
 @router.get("/modules", response_model=ModulesSyncBundle)
@@ -205,4 +209,25 @@ async def sync_video_progress(
         since=since,
         user_id=effective_user_id,
         tenant_id=effective_tenant,
+    )
+
+
+@router.post("/presigned-urls", response_model=StoragePathsPresignResponse)
+async def sync_presigned_urls(
+    body: StoragePathsPresignRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    storage: ObjectStore = Depends(get_object_storage_client),
+    settings: Settings = Depends(get_settings),
+) -> StoragePathsPresignResponse:
+    """Return presigned GET URLs for a batch of object names (partial success).
+
+    Accepts object names only (same normalisation as ``GET /admin/files/presigned-url``).
+    Full ``bucket/key`` refs and filesystem paths are listed in ``missing_paths``.
+    """
+    resolve_sync_user_id(request)
+    return await SyncService(db).get_presigned_urls_for_storage_paths(
+        storage_paths=body.storage_paths,
+        storage=storage,
+        settings=settings,
     )

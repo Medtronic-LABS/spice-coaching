@@ -20,8 +20,10 @@ VALID_LIFECYCLE_STATUSES = frozenset(
         LIFECYCLE_REVIEW_PENDING,
     }
 )
-# Hidden from default admin module lists unless explicitly filtered.
-DEFAULT_EXCLUDED_LIFECYCLE_STATUSES = frozenset({LIFECYCLE_RETIRED, LIFECYCLE_DEACTIVATED})
+# Hidden from default admin module lists ("All") unless explicitly filtered.
+# Deactivated is included in All so Module Library can show draft/published/deactivated together;
+# retired (Discarded) stays on its own tab via status=retired.
+DEFAULT_EXCLUDED_LIFECYCLE_STATUSES = frozenset({LIFECYCLE_RETIRED})
 
 
 def is_training_module_family() -> ColumnElement[bool]:

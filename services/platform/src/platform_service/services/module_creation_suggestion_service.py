@@ -32,6 +32,11 @@ from platform_service.db.repositories.module_creation_suggestion_repository impo
 from platform_service.db.repositories.training_request_repository import TrainingRequestRepository
 from platform_service.deps import get_ai_client, get_clickhouse_client
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
+from platform_service.services.dashboard_hierarchy import (
+    OrgUser,
+    dashboard_user_summary,
+    org_user_index,
+)
 from platform_service.services.module_creation_suggestion_classifier import (
     ClassifiedSuggestion,
     DraftCatalogItem,
@@ -195,6 +200,12 @@ class ModuleCreationSuggestionService:
         scoped_evidence = self._filter_evidence(row.evidence, visible_chw_ids)
         if visible_chw_ids is not None and not scoped_evidence:
             raise LookupError(f"suggestion not found: {suggestion_id}")
+
+        users: dict[int, OrgUser] = await org_user_index(
+            self._session,
+            tenant_id=tenant_id,
+        )
+
         questions: list[ModuleCreationSuggestionEvidenceItem] = []
         requests: list[ModuleCreationSuggestionEvidenceItem] = []
         for ev in sorted(
@@ -206,7 +217,7 @@ class ModuleCreationSuggestionService:
                 text=ev.text,
                 occurrence_count=ev.occurrence_count,
                 last_seen_at=ev.last_seen_at,
-                sample_chw_id=ev.sample_chw_id,
+                prompted_by=dashboard_user_summary(ev.sample_chw_id, users),
             )
             if ev.source == _SOURCE_DIGITAL_HELP:
                 questions.append(item)

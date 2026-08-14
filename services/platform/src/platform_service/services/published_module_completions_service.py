@@ -16,7 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from platform_service.auth.spice_identity import PublishedModuleCompletionsScope
 from platform_service.db.repositories.module_completion_repository import ModuleCompletionRepository
 from platform_service.db.repositories.module_repository import ModuleRepository
-from platform_service.services.dashboard_hierarchy import org_user_index, sks_under_focus
+from platform_service.services.dashboard_hierarchy import (
+    filter_users_by_chw_ids,
+    org_user_index,
+    sks_under_focus,
+)
 
 
 def _utc_range_bounds(from_date: date, to_date: date) -> tuple[datetime, datetime]:
@@ -38,6 +42,7 @@ class PublishedModuleCompletionsService:
         limit: int,
         offset: int,
         tenant_id: int,
+        geo_chw_ids: frozenset[int] | None = None,
     ) -> PublishedModuleCompletionsResponse:
         by_id = await org_user_index(self._session, tenant_id=tenant_id)
         if scope.unrestricted:
@@ -51,6 +56,8 @@ class PublishedModuleCompletionsService:
                     visible_sks = []
                 else:
                     visible_sks = sks_under_focus(by_id, viewer.id, viewer.role)
+
+        visible_sks = filter_users_by_chw_ids(visible_sks, geo_chw_ids)
 
         total_descendant_sk_count = len(visible_sks)
         chw_ids = [sk.id for sk in visible_sks]

@@ -38,6 +38,7 @@ class DocumentUsageFilter:
     to_date: date
     tenant_id: int = 0
     upazila: str | None = None
+    division: str | None = None
     district: str | None = None
     user_id: int | None = None
     document_id: UUID | None = None
@@ -112,6 +113,7 @@ class DocumentUsageAnalyticsService:
             visible,
             tenant_id=filters.tenant_id,
             user_id=filters.user_id,
+            division=filters.division,
             district=filters.district,
             upazila=filters.upazila,
             index=users,
