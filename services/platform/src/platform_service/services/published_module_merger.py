@@ -84,7 +84,21 @@ class PublishedModuleMerger:
             if existing_modules is not None
             else (published_modules if published_modules is not None else [])
         )
+        candidate_id = candidate.get("id")
+        proposed_title = candidate.get("proposed_title") or ""
+        logger.info(
+            "Module merge start candidate=%s title=%r new_cards=%d existing_modules=%d valid_block_ids=%d",
+            candidate_id,
+            proposed_title,
+            len(new_cards),
+            len(modules),
+            len(valid_block_ids),
+        )
         if not modules:
+            logger.info(
+                "Module merge candidate=%s: empty existing-module list; returning new cards",
+                candidate_id,
+            )
             return PublishedModuleMergerResult(
                 matched_module_id=None,
                 match_rationale=None,
@@ -92,11 +106,21 @@ class PublishedModuleMerger:
             )
 
         settings = get_settings()
+        prefilter_limit = settings.stage_d_published_merge_prefilter_limit
         prefiltered = _prefilter_existing(
-            candidate.get("proposed_title", "") or "",
+            proposed_title,
             modules,
             new_cards=new_cards,
-            limit=settings.stage_d_published_merge_prefilter_limit,
+            limit=prefilter_limit,
+        )
+        prefiltered_ids = [str(m.get("module_id")) for m in prefiltered if m.get("module_id")]
+        logger.info(
+            "Module merge candidate=%s: prefilter %d -> %d (limit=%d) module_ids=%s",
+            candidate_id,
+            len(modules),
+            len(prefiltered),
+            prefilter_limit,
+            prefiltered_ids,
         )
 
         resolved_card_min = card_min_count if card_min_count is not None else settings.card_min_count
@@ -116,8 +140,9 @@ class PublishedModuleMerger:
             ),
         )
 
+        request_id = str(uuid.uuid4())
         request = InferenceRequest(
-            request_id=str(uuid.uuid4()),
+            request_id=request_id,
             generation_type=GenerationType.MODULE_PUBLISHED_MERGE,
             prompt=prompt_spec_from_rendered(rendered),
             constraints=GenerationConstraints(
@@ -126,18 +151,53 @@ class PublishedModuleMerger:
             ),
             trace_context=trace_context or TraceContext(),
         )
+        logger.info(
+            "Module merge candidate=%s: calling LLM request_id=%s card_bounds=(%d,%d) prefiltered=%d",
+            candidate_id,
+            request_id,
+            resolved_card_min,
+            resolved_card_max,
+            len(prefiltered),
+        )
         response = await self._client.generate(request)
         if response.error:
+            logger.warning(
+                "Module merge candidate=%s: ai-runtime error request_id=%s error=%s",
+                candidate_id,
+                request_id,
+                response.error,
+            )
             raise PublishedModuleMergerError(f"ai-runtime error: {response.error}")
 
         try:
             payload = resolve_parsed_dict(response, fallback_text=response.raw_text or "{}")
         except json.JSONDecodeError as exc:
+            logger.warning(
+                "Module merge candidate=%s: invalid JSON from LLM request_id=%s",
+                candidate_id,
+                request_id,
+                exc_info=True,
+            )
             raise PublishedModuleMergerError(f"LLM output is not valid JSON: {exc}") from exc
         except TypeError as exc:
+            logger.warning(
+                "Module merge candidate=%s: unusable LLM payload request_id=%s error=%s",
+                candidate_id,
+                request_id,
+                exc,
+            )
             raise PublishedModuleMergerError(str(exc)) from exc
 
-        return _parse_merge_payload(
+        logger.info(
+            "Module merge candidate=%s: LLM payload keys=%s raw_matched_module_id=%r raw_merged_cards=%s",
+            candidate_id,
+            sorted(payload.keys()),
+            payload.get("matched_module_id"),
+            len(payload.get("merged_cards"))
+            if isinstance(payload.get("merged_cards"), list)
+            else type(payload.get("merged_cards")).__name__,
+        )
+        result = _parse_merge_payload(
             payload,
             new_cards=new_cards,
             existing_modules=prefiltered,
@@ -145,6 +205,14 @@ class PublishedModuleMerger:
             valid_block_ids=valid_block_ids,
             card_max_count=resolved_card_max,
         )
+        logger.info(
+            "Module merge candidate=%s: result matched_module_id=%s merged_cards=%d rationale=%r",
+            candidate_id,
+            result.matched_module_id,
+            len(result.merged_cards),
+            result.match_rationale,
+        )
+        return result
 
 
 def _normalize_plain_text(text: str) -> str:
@@ -337,6 +405,11 @@ def _prefilter_existing(
 ) -> list[dict[str, Any]]:
     """Keep top-K existing modules by title or card-content similarity."""
     if len(existing_modules) <= limit:
+        logger.info(
+            "Module merge prefilter: keeping all %d modules (at/under limit=%d)",
+            len(existing_modules),
+            limit,
+        )
         return existing_modules
     scored: list[tuple[float, dict[str, Any]]] = []
     for mod in existing_modules:
@@ -350,7 +423,14 @@ def _prefilter_existing(
         score = max(title_score, content_score)
         scored.append((score, mod))
     scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [mod for _, mod in scored[:limit]]
+    top = scored[:limit]
+    logger.info(
+        "Module merge prefilter: ranked %d modules, keeping top %d scores=%s",
+        len(existing_modules),
+        limit,
+        [(str(mod.get("module_id")), round(score, 3)) for score, mod in top],
+    )
+    return [mod for _, mod in top]
 
 
 def _find_existing_module(
@@ -395,8 +475,10 @@ def _parse_merge_payload(
         raise PublishedModuleMergerError("LLM output missing 'merged_cards' list")
 
     cards: list[dict[str, Any]] = []
+    skipped_raw = 0
     for raw_card in cards_raw:
         if not isinstance(raw_card, dict):
+            skipped_raw += 1
             continue
         normalised = normalise_draft_card(
             raw_card,
@@ -405,6 +487,16 @@ def _parse_merge_payload(
         )
         if normalised is not None:
             cards.append(normalised)
+        else:
+            skipped_raw += 1
+
+    if skipped_raw:
+        logger.info(
+            "Module merge parse: normalised %d/%d merged_cards (dropped=%d)",
+            len(cards),
+            len(cards_raw),
+            skipped_raw,
+        )
 
     if len(cards) > resolved_card_max:
         logger.info(
@@ -415,6 +507,11 @@ def _parse_merge_payload(
         cards = cards[:resolved_card_max]
 
     if matched_id is None:
+        logger.info(
+            "Module merge parse: LLM reported no match (rationale=%r); returning %d new cards",
+            rationale,
+            len(new_cards),
+        )
         return PublishedModuleMergerResult(
             matched_module_id=None,
             match_rationale=rationale,
@@ -427,6 +524,14 @@ def _parse_merge_payload(
     matched_mod = _find_existing_module(existing_modules, matched_id)
     existing_cards = (
         matched_mod.get("cards") if matched_mod and isinstance(matched_mod.get("cards"), list) else []
+    )
+    logger.info(
+        "Module merge parse: evaluating content gate matched_module_id=%s "
+        "existing_cards=%d new_cards=%d normalised_merged_cards=%d",
+        matched_id,
+        len(existing_cards),
+        len(new_cards),
+        len(cards),
     )
     gate_ok, gate_detail = _passes_merge_content_gate(existing_cards, new_cards)
     if not gate_ok:
@@ -446,6 +551,11 @@ def _parse_merge_payload(
             merged_cards=list(new_cards),
         )
 
+    logger.info(
+        "Module merge accepted by content gate for matched_module_id=%s: %s",
+        matched_id,
+        gate_detail,
+    )
     cards = preserve_rich_card_bodies(cards, existing_cards)
 
     return PublishedModuleMergerResult(

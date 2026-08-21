@@ -34,6 +34,6 @@ async def assert_document_has_text(
     min_chars = settings.extraction_quality_text_empty_min_chars
     total_chars = total_stripped_text_chars(page_markdowns)
     if total_pages == 0 or total_chars < min_chars:
-        await repo.update_status(source_document_id, "failed")
+        await repo.mark_source_document_ingest_failed(source_document_id)
         await session.commit()
         raise Stage1DocumentEmptyError()

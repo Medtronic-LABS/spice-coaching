@@ -22,10 +22,10 @@ from platform_service.api.knowledge import router as knowledge_router
 from platform_service.config import get_settings
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.deps import get_db, get_object_storage_client
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import platform_path, requires_db, truncate_tables
+from tests.conftest import platform_path, requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -42,8 +42,12 @@ def _pdf_bytes(pages: int = 1) -> bytes:
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_tables(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "attribution_event, file_upload, source_document")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text("TRUNCATE attribution_event, file_upload, source_document RESTART IDENTITY CASCADE")
+    )
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture
@@ -211,3 +215,46 @@ class TestKnowledgeUpload:
             files={"file": ("notes.txt", BytesIO(b"hello"), "text/plain")},
         )
         assert resp.status_code == 400
+
+    async def test_duplicate_without_override_returns_409(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        storage_mock: MagicMock,
+    ) -> None:
+        content = _pdf_bytes(1)
+        first = await _upload(client, content=content, data={"title": "Manual"})
+        assert first.status_code == 201
+        storage_mock.put_object_from_local_file.reset_mock()
+
+        second = await _upload(client, content=content, data={"title": "Manual again"})
+        assert second.status_code == 409
+        body = second.json()
+        assert body["code"] == "duplicate_content"
+        assert len(body["conflicts"]) == 1
+        storage_mock.put_object_from_local_file.assert_not_awaited()
+
+        docs = (await db_session.execute(select(SourceDocument))).scalars().all()
+        assert len(docs) == 1
+
+    async def test_duplicate_with_override_creates_new_row(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        content = _pdf_bytes(1)
+        first = await _upload(client, content=content, data={"title": "Manual"})
+        assert first.status_code == 201
+        first_id = first.json()["sources"][0]["source_document_id"]
+
+        second = await _upload(
+            client,
+            content=content,
+            data={"title": "Manual copy", "override_duplicates": "true"},
+        )
+        assert second.status_code == 201
+        second_id = second.json()["sources"][0]["source_document_id"]
+        assert second_id != first_id
+
+        docs = (await db_session.execute(select(SourceDocument))).scalars().all()
+        assert len(docs) == 2

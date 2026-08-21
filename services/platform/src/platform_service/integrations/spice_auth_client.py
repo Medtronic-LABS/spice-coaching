@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from http.cookiejar import CookieJar
 
 import httpx
 
@@ -12,6 +14,25 @@ from platform_service.config import get_settings
 logger = logging.getLogger(__name__)
 
 BEARER_PREFIX = "Bearer "
+# Middleware hits ``/authenticate`` on every request; retry only transient
+# failures (timeout / connection / 5xx). Auth rejections (4xx) are not retried.
+_AUTHENTICATE_MAX_ATTEMPTS = 3
+_AUTHENTICATE_RETRY_DELAY_SECONDS = 0.05
+AUTH_UPSTREAM_FAILURE_DETAIL = "unable to authenticate"
+
+
+class _NoStoreCookieJar(CookieJar):
+    """Cookie jar that refuses to store cookies.
+
+    httpx wraps a ``Cookies`` instance into a plain ``Cookies`` via
+    ``Cookies(cookies)``, which drops any ``extract_cookies`` override on a
+    subclass. Passing a raw CookieJar is kept as ``self.jar``, so rejecting
+    ``set_cookie`` actually prevents Set-Cookie persistence on the shared
+    client (which would otherwise poison later ``/authenticate`` calls).
+    """
+
+    def set_cookie(self, cookie, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        return
 
 
 class SpiceAuthError(Exception):
@@ -33,10 +54,17 @@ class SpiceAuthClient:
         default_client: str | None = None,
     ) -> None:
         settings = get_settings()
-        self._authenticate_url = f"{(base_url or settings.spice_auth_base_url).rstrip('/')}/authenticate"
+        base = (base_url or settings.spice_auth_base_url).rstrip("/")
+        self._authenticate_url = f"{base}/authenticate"
+        self._session_url = f"{base}/session"
         self._timeout = timeout if timeout is not None else settings.spice_auth_timeout_seconds
         self._default_client = default_client or settings.spice_auth_default_client
-        self._client = httpx.AsyncClient(timeout=self._timeout)
+        # Shared process client must not store Spice session cookies; otherwise they
+        # are auto-attached on the next /authenticate and can trigger Spice 400s.
+        self._client = httpx.AsyncClient(
+            timeout=self._timeout,
+            cookies=_NoStoreCookieJar(),
+        )
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -66,23 +94,78 @@ class SpiceAuthClient:
         if auth_cookie:
             headers["auth-cookie"] = auth_cookie
 
+        last_error: SpiceAuthError | None = None
+        for attempt in range(1, _AUTHENTICATE_MAX_ATTEMPTS + 1):
+            try:
+                resp = await self._client.post(self._authenticate_url, headers=headers)
+            except httpx.TimeoutException as exc:
+                last_error = SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL)
+                logger.warning(
+                    "spice auth-service timeout attempt=%d/%d: %s",
+                    attempt,
+                    _AUTHENTICATE_MAX_ATTEMPTS,
+                    exc,
+                )
+                if attempt < _AUTHENTICATE_MAX_ATTEMPTS:
+                    await asyncio.sleep(_AUTHENTICATE_RETRY_DELAY_SECONDS)
+                    continue
+                raise last_error from exc
+            except httpx.RequestError as exc:
+                last_error = SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL)
+                logger.warning(
+                    "spice auth-service unreachable attempt=%d/%d: %s",
+                    attempt,
+                    _AUTHENTICATE_MAX_ATTEMPTS,
+                    exc,
+                )
+                if attempt < _AUTHENTICATE_MAX_ATTEMPTS:
+                    await asyncio.sleep(_AUTHENTICATE_RETRY_DELAY_SECONDS)
+                    continue
+                raise last_error from exc
+
+            if resp.status_code >= 500:
+                last_error = SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL)
+                logger.warning(
+                    "spice auth-service returned %s attempt=%d/%d: %s",
+                    resp.status_code,
+                    attempt,
+                    _AUTHENTICATE_MAX_ATTEMPTS,
+                    resp.text[:200],
+                )
+                if attempt < _AUTHENTICATE_MAX_ATTEMPTS:
+                    await asyncio.sleep(_AUTHENTICATE_RETRY_DELAY_SECONDS)
+                    continue
+                raise last_error
+
+            if resp.status_code >= 400:
+                raise SpiceAuthError(401, "invalid or expired token")
+
+            return SpiceContexts.model_validate(resp.json())
+
+        assert last_error is not None
+        raise last_error
+
+    async def create_session(
+        self,
+        *,
+        headers: dict[str, str] | None = None,
+        content: bytes | str | None = None,
+    ) -> httpx.Response:
+        """Call auth-service ``POST /session`` with caller headers and body."""
+        req_headers = dict(headers) if headers else {}
+        if "client" not in req_headers or not (req_headers.get("client") or "").strip():
+            req_headers["client"] = self._default_client
+
         try:
-            resp = await self._client.post(self._authenticate_url, headers=headers)
-        except httpx.TimeoutException as exc:
-            logger.error("spice auth-service timeout: %s", exc)
-            raise SpiceAuthError(503, "authentication service unavailable") from exc
-        except httpx.RequestError as exc:
-            logger.error("spice auth-service unreachable: %s", exc)
-            raise SpiceAuthError(503, "authentication service unavailable") from exc
-
-        if resp.status_code >= 500:
-            logger.error(
-                "spice auth-service returned %s: %s",
-                resp.status_code,
-                resp.text[:200],
+            resp = await self._client.post(
+                self._session_url,
+                headers=req_headers,
+                content=content,
             )
-            raise SpiceAuthError(503, "authentication service unavailable")
-        if resp.status_code >= 400:
-            raise SpiceAuthError(401, "invalid or expired token")
-
-        return SpiceContexts.model_validate(resp.json())
+            return resp
+        except httpx.TimeoutException as exc:
+            logger.error("spice auth-service session timeout: %s", exc)
+            raise SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL) from exc
+        except httpx.RequestError as exc:
+            logger.error("spice auth-service session unreachable: %s", exc)
+            raise SpiceAuthError(401, AUTH_UPSTREAM_FAILURE_DETAIL) from exc

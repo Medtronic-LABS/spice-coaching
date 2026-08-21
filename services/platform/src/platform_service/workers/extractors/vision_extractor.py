@@ -35,8 +35,9 @@ from mc_contracts.internal_ai import (
 
 from platform_service.deps import get_ai_client
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
+from platform_service.services.image_alt_text import parse_image_text_response
 from platform_service.services.llm_text_utils import strip_code_fence
-from platform_service.services.prompt_registry import VISION_TEMPLATE_ID
+from platform_service.services.prompt_registry import VISION_IMAGE_TEXT_TEMPLATE_ID, VISION_TEMPLATE_ID
 from platform_service.services.prompt_template_service import PromptTemplateService, prompt_spec_from_rendered
 from platform_service.services.prompt_variables.vision_variables import build_vision_variables
 from platform_service.workers.extractors.extraction_markdown import normalize_extraction_markdown
@@ -141,6 +142,60 @@ class VisionExtractor:
                 page_label,
             )
         return VisionExtractionResult(markdown=markdown, raw_response=response)
+
+    async def extract_image_text(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str = "image/png",
+        label: str | None = None,
+        trace_context: TraceContext | None = None,
+    ) -> str:
+        """Transcribe visible text and describe one embedded figure.
+
+        Returns cleaned alt text (no page-markdown heading normalization).
+        Provider/transport errors raise ``VisionExtractionError``; the persist
+        layer treats that as best-effort and continues without alt_text.
+        A successful empty response returns ``""``.
+        """
+        if not image_bytes:
+            raise VisionExtractionError("image_bytes is empty; nothing to extract")
+
+        rendered = await PromptTemplateService().render(
+            None,
+            template_id=VISION_IMAGE_TEXT_TEMPLATE_ID,
+            variant_key=None,
+            variables=build_vision_variables(),
+        )
+
+        request = InferenceRequest(
+            request_id=str(uuid.uuid4()),
+            generation_type=GenerationType.VISION_EXTRACTION,
+            prompt=prompt_spec_from_rendered(rendered),
+            constraints=GenerationConstraints(
+                language="bn",
+                output_format="text",
+            ),
+            trace_context=trace_context or TraceContext(),
+            image_attachments=[
+                InferenceImage(
+                    mime_type=mime_type,
+                    data_base64=base64.b64encode(image_bytes).decode(),
+                    label=label,
+                )
+            ],
+        )
+
+        try:
+            response = await self._client.generate(request)
+        except (TimeoutError, httpx.HTTPError) as exc:
+            raise VisionExtractionError(
+                f"ai-runtime transport error for image {label!r}: {type(exc).__name__}: {exc}"
+            ) from exc
+
+        if response.error:
+            raise VisionExtractionError(f"ai-runtime returned error for image {label!r}: {response.error}")
+        return parse_image_text_response(response.raw_text or "")
 
 
 # Tags Gemini sometimes uses when it wraps the markdown body even though

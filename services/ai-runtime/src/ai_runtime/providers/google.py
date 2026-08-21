@@ -25,6 +25,20 @@ logger = logging.getLogger(__name__)
 
 _TRANSCRIPTION_TEMPERATURE = 0.0
 
+# Gemini's documented audio MIME types use audio/mp3 (not audio/mpeg) and
+# audio/wav (not audio/x-wav). Aliases are accepted inbound but must be
+# normalized before Part.from_bytes or generate_content returns 400.
+_GEMINI_AUDIO_MIME_ALIASES: dict[str, str] = {
+    "audio/mpeg": "audio/mp3",
+    "audio/x-wav": "audio/wav",
+}
+
+
+def _normalize_gemini_media_mime(mime_type: str) -> str:
+    """Return the Gemini-canonical MIME for inline media parts."""
+    lowered = mime_type.lower()
+    return _GEMINI_AUDIO_MIME_ALIASES.get(lowered, lowered)
+
 
 class GoogleProvider(BaseProvider):
     """Adapter over the `google-genai` unified SDK.
@@ -146,23 +160,71 @@ class GoogleProvider(BaseProvider):
         """Transcribe speech from audio/video bytes via Gemini."""
         if not media_bytes:
             raise ValueError("media payload is empty")
+        gemini_mime = _normalize_gemini_media_mime(mime_type)
+        system_instruction = (
+            "Transcribe the spoken content verbatim. "
+            "Do not summarize. Preserve original language and wording."
+        )
+        prompt_text = "Provide only the transcript text."
+        media_part = types.Part.from_bytes(data=media_bytes, mime_type=gemini_mime)
+        inline = getattr(media_part, "inline_data", None)
+        part_mime = getattr(inline, "mime_type", None) if inline is not None else None
+        part_data_len = len(getattr(inline, "data", b"") or b"") if inline is not None else 0
         config = types.GenerateContentConfig(
-            system_instruction=(
-                "Transcribe the spoken content verbatim. "
-                "Do not summarize. Preserve original language and wording."
-            ),
+            system_instruction=system_instruction,
             response_mime_type="text/plain",
             temperature=_TRANSCRIPTION_TEMPERATURE,
         )
-        response = await self._client.aio.models.generate_content(
-            model=model,
-            contents=[
-                "Provide only the transcript text.",
-                types.Part.from_bytes(data=media_bytes, mime_type=mime_type),
-            ],
-            config=config,
+        logger.info(
+            "Gemini generate_content transcribe request model=%s mime_type=%s "
+            "gemini_mime=%s part_mime=%s media_bytes=%d part_data_len=%d "
+            "prompt=%r response_mime_type=%s temperature=%s system_instruction_len=%d",
+            model,
+            mime_type,
+            gemini_mime,
+            part_mime,
+            len(media_bytes),
+            part_data_len,
+            prompt_text,
+            config.response_mime_type,
+            config.temperature,
+            len(system_instruction),
         )
-        return (response.text or "").strip()
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=model,
+                contents=[prompt_text, media_part],
+                config=config,
+            )
+        except Exception:
+            logger.exception(
+                "Gemini generate_content transcribe failed model=%s mime_type=%s "
+                "gemini_mime=%s part_mime=%s media_bytes=%d",
+                model,
+                mime_type,
+                gemini_mime,
+                part_mime,
+                len(media_bytes),
+            )
+            raise
+        text = (response.text or "").strip()
+        usage = getattr(response, "usage_metadata", None)
+        input_tok = getattr(usage, "prompt_token_count", None) if usage is not None else None
+        output_tok = getattr(usage, "candidates_token_count", None) if usage is not None else None
+        candidates = getattr(response, "candidates", None) or []
+        finish_reason = None
+        if candidates:
+            finish_reason = getattr(candidates[0], "finish_reason", None)
+        logger.info(
+            "Gemini generate_content transcribe response model=%s text_len=%d "
+            "input_tokens=%s output_tokens=%s finish_reason=%s",
+            model,
+            len(text),
+            input_tok,
+            output_tok,
+            finish_reason,
+        )
+        return text
 
     async def aclose(self) -> None:
         close = getattr(self._client, "close", None)

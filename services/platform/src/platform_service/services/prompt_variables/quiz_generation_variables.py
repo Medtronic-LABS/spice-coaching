@@ -25,26 +25,27 @@ def build_quiz_generation_variables(
     return {
         "deployment_region_context": region_context,
         "primary_locale": primary_locale,
-        "case_setup_field_schema": render_locale_map_field_schema(
-            "case_setup",
-            primary_locale=primary_locale,
-            description="patient case, ~2 sentences",
-        ),
         "question_field_schema": render_locale_map_field_schema(
             "question",
             primary_locale=primary_locale,
             primary_required=True,
+            description=(
+                "self-contained natural stem: patient case (1-3 sentences) plus the decision question"
+            ),
         ),
         "options_field_schema": render_locale_list_map_field_schema(
             "options",
             primary_locale=primary_locale,
             max_items=4,
-            description="exactly 4 options",
+            description="exactly 4 complete standalone options",
         ),
         "explanation_field_schema": render_locale_map_field_schema(
             "explanation",
             primary_locale=primary_locale,
-            description="why the correct answer is correct; no card references",
+            description=(
+                "why the correct answer is correct for this item; "
+                "no card references; no dependence on other questions"
+            ),
         ),
         "module_title": module_title,
         "domain": domain,

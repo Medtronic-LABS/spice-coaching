@@ -26,7 +26,7 @@ class GapEscalationHandler:
         chw_id: int,
         module: Module,
         score_pct: float | None,
-        tenant_uuid: UUID | None,
+        tenant_id: int | None,
         event_id: str | None,
         gap_outcome_kind: str | None,
     ) -> None:
@@ -38,7 +38,7 @@ class GapEscalationHandler:
         await gap_svc.record_observation(
             chw_id=chw_id,
             behavioural_gap_id=module.primary_gap_id,
-            tenant_id=tenant_uuid,
+            tenant_id=tenant_id,
             predicate=None,
         )
 
@@ -62,7 +62,7 @@ class GapEscalationHandler:
             await gap_svc.record_failed_attempt(
                 chw_id=chw_id,
                 behavioural_gap_id=module.primary_gap_id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
             )
         elif gap_outcome_kind == "correct":
             await gap_svc.record_correct_quiz_attempt(
@@ -75,7 +75,7 @@ class GapEscalationHandler:
             await gap_svc.record_failed_attempt(
                 chw_id=chw_id,
                 behavioural_gap_id=module.primary_gap_id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
             )
 
     async def handle_spice_action(
@@ -83,7 +83,7 @@ class GapEscalationHandler:
         *,
         chw_id: int,
         behavioural_gap_id: UUID,
-        tenant_uuid: UUID | None,
+        tenant_id: int | None,
         payload: dict[str, Any],
         payload_json: dict[str, Any],
         event_id: str | None,
@@ -92,12 +92,12 @@ class GapEscalationHandler:
         await gap_svc.record_observation(
             chw_id=chw_id,
             behavioural_gap_id=behavioural_gap_id,
-            tenant_id=tenant_uuid,
+            tenant_id=tenant_id,
             predicate=None,
         )
         if spice_outcome_is_incorrect(payload, payload_json):
             await gap_svc.record_failed_attempt(
                 chw_id=chw_id,
                 behavioural_gap_id=behavioural_gap_id,
-                tenant_id=tenant_uuid,
+                tenant_id=tenant_id,
             )

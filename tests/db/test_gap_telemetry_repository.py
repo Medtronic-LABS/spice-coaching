@@ -24,7 +24,7 @@ async def test_try_claim_event_is_idempotent(db_session: AsyncSession) -> None:
             event_id=event_id,
             chw_id=chw_id,
             event_type="module_quiz_attempted",
-            tenant_id=None,
+            tenant_id=1,
         )
         is True
     )
@@ -33,7 +33,7 @@ async def test_try_claim_event_is_idempotent(db_session: AsyncSession) -> None:
             event_id=event_id,
             chw_id=chw_id,
             event_type="module_quiz_attempted",
-            tenant_id=None,
+            tenant_id=1,
         )
         is False
     )

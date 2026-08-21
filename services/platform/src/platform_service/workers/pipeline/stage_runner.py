@@ -18,6 +18,7 @@ from platform_service.db.models.module_candidate_draft import ModuleCandidateDra
 from platform_service.db.repositories.module_candidate_repository import (
     ModuleCandidateRepository,
 )
+from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.ingestion_cardinality import load_batch_for_run
 from platform_service.services.run_state_service import (
     STAGE_CARD_DRAFT,
@@ -81,15 +82,17 @@ class ExtractStageRunner:
                 exc,
             )
             await self._session.rollback()
-            error = {
-                "type": type(exc).__name__,
-                "reason": getattr(exc, "reason", "extract_failed"),
-                "message": str(exc)[:500],
-            }
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.EXTRACT_FAILED.value,
+                exc=exc,
+                reason=getattr(exc, "reason", "extract_failed"),
+                stage=STAGE_EXTRACT,
+                technical_message=getattr(exc, "technical_detail", None) or str(exc),
+            )
             await self._run_state.fail_step(
                 step_id,
                 error_code=ErrorCode.EXTRACT_FAILED.value,
-                error_message=str(exc)[:500],
+                error_message=user_message,
                 error=error,
             )
             await self._session.commit()
@@ -97,11 +100,15 @@ class ExtractStageRunner:
         except Exception as exc:
             logger.exception("Stage 1 crashed for source_document %s", source_document_id)
             await self._session.rollback()
-            error = {"type": type(exc).__name__, "message": str(exc)[:500]}
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.EXTRACT_FAILED.value,
+                exc=exc,
+                stage=STAGE_EXTRACT,
+            )
             await self._run_state.fail_step(
                 step_id,
                 error_code=ErrorCode.EXTRACT_FAILED.value,
-                error_message=str(exc)[:500],
+                error_message=user_message,
                 error=error,
             )
             await self._session.commit()
@@ -178,11 +185,15 @@ class IdentifyStageRunner:
         except Exception as exc:
             logger.exception("Stage C failed for run %s", run_id)
             await self._session.rollback()
-            error = {"type": type(exc).__name__, "message": str(exc)[:500]}
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.IDENTIFY_FAILED.value,
+                exc=exc,
+                stage=STAGE_MODULE_IDENTIFY,
+            )
             await self._run_state.fail_step(
                 step_id,
                 error_code=ErrorCode.IDENTIFY_FAILED.value,
-                error_message=str(exc)[:500],
+                error_message=user_message,
                 error=error,
             )
             await self._session.commit()
@@ -217,15 +228,19 @@ class IdentifyStageRunner:
 
         all_failed = chunks_attempted > 0 and chunks_succeeded == 0
         if all_failed:
-            error = {
-                "type": "AllChunksFailed",
-                "message": f"all {chunks_attempted} module_identify chunks failed",
-                "chunks_failed": chunks_failed,
-            }
+            technical = f"all {chunks_attempted} module_identify chunks failed"
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.IDENTIFY_FAILED.value,
+                reason="identify_chunks_failed",
+                stage=STAGE_MODULE_IDENTIFY,
+                technical_message=technical,
+                error_type="AllChunksFailed",
+                extra={"chunks_failed": chunks_failed},
+            )
             await self._run_state.fail_step(
                 step_id,
                 error_code=ErrorCode.IDENTIFY_FAILED.value,
-                error_message=error["message"],
+                error_message=user_message,
                 error=error,
             )
             await self._session.commit()
@@ -236,15 +251,18 @@ class IdentifyStageRunner:
             )
 
         if emitted_candidates == 0:
-            error = {
-                "type": "NoCandidatesIdentified",
-                "message": "zero candidates were identified",
-                "code": ErrorCode.IDENTIFY_NO_CANDIDATES.value,
-            }
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.IDENTIFY_NO_CANDIDATES.value,
+                reason="identify_no_candidates",
+                stage=STAGE_MODULE_IDENTIFY,
+                technical_message="zero candidates were identified",
+                error_type="NoCandidatesIdentified",
+                extra={"code": ErrorCode.IDENTIFY_NO_CANDIDATES.value},
+            )
             await self._run_state.fail_step(
                 step_id,
                 error_code=ErrorCode.IDENTIFY_NO_CANDIDATES.value,
-                error_message=error["message"],
+                error_message=user_message,
                 error=error,
             )
             await self._session.commit()
@@ -317,15 +335,16 @@ class DraftStageRunner:
                 # (otherwise SQLAlchemy stays in a poisoned txn) and record
                 # the failure on a fresh transaction.
                 await self._session.rollback()
-                error = {
-                    "candidate_id": str(cand_id),
-                    "type": type(exc).__name__,
-                    "message": str(exc)[:500],
-                }
+                user_message, error = build_step_failure(
+                    error_code=ErrorCode.DRAFT_FAILED.value,
+                    exc=exc,
+                    stage=STAGE_CARD_DRAFT,
+                    extra={"candidate_id": str(cand_id)},
+                )
                 await self._run_state.fail_step(
                     step_id,
                     error_code=ErrorCode.DRAFT_FAILED.value,
-                    error_message=str(exc)[:500],
+                    error_message=user_message,
                     error=error,
                 )
                 await self._session.commit()

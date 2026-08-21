@@ -34,20 +34,29 @@ from platform_service.workers.stage_a_extract import (
     Stage1RecoveryFailedError,
     StageAExtractor,
 )
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session, "content_block, source_page, source_document, ingestion_run_step, ingestion_run"
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE content_block, source_page, source_document, "
+            "ingestion_run_step, ingestion_run "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────
 
 
 async def _seed_source_document(session: AsyncSession) -> UUID:
@@ -57,6 +66,7 @@ async def _seed_source_document(session: AsyncSession) -> UUID:
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -116,6 +126,7 @@ class TestMediaTranscriptPath:
             primary_language="bn",
             content_domain="clinical",
             original_storage_path="/tmp/audio.mp3",
+            tenant_id=1,
         )
         db_session.add(sd)
         await db_session.flush()
@@ -137,8 +148,8 @@ class TestMediaTranscriptPath:
                 index=0,
                 start_ms=0,
                 end_ms=60_000,
-                payload_bytes=b"fake-audio",
-                mime_type="audio/mpeg",
+                payload_bytes=b"f" * 4096,
+                mime_type="audio/mp3",
             )
         ]
         result = await stage_a.run(
@@ -164,6 +175,7 @@ class TestMediaTranscriptPath:
             primary_language="bn",
             content_domain="clinical",
             original_storage_path="/tmp/silent.mp3",
+            tenant_id=1,
         )
         db_session.add(sd)
         await db_session.flush()
@@ -179,8 +191,8 @@ class TestMediaTranscriptPath:
                 index=0,
                 start_ms=0,
                 end_ms=60_000,
-                payload_bytes=b"fake-audio",
-                mime_type="audio/mpeg",
+                payload_bytes=b"f" * 4096,
+                mime_type="audio/mp3",
             )
         ]
         with pytest.raises(Stage1DocumentEmptyError, match="The document is empty"):
@@ -790,3 +802,65 @@ class TestVisionRecoveryPass:
         # Pages 1, 2 = 1 call each (main loop). Page 3 = 1 main-loop fail
         # + 1 recovery success = 2 calls. Total = 4.
         assert stage_a._vision.extract_page.await_count == 4
+
+
+class TestStageAReuseExistingExtraction:
+    async def test_reuses_pages_without_reextract(self, db_session: AsyncSession) -> None:
+        sd = SourceDocument(
+            title="reuse",
+            source_type="pdf",
+            primary_language="en",
+            content_domain="clinical",
+            original_storage_path="/tmp/x.pdf",
+            outline_jsonb={"sections": [{"title": "Intro"}]},
+            extraction_calibration_jsonb={
+                "path": "text_only",
+                "sample_pages_evaluated": [1],
+                "sample_pass_count": 1,
+                "sample_fail_count": 0,
+                "sample_fail_rate": 0.0,
+            },
+            tenant_id=1,
+        )
+        db_session.add(sd)
+        await db_session.flush()
+        body = "# Heading\n\nThis is well-extracted clean English text content with several lines."
+        db_session.add(
+            SourcePage(
+                source_document_id=sd.id,
+                page_number=1,
+                markdown_content=body,
+                extraction_method="text",
+                extraction_quality_score=0.9,
+                language_detected="en",
+            )
+        )
+        await db_session.commit()
+
+        text_extractor_fn = MagicMock(side_effect=AssertionError("text extract must not run when reusing"))
+        stage_a = StageAExtractor(
+            db_session,
+            vision_extractor=MagicMock(),
+            page_renderer=MagicMock(side_effect=AssertionError("render must not run")),
+            text_extractor_fn=text_extractor_fn,
+        )
+        with patch(
+            "platform_service.workers.stage_a_extract.count_pages",
+            side_effect=AssertionError("count_pages must not run when reusing"),
+        ):
+            result = await stage_a.run(
+                source_document_id=sd.id,
+                source_path="/tmp/x.pdf",
+                source_type="pdf",
+                primary_language="en",
+            )
+
+        assert result.pages_persisted == 1
+        assert result.outline_section_count == 1
+        assert result.extraction_method_counts == {"text": 1}
+        pages = (
+            (await db_session.execute(select(SourcePage).where(SourcePage.source_document_id == sd.id)))
+            .scalars()
+            .all()
+        )
+        assert len(pages) == 1

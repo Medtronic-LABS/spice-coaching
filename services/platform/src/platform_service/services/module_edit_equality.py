@@ -6,15 +6,17 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from mc_contracts.admin_modules import ModuleEditRequest, QuizQuestionEditRequest, QuizQuestionPayload
 from mc_contracts.localized import LocalizedString
+from mc_contracts.modules import ModuleEditRequest, QuizQuestionEditRequest, QuizQuestionPayload
 from pydantic import BaseModel
 
 from platform_service.db.models.module import Module
 
 # FE edit body sends title/description/module_json/thumbnail; quiz may be nested
-# under module_json. chatbot_faqs_only is not edited by the dashboard and must not
-# gate snapshot completeness or equality.
+# under module_json. chatbot_faqs_only, content_domain, domain, and estimated_minutes
+# are omitted from snapshot completeness and content equality so an omitted or identical
+# value still no-ops; the API skips the no-op when one is explicitly set to a
+# different value.
 _COMPLETE_SNAPSHOT_FIELDS = frozenset(
     {
         "title",
@@ -27,8 +29,6 @@ _COMPLETE_SNAPSHOT_FIELDS = frozenset(
 _CARD_NOISE_KEYS = frozenset(
     {
         "id",
-        "card_family_id",
-        "card_version",
         "source_pages",
         "presigned_url",
         "presigned_expires_seconds",
@@ -71,11 +71,7 @@ def _json_ready(value: Any) -> Any:
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json")
     if isinstance(value, dict):
-        return {
-            str(k): normalized
-            for k, v in value.items()
-            if (normalized := _json_ready(v)) not in (None, [], {})
-        }
+        return {str(k): _json_ready(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_json_ready(v) for v in value]
     return value
@@ -99,8 +95,6 @@ def _canonical_quiz_item(item: QuizEditItem) -> dict[str, Any]:
     else:
         payload = dict(item)
     payload.pop("id", None)
-    payload.pop("question_family_id", None)
-    payload.pop("question_version", None)
     return payload
 
 

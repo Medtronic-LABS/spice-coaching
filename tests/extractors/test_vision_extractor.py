@@ -7,16 +7,13 @@ surface as VisionExtractionError.
 import base64
 from typing import Any
 from unittest.mock import AsyncMock
-from uuid import uuid4
 
 import pytest
 from mc_contracts.enums import GenerationType
 from mc_contracts.internal_ai import InferenceRequest, InferenceResponse, TraceContext
-from platform_service.services.prompt_template_service import PromptTemplateService, RenderedPrompt
 from platform_service.workers.extractors.vision_extractor import (
     VisionExtractionError,
     VisionExtractor,
-    _unwrap_envelope,
 )
 
 
@@ -42,20 +39,6 @@ def mock_client() -> AsyncMock:
     client = AsyncMock()
     client.generate = AsyncMock(return_value=_make_mock_response())
     return client
-
-
-@pytest.fixture(autouse=True)
-def mock_vision_prompt_template(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _render(*_args: Any, **_kwargs: Any) -> RenderedPrompt:
-        return RenderedPrompt(
-            template_id="vision",
-            template_version=1,
-            prompt_template_id=uuid4(),
-            resolved_system_prompt="Extract verbatim. Do not translate.",
-            resolved_human_message="Extract the supplied page image.",
-        )
-
-    monkeypatch.setattr(PromptTemplateService, "render", _render)
 
 
 class TestVisionExtractorRequest:
@@ -203,6 +186,9 @@ class TestVisionHtmlNormalization:
 # is a defensive normalisation layer over the response.
 
 
+from platform_service.workers.extractors.vision_extractor import _unwrap_envelope  # noqa: E402
+
+
 class TestUnwrapEnvelopePure:
     """Pure-function tests for `_unwrap_envelope`. No mocks needed."""
 
@@ -304,3 +290,78 @@ class TestUnwrapEnvelopeIntegration:
             if line.startswith("# "):
                 # The line is just the heading, no JSON syntax around it.
                 assert '"' not in line and "[" not in line
+
+
+class TestExtractImageText:
+    @pytest.fixture
+    def _render_image_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from uuid import uuid4
+
+        from platform_service.services.prompt_template_service import RenderedPrompt
+
+        async def _fake_render(
+            self,
+            session,
+            *,
+            template_id: str,
+            variant_key: str | None,
+            variables: dict[str, str],
+        ) -> RenderedPrompt:
+            assert template_id == "vision-image-text"
+            return RenderedPrompt(
+                template_id=template_id,
+                template_version=1,
+                prompt_template_id=uuid4(),
+                resolved_system_prompt="extract figure text verbatim",
+                resolved_human_message="Extract visible text and a short description from this figure.",
+            )
+
+        monkeypatch.setattr(
+            "platform_service.workers.extractors.vision_extractor.PromptTemplateService.render",
+            _fake_render,
+        )
+
+    @pytest.mark.asyncio
+    async def test_empty_bytes_raises(self, mock_client: AsyncMock, _render_image_text: None) -> None:
+        extractor = VisionExtractor(client=mock_client)
+        with pytest.raises(VisionExtractionError, match="empty"):
+            await extractor.extract_image_text(image_bytes=b"")
+        mock_client.generate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_request_shape(self, mock_client: AsyncMock, _render_image_text: None) -> None:
+        extractor = VisionExtractor(client=mock_client)
+        png = b"\x89PNG\r\n\x1a\nfake"
+        mock_client.generate = AsyncMock(
+            return_value=_make_mock_response(
+                raw_text="VISIBLE_TEXT:\nmmHg\nDESCRIPTION:\nBar chart of cases."
+            )
+        )
+        text = await extractor.extract_image_text(
+            image_bytes=png,
+            mime_type="image/png",
+            label="abc123",
+        )
+        sent: InferenceRequest = mock_client.generate.call_args.args[0]
+        assert sent.generation_type == GenerationType.VISION_EXTRACTION
+        assert sent.prompt.template_id == "vision-image-text"
+        assert len(sent.image_attachments) == 1
+        assert sent.image_attachments[0].mime_type == "image/png"
+        assert base64.b64decode(sent.image_attachments[0].data_base64) == png
+        assert sent.image_attachments[0].label == "abc123"
+        assert text == "mmHg\nBar chart of cases."
+
+    @pytest.mark.asyncio
+    async def test_provider_error_raises(self, _render_image_text: None) -> None:
+        client = AsyncMock()
+        client.generate = AsyncMock(return_value=_make_mock_response(raw_text="", error="provider boom"))
+        extractor = VisionExtractor(client=client)
+        with pytest.raises(VisionExtractionError, match="provider boom"):
+            await extractor.extract_image_text(image_bytes=b"x")
+
+    @pytest.mark.asyncio
+    async def test_empty_response_returns_empty_string(self, _render_image_text: None) -> None:
+        client = AsyncMock()
+        client.generate = AsyncMock(return_value=_make_mock_response(raw_text=""))
+        extractor = VisionExtractor(client=client)
+        assert await extractor.extract_image_text(image_bytes=b"x") == ""

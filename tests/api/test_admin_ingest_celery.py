@@ -13,14 +13,16 @@ from uuid import UUID, uuid4
 import platform_service.celery_tasks as celery_tasks
 import pytest
 import pytest_asyncio
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 from mc_foundation.objectstore import StoredObject
 from mc_foundation.problem import register_problem_handlers
-from platform_service.api.admin_ingest import router as admin_ingest_router
+from platform_service.api.ingest import router as ingest_router
+from platform_service.auth.spice_context import SpiceUserContext
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal
+from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.ingest_batch import IngestBatch
 from platform_service.db.models.ingestion_run import IngestionRun, IngestionRunStep
 from platform_service.db.models.source_document import SourceDocument
@@ -31,10 +33,11 @@ from platform_service.services.run_state_service import (
     STEP_FAILED,
     STEP_SUCCEEDED,
 )
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import platform_path, requires_db, truncate_tables
+from tests.conftest import platform_path, requires_db
+from tests.helpers.hierarchy_fixtures import AM_ID, seed_basic_hierarchy
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -45,11 +48,15 @@ _DUPLICATE_PDF_SHA256 = hashlib.sha256(_DUPLICATE_PDF_BYTES).hexdigest()
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_ingest_tables(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "attribution_event, file_upload, ingestion_run_step, ingestion_run, ingest_batch, source_document",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE attribution_event, file_upload, ingestion_run_step, "
+            "ingestion_run, ingest_batch, source_document RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture
@@ -60,8 +67,19 @@ async def app(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
         validation_error_type=RequestValidationError,
         http_exception_type=HTTPException,
     )
+
+    @app_obj.middleware("http")
+    async def inject_optional_spice_user(request: Request, call_next):  # type: ignore[no-untyped-def]
+        mock_user_id = request.headers.get("x-mock-user-id")
+        if mock_user_id:
+            request.state.spice_user = SpiceUserContext.model_validate(
+                {"id": int(mock_user_id), "username": request.headers.get("X-Test-Username")}
+            )
+            request.state.selected_tenant_id = int(request.headers.get("x-mock-tenant-id", "0"))
+        return await call_next(request)
+
     api_router = APIRouter(prefix=get_settings().api_root_path_normalized)
-    api_router.include_router(admin_ingest_router)
+    api_router.include_router(ingest_router)
     app_obj.include_router(api_router)
 
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
@@ -102,6 +120,7 @@ async def _seed_ingested_source(
     *,
     content_sha256: str = _DUPLICATE_PDF_SHA256,
     title: str = "Existing Guide",
+    tenant_id: int = 0,
 ) -> SourceDocument:
     doc = SourceDocument(
         title=title,
@@ -112,6 +131,7 @@ async def _seed_ingested_source(
         content_sha256=content_sha256,
         original_filename="guide.pdf",
         status="ingested",
+        tenant_id=tenant_id,
     )
     db_session.add(doc)
     await db_session.flush()
@@ -123,6 +143,7 @@ async def _seed_uploaded_source(
     *,
     title: str = "Staged Guide",
     content_sha256: str | None = None,
+    tenant_id: int = 0,
 ) -> SourceDocument:
     doc = SourceDocument(
         title=title,
@@ -133,6 +154,7 @@ async def _seed_uploaded_source(
         content_sha256=content_sha256,
         original_filename="guide.pdf",
         status="uploaded",
+        tenant_id=tenant_id,
     )
     db_session.add(doc)
     await db_session.flush()
@@ -155,10 +177,12 @@ async def _upload_files(
 async def _start_ingest(
     client: AsyncClient,
     source_document_ids: list[str],
+    *,
+    headers: dict[str, str] | None = None,
     **kwargs: Any,
 ) -> Any:
     body: dict[str, Any] = {"source_document_ids": source_document_ids, **kwargs}
-    return await client.post(platform_path("/admin/ingest"), json=body)
+    return await client.post(platform_path("/admin/ingest"), json=body, headers=headers)
 
 
 class TestIngestUpload:
@@ -239,6 +263,8 @@ class TestIngestEnqueuesCelery:
         assert len(body["sources"]) == 1
         assert "run_id" in body["sources"][0]
         assert "poll_url" not in body["sources"][0]
+        assert "ingested_at" in body["sources"][0]
+        assert body["sources"][0]["ingested_by"] is None
 
         delay_mock.assert_called_once()
         payload = delay_mock.call_args[0][0]
@@ -254,6 +280,42 @@ class TestIngestEnqueuesCelery:
         assert job["primary_language"] == get_settings().deployment_primary_locale
         assert "skip_merge" not in job
         assert job["source_path"].startswith(f"{_BUCKET}/ingest/")
+
+    async def test_start_ingest_returns_ingested_by_actor(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        delay_mock = MagicMock()
+        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        if await db_session.get(HierarchyUser, AM_ID) is None:
+            await seed_basic_hierarchy(db_session, tenant_id=1)
+            await db_session.commit()
+
+        staged = await _seed_uploaded_source(db_session, title="Actor Guide")
+        await db_session.commit()
+
+        resp = await _start_ingest(
+            client,
+            [str(staged.id)],
+            headers={"x-mock-user-id": str(AM_ID), "x-mock-tenant-id": "0"},
+        )
+        assert resp.status_code == 202
+        source = resp.json()["sources"][0]
+        assert source["ingested_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+        assert "ingested_at" in source
+
+        await db_session.refresh(staged)
+        assert staged.ingested_by == AM_ID
+        assert staged.status == "ingesting"
+
+        batch = await db_session.get(IngestBatch, resp.json()["batch_id"])
+        assert batch is not None
+        assert batch.ingested_by == AM_ID
+        run = await db_session.get(IngestionRun, UUID(source["run_id"]))
+        assert run is not None
+        assert run.ingested_by == AM_ID
 
     async def test_start_ingest_multi_source_enqueues_for_auto_fusion(
         self,
@@ -400,7 +462,29 @@ class TestIngestDuplicateOverride:
         assert still_there is not None
         assert still_there.status == "uploaded"
 
-    async def test_upload_partial_success_returns_skipped_duplicates(
+    async def test_upload_mixed_batch_any_conflict_returns_409_without_writes(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        await _seed_ingested_source(db_session)
+        before_ids = {doc.id for doc in (await db_session.execute(select(SourceDocument))).scalars().all()}
+
+        resp = await _upload_files(
+            client,
+            [("new.pdf", b"%PDF-new"), ("guide.pdf", _DUPLICATE_PDF_BYTES)],
+            data={"override_duplicates": "[false, false]"},
+        )
+        assert resp.status_code == 409
+        body = resp.json()
+        assert body["code"] == "duplicate_content"
+        assert len(body["conflicts"]) == 1
+        assert body["conflicts"][0]["filename"] == "guide.pdf"
+
+        after_ids = {doc.id for doc in (await db_session.execute(select(SourceDocument))).scalars().all()}
+        assert after_ids == before_ids
+
+    async def test_upload_mixed_batch_with_override_uploads_all(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
@@ -410,14 +494,34 @@ class TestIngestDuplicateOverride:
         resp = await _upload_files(
             client,
             [("new.pdf", b"%PDF-new"), ("guide.pdf", _DUPLICATE_PDF_BYTES)],
-            data={"override_duplicates": "[false, false]"},
+            data={"override_duplicates": "[false, true]"},
         )
         assert resp.status_code == 201
         body = resp.json()
-        assert len(body["sources"]) == 1
-        assert body["sources"][0]["source_type"] == "pdf"
-        assert len(body["skipped_duplicates"]) == 1
-        assert body["skipped_duplicates"][0]["filename"] == "guide.pdf"
+        assert len(body["sources"]) == 2
+        assert "skipped_duplicates" not in body
+
+    async def test_upload_within_batch_duplicate_digests_returns_422(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        resp = await _upload_files(
+            client,
+            [("a.pdf", _DUPLICATE_PDF_BYTES), ("b.pdf", _DUPLICATE_PDF_BYTES)],
+        )
+        assert resp.status_code == 422
+        assert "duplicate file content in the same request" in resp.json()["detail"]
+
+    async def test_upload_same_hash_other_tenant_does_not_conflict(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        await _seed_ingested_source(db_session, tenant_id=99)
+
+        resp = await _upload_files(client, [("guide.pdf", _DUPLICATE_PDF_BYTES)])
+        assert resp.status_code == 201
+        assert len(resp.json()["sources"]) == 1
 
     async def test_failed_source_does_not_block_reupload(
         self,
@@ -433,6 +537,7 @@ class TestIngestDuplicateOverride:
             content_sha256=_DUPLICATE_PDF_SHA256,
             original_filename="guide.pdf",
             status="failed",
+            tenant_id=0,
         )
         db_session.add(failed)
         await db_session.flush()
@@ -461,7 +566,7 @@ class TestIngestDuplicateOverride:
         assert conflict["existing_source_documents"][0]["source_document_id"] == str(existing.id)
         delay_mock.assert_not_called()
 
-    async def test_start_partial_success_returns_skipped_duplicates(
+    async def test_start_mixed_batch_any_conflict_returns_409_without_queue(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
@@ -477,17 +582,18 @@ class TestIngestDuplicateOverride:
         monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
 
         resp = await _start_ingest(client, [str(ingested.id), str(staged.id)])
-        assert resp.status_code == 202
+        assert resp.status_code == 409
         body = resp.json()
-        assert len(body["sources"]) == 1
-        assert body["sources"][0]["source_document_id"] == str(staged.id)
-        assert len(body["skipped_duplicates"]) == 1
-        assert body["skipped_duplicates"][0]["existing_source_documents"][0]["source_document_id"] == str(
-            ingested.id
-        )
-        delay_mock.assert_called_once()
+        assert body["code"] == "duplicate_content"
+        assert len(body["conflicts"]) == 1
+        assert body["conflicts"][0]["existing_source_documents"][0]["source_document_id"] == str(ingested.id)
+        delay_mock.assert_not_called()
+        await db_session.refresh(staged)
+        assert staged.status == "uploaded"
+        batches = (await db_session.execute(select(IngestBatch))).scalars().all()
+        assert batches == []
 
-    async def test_start_with_override_clones_ingested_source(
+    async def test_start_with_override_reuses_ingested_source(
         self,
         client: AsyncClient,
         db_session: AsyncSession,
@@ -504,9 +610,10 @@ class TestIngestDuplicateOverride:
         )
         assert resp.status_code == 202
         assert len(resp.json()["sources"]) == 1
-        new_id = resp.json()["sources"][0]["source_document_id"]
-        assert new_id != str(existing.id)
+        assert resp.json()["sources"][0]["source_document_id"] == str(existing.id)
         delay_mock.assert_called_once()
+        await db_session.refresh(existing)
+        assert existing.status == "ingesting"
 
 
 class TestIngestionInstructions:
@@ -614,6 +721,7 @@ class TestIngestBatchPoll:
         payload = poll.json()
         assert payload["batch_id"] == batch_id
         assert payload["status"] == "queued"
+        assert payload["ingested_by"] is None
         assert "fuse_sources" not in payload
         assert "skip_merge" not in payload
         assert len(payload["sources"]) == 1
@@ -626,6 +734,31 @@ class TestIngestBatchPoll:
 
         missing = await client.get(platform_path(f"/admin/ingest/batches/{uuid4()}"))
         assert missing.status_code == 404
+
+    async def test_poll_returns_ingested_by_actor(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", MagicMock())
+        monkeypatch.setattr(celery_tasks.generate_source_thumbnail_task, "delay", MagicMock())
+        if await db_session.get(HierarchyUser, AM_ID) is None:
+            await seed_basic_hierarchy(db_session, tenant_id=1)
+            await db_session.commit()
+
+        staged = await _seed_uploaded_source(db_session)
+        start = await _start_ingest(
+            client,
+            [str(staged.id)],
+            headers={"x-mock-user-id": str(AM_ID), "x-mock-tenant-id": "0"},
+        )
+        assert start.status_code == 202
+        batch_id = start.json()["batch_id"]
+
+        poll = await client.get(platform_path(f"/admin/ingest/batches/{batch_id}"))
+        assert poll.status_code == 200
+        assert poll.json()["ingested_by"] == {"id": AM_ID, "name": "Test Area Manager"}
 
     async def test_by_document_route_removed(
         self,
@@ -651,11 +784,8 @@ class TestIngestBatchRetry:
     ) -> None:
         monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", MagicMock())
         monkeypatch.setattr(celery_tasks.generate_source_thumbnail_task, "delay", MagicMock())
-        pipeline_enqueue = MagicMock()
-        monkeypatch.setattr(
-            "platform_service.services.ingest_retry_service.enqueue_pipeline_resume",
-            pipeline_enqueue,
-        )
+        pipeline_delay = MagicMock()
+        monkeypatch.setattr(celery_tasks.retry_ingest_pipeline_task, "delay", pipeline_delay)
 
         staged = await _seed_uploaded_source(db_session)
         start = await _start_ingest(client, [str(staged.id)])
@@ -689,7 +819,7 @@ class TestIngestBatchRetry:
         assert payload["results"][0]["run_id"] == run_id
         assert payload["results"][0]["stage"] == STAGE_EXTRACT
         assert payload["results"][0]["status"] == "retry_queued"
-        pipeline_enqueue.assert_called_once()
+        pipeline_delay.assert_called_once()
 
         run = await db_session.get(IngestionRun, UUID(run_id))
         assert run is not None
@@ -704,4 +834,6 @@ class TestIngestBatchRetry:
         await db_session.commit()
         noop = await client.post(platform_path(f"/admin/ingest/batches/{batch_id}/retry"))
         assert noop.status_code == 200
-        assert noop.json()["results"] == []
+        assert len(noop.json()["results"]) == 1
+        assert noop.json()["results"][0]["status"] == "noop"
+        assert noop.json()["results"][0]["reason"] == "step_not_failed"

@@ -38,29 +38,28 @@ from mc_foundation.request_middleware import RequestIdMiddleware  # noqa: E402
 from redis.asyncio import Redis  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
-from platform_service.api.admin_assignments import router as admin_assignments_router  # noqa: E402
-from platform_service.api.admin_configs import router as admin_configs_router  # noqa: E402
-from platform_service.api.admin_files import router as admin_files_router  # noqa: E402
-from platform_service.api.admin_ingest import router as admin_ingest_router  # noqa: E402
-from platform_service.api.admin_ingestion_runs import router as admin_ingestion_runs_router  # noqa: E402
-from platform_service.api.admin_module_analytics import router as admin_module_analytics_router  # noqa: E402
-from platform_service.api.admin_module_demand import router as admin_module_demand_router  # noqa: E402
-from platform_service.api.admin_modules import router as admin_modules_router  # noqa: E402
-from platform_service.api.admin_prompts import router as admin_prompts_router  # noqa: E402
-from platform_service.api.admin_source_documents import router as admin_source_documents_router  # noqa: E402
-from platform_service.api.admin_trigger_bindings import router as admin_trigger_bindings_router  # noqa: E402
-from platform_service.api.admin_video_assignments import (
-    router as admin_video_assignments_router,  # noqa: E402
-)
-from platform_service.api.coaching_rag import router as coaching_rag_router  # noqa: E402
+from platform_service.api.assignments import router as assignments_router  # noqa: E402
+from platform_service.api.auth import router as auth_router  # noqa: E402
+from platform_service.api.badges import router as badges_router  # noqa: E402
+from platform_service.api.coaching import router as coaching_router  # noqa: E402
+from platform_service.api.configs import router as configs_router  # noqa: E402
 from platform_service.api.dashboard import router as dashboard_router  # noqa: E402
+from platform_service.api.files import router as files_router  # noqa: E402
+from platform_service.api.hierarchy import router as hierarchy_router  # noqa: E402
+from platform_service.api.ingest import router as ingest_router  # noqa: E402
+from platform_service.api.ingestion_runs import router as ingestion_runs_router  # noqa: E402
 from platform_service.api.knowledge import router as knowledge_router  # noqa: E402
+from platform_service.api.modules import router as modules_router  # noqa: E402
 from platform_service.api.morning import router as morning_router  # noqa: E402
+from platform_service.api.prompts import router as prompts_router  # noqa: E402
+from platform_service.api.source_documents import router as source_documents_router  # noqa: E402
 from platform_service.api.sync import router as sync_router  # noqa: E402
 from platform_service.api.telemetry import router as telemetry_router  # noqa: E402
 from platform_service.auth.rate_limit_middleware import RateLimitMiddleware  # noqa: E402
+from platform_service.auth.role_route_authorization_middleware import (  # noqa: E402
+    RoleRouteAuthorizationMiddleware,
+)
 from platform_service.auth.spice_auth_middleware import SpiceAuthMiddleware  # noqa: E402
-from platform_service.auth.spice_authorization_middleware import SpiceAuthorizationMiddleware  # noqa: E402
 from platform_service.config import get_settings  # noqa: E402
 from platform_service.db.base import SessionLocal  # noqa: E402
 from platform_service.deps import (  # noqa: E402
@@ -85,6 +84,10 @@ def create_app() -> FastAPI:
         log_level=settings.log_level,
         json_logs=settings.log_json,
         app_env=settings.app_env,
+        log_dir=settings.log_dir,
+        log_role="http_platform",
+        log_max_bytes=settings.log_max_bytes,
+        log_backup_count=settings.log_backup_count,
     )
     clickhouse_client = get_clickhouse_client()
     api_prefix = settings.api_root_path_normalized
@@ -104,34 +107,45 @@ def create_app() -> FastAPI:
         http_exception_type=HTTPException,
     )
 
-    fastapi_app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_allow_origins_list,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    fastapi_app.add_middleware(RequestIdMiddleware, service_name=settings.app_name)
-    # Last added runs first on request: rate limit, then auth, then authorization.
+    # Last added runs first. CORS outermost so preflight never hits auth.
+    # RequestId wraps auth so 401s still get X-Request-ID and an access line.
     fastapi_app.add_middleware(RateLimitMiddleware)
-    fastapi_app.add_middleware(SpiceAuthorizationMiddleware)
+    fastapi_app.add_middleware(RoleRouteAuthorizationMiddleware)
     fastapi_app.add_middleware(SpiceAuthMiddleware)
+    fastapi_app.add_middleware(RequestIdMiddleware, service_name=settings.app_name)
+    # Starlette with allow_origins=["*"] always emits ACAO "*", and only replaces it
+    # with the request Origin when a Cookie header is present. SPA login uses
+    # credentials:include before any cookie exists, so "*" + Allow-Credentials is
+    # rejected by the browser. Map "*" to allow_origin_regex so Origin is mirrored.
+    cors_origins = settings.cors_allow_origins_list
+    cors_kwargs: dict = {
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+        "allow_credentials": True,
+        "expose_headers": ["Authorization", "auth-cookie"],
+    }
+    if "*" in cors_origins:
+        cors_kwargs["allow_origins"] = []
+        cors_kwargs["allow_origin_regex"] = r"https?://.*"
+    else:
+        cors_kwargs["allow_origins"] = cors_origins
+    fastapi_app.add_middleware(CORSMiddleware, **cors_kwargs)
 
     api_router = APIRouter() if not api_prefix else APIRouter(prefix=api_prefix)
+    api_router.include_router(auth_router)
     api_router.include_router(telemetry_router)
-    api_router.include_router(coaching_rag_router)
-    api_router.include_router(admin_ingest_router)
-    api_router.include_router(admin_files_router)
+    api_router.include_router(coaching_router)
+    api_router.include_router(ingest_router)
+    api_router.include_router(files_router)
     api_router.include_router(knowledge_router)
-    api_router.include_router(admin_modules_router)
-    api_router.include_router(admin_module_analytics_router)
-    api_router.include_router(admin_trigger_bindings_router)
-    api_router.include_router(admin_ingestion_runs_router)
-    api_router.include_router(admin_source_documents_router)
-    api_router.include_router(admin_assignments_router)
-    api_router.include_router(admin_video_assignments_router)
-    api_router.include_router(admin_module_demand_router)
-    api_router.include_router(admin_configs_router)
-    api_router.include_router(admin_prompts_router)
+    api_router.include_router(modules_router)
+    api_router.include_router(ingestion_runs_router)
+    api_router.include_router(source_documents_router)
+    api_router.include_router(assignments_router)
+    api_router.include_router(configs_router)
+    api_router.include_router(prompts_router)
+    api_router.include_router(badges_router)
+    api_router.include_router(hierarchy_router)
     api_router.include_router(dashboard_router)
     api_router.include_router(morning_router)
     api_router.include_router(sync_router)
@@ -210,4 +224,4 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001, access_log=False)

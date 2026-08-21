@@ -31,7 +31,7 @@ class GapsBundleBuilder:
         *,
         since: datetime | None,
         chw_id: int | None,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> GapsSyncBundle:
         gaps = await BehaviouralGapRepository(self._session).list_active_updated_since(
             since,

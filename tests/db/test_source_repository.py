@@ -14,25 +14,34 @@ so they share the same per-loop engine as production code.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
 from platform_service.db.models.source_document import SourceDocument
+from platform_service.db.models.source_image import SourceImage
 from platform_service.db.models.source_page import SourcePage
 from platform_service.db.repositories.source_repository import SourceRepository
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "content_block, source_page, source_document")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text("TRUNCATE content_block, source_page, source_document RESTART IDENTITY CASCADE")
+    )
+    await db_session.commit()
+
+
+# ─── Helpers ───────────────────────────────────────────────────────────────
 
 
 async def _seed_doc(session: AsyncSession) -> UUID:
@@ -42,6 +51,7 @@ async def _seed_doc(session: AsyncSession) -> UUID:
         primary_language="bn",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -276,10 +286,102 @@ class TestListDuplicateCandidatesByContentSha256:
                     original_storage_path=f"/tmp/{status}.pdf",
                     content_sha256=digest,
                     status=status,
+                    tenant_id=1,
                 )
             )
         await db_session.flush()
 
-        matches = await repo.list_duplicate_candidates_by_content_sha256(digest)
+        matches = await repo.list_duplicate_candidates_by_content_sha256(digest, tenant_id=1)
         assert {m.status for m in matches} == {"uploaded", "ingested"}
         assert all(m.content_sha256 == digest for m in matches)
+
+    async def test_scopes_matches_to_tenant(self, db_session: AsyncSession) -> None:
+        repo = SourceRepository(db_session)
+        digest = "tenant-scoped-digest"
+        for tenant_id in (1, 2):
+            db_session.add(
+                SourceDocument(
+                    title=f"tenant-{tenant_id}",
+                    source_type="pdf",
+                    primary_language="bn",
+                    content_domain="clinical",
+                    original_storage_path=f"/tmp/t{tenant_id}.pdf",
+                    content_sha256=digest,
+                    status="uploaded",
+                    tenant_id=tenant_id,
+                )
+            )
+        await db_session.flush()
+
+        matches = await repo.list_duplicate_candidates_by_content_sha256(digest, tenant_id=1)
+        assert len(matches) == 1
+        assert matches[0].tenant_id == 1
+
+
+def _source_image(
+    *,
+    document_id: UUID,
+    content_sha256: str,
+    alt_text: str | None,
+    created_at: datetime,
+) -> SourceImage:
+    return SourceImage(
+        source_document_id=document_id,
+        source_page_id=None,
+        page_number=1,
+        image_order=0,
+        storage_path="bucket/ingest/figures/x.png",
+        content_type="image/png",
+        content_sha256=content_sha256,
+        width_px=100,
+        height_px=80,
+        size_bytes=4000,
+        alt_text=alt_text,
+        nearby_text="page context",
+        bbox_jsonb=None,
+        created_at=created_at,
+    )
+
+
+class TestFindUsableAltTextBySha256:
+    async def test_returns_usable_alt_and_ignores_placeholders(self, db_session: AsyncSession) -> None:
+        repo = SourceRepository(db_session)
+        doc_id = await _seed_doc(db_session)
+        digest = "same-figure-digest"
+        older = datetime.now(UTC) - timedelta(minutes=5)
+        newer = datetime.now(UTC)
+        db_session.add(
+            _source_image(
+                document_id=doc_id,
+                content_sha256=digest,
+                alt_text="Picture 3",
+                created_at=newer,
+            )
+        )
+        other_doc = await _seed_doc(db_session)
+        db_session.add(
+            _source_image(
+                document_id=other_doc,
+                content_sha256=digest,
+                alt_text="Hypertension staging chart",
+                created_at=older,
+            )
+        )
+        await db_session.flush()
+
+        found = await repo.find_usable_alt_text_by_sha256(digest)
+        assert found == "Hypertension staging chart"
+
+    async def test_returns_none_when_only_placeholders(self, db_session: AsyncSession) -> None:
+        repo = SourceRepository(db_session)
+        doc_id = await _seed_doc(db_session)
+        db_session.add(
+            _source_image(
+                document_id=doc_id,
+                content_sha256="only-placeholder",
+                alt_text="Image 1",
+                created_at=datetime.now(UTC),
+            )
+        )
+        await db_session.flush()
+        assert await repo.find_usable_alt_text_by_sha256("only-placeholder") is None

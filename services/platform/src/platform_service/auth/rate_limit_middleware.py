@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from collections.abc import Awaitable, Callable
 
 from mc_contracts.errors import ErrorCode
+from mc_foundation.logging import get_security_logger
 from mc_foundation.problem import problem_json_response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -15,7 +15,7 @@ from starlette.responses import Response
 from platform_service.config import Settings, get_settings
 from platform_service.deps import get_redis_client
 
-logger = logging.getLogger(__name__)
+security_logger = get_security_logger()
 
 _RATE_LIMIT_RULES: tuple[tuple[str, str], ...] = (
     ("telemetry/events", "telemetry"),
@@ -57,13 +57,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             await redis.expire(key, window + 1)
 
         if count > limit:
-            logger.warning(
-                "rate limit exceeded bucket=%s ip=%s path_suffix=%s count=%d limit=%d",
-                bucket,
-                client_ip,
-                suffix,
-                count,
-                limit,
+            security_logger.warning(
+                "rate_limit_exceeded",
+                extra={
+                    "event": "rate_limit_exceeded",
+                    "bucket": bucket,
+                    "ip": client_ip,
+                    "path_suffix": suffix,
+                    "count": count,
+                    "limit": limit,
+                    "path": str(request.url.path),
+                },
             )
             return problem_json_response(
                 code=ErrorCode.RATE_LIMIT_EXCEEDED.value,

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from mc_contracts.chat_feedback_summary import ChatFeedbackSummaryResponse
 
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.db.repositories.chat_feedback_summary_repository import ChatFeedbackSummaryRepository
 from platform_service.deps import get_ai_client, get_clickhouse_client
@@ -34,36 +35,37 @@ async def aggregate_chat_feedback_summary_job() -> dict[str, int]:
             tenant_ids = sorted(set(ch_tenant_ids) | set(snapshot_tenant_ids))
 
             for tenant_id in tenant_ids:
-                try:
-                    watermark = await repo.get_computed_at(tenant_id)
-                    since_ts = aggregator.resolve_since_ts(watermark=watermark, now=computed_at)
-                    batch = await aggregator.fetch_since(tenant_id, since_ts=since_ts)
-                    if not batch.events:
-                        summary["tenants_skipped"] += 1
+                with using_selected_tenant(tenant_id):
+                    try:
+                        watermark = await repo.get_computed_at(tenant_id)
+                        since_ts = aggregator.resolve_since_ts(watermark=watermark, now=computed_at)
+                        batch = await aggregator.fetch_since(tenant_id, since_ts=since_ts)
+                        if not batch.events:
+                            summary["tenants_skipped"] += 1
+                            continue
+
+                        previous_payload = await repo.get_payload(tenant_id)
+                        previous_summary: ChatFeedbackSummaryResponse | None = None
+                        if previous_payload is not None:
+                            previous_summary = ChatFeedbackSummaryResponse.model_validate(previous_payload)
+
+                        result = await generator.synthesize(
+                            batch=batch,
+                            period_start=watermark,
+                            period_end=computed_at,
+                            previous_summary=previous_summary,
+                        )
+                        await repo.upsert(
+                            tenant_id=tenant_id,
+                            payload_json=result.model_dump(mode="json"),
+                            generated_at=result.generated_at,
+                            computed_at=computed_at,
+                        )
+                        summary["tenants_updated"] += 1
+                    except Exception:
+                        logger.exception("Chat feedback summary worker failed for tenant %s", tenant_id)
+                        await session.rollback()
                         continue
-
-                    previous_payload = await repo.get_payload(tenant_id)
-                    previous_summary: ChatFeedbackSummaryResponse | None = None
-                    if previous_payload is not None:
-                        previous_summary = ChatFeedbackSummaryResponse.model_validate(previous_payload)
-
-                    result = await generator.synthesize(
-                        batch=batch,
-                        period_start=watermark,
-                        period_end=computed_at,
-                        previous_summary=previous_summary,
-                    )
-                    await repo.upsert(
-                        tenant_id=tenant_id,
-                        payload_json=result.model_dump(mode="json"),
-                        generated_at=result.generated_at,
-                        computed_at=computed_at,
-                    )
-                    summary["tenants_updated"] += 1
-                except Exception:
-                    logger.exception("Chat feedback summary worker failed for tenant %s", tenant_id)
-                    await session.rollback()
-                    continue
 
             await session.commit()
     finally:

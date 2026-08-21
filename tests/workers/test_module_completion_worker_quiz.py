@@ -19,16 +19,6 @@ from tests.workers.conftest import _add_quiz_questions, _make_gap, _make_module,
 
 pytestmark = [pytest.mark.asyncio, requires_db]
 
-
-@pytest.fixture(autouse=True)
-def enable_behavioural_gap_state(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        module_completion_worker.get_settings(),
-        "telemetry_behavioural_gap_state_enabled",
-        True,
-    )
-
-
 # ── quiz attempt happy paths ────────────────────────────────────────────
 
 
@@ -45,6 +35,7 @@ async def test_passing_quiz_resets_gap_failures(patch_session_local, db_session:
             behavioural_gap_id=gap.id,
             failed_attempts_count=2,
             escalated_to_supervisor=True,
+            tenant_id=1,
         )
     )
     await db_session.flush()
@@ -52,7 +43,6 @@ async def test_passing_quiz_resets_gap_failures(patch_session_local, db_session:
     await module_completion_worker.process_module_event_job(
         {
             "event_type": "module_quiz_attempted",
-            "event_id": str(uuid4()),
             "chw_id": str(chw),
             "module_id": str(module.id),
             "quiz_score_pct": 0.85,
@@ -88,7 +78,6 @@ async def test_failing_quiz_increments_gap_failed_attempts(
     await module_completion_worker.process_module_event_job(
         {
             "event_type": "module_quiz_attempted",
-            "event_id": str(uuid4()),
             "chw_id": str(chw),
             "module_id": str(module.id),
             "quiz_score_pct": 0.40,
@@ -118,7 +107,6 @@ async def test_quiz_outcome_incorrect_increments_failures_even_when_score_passes
     await module_completion_worker.process_module_event_job(
         {
             "event_type": "module_quiz_attempted",
-            "event_id": str(uuid4()),
             "chw_id": str(chw),
             "module_id": str(module.id),
             "quiz_score_pct": 0.95,
@@ -150,13 +138,13 @@ async def test_quiz_outcome_correct_decrements_failed_attempts(
             failed_attempts_count=3,
             escalated_to_supervisor=True,
             status="active",
+            tenant_id=1,
         )
     )
     await db_session.flush()
     await module_completion_worker.process_module_event_job(
         {
             "event_type": "module_quiz_attempted",
-            "event_id": str(uuid4()),
             "chw_id": str(chw),
             "module_id": str(module.id),
             "quiz_score_pct": 0.20,
@@ -190,8 +178,8 @@ async def test_second_quiz_attempt_increments_gap_occurrence_count(
         "module_id": str(module.id),
         "quiz_score_pct": 0.40,
     }
-    await module_completion_worker.process_module_event_job({**job, "event_id": str(uuid4())})
-    await module_completion_worker.process_module_event_job({**job, "event_id": str(uuid4())})
+    await module_completion_worker.process_module_event_job({**job, "event_id": "evt-quiz-a"})
+    await module_completion_worker.process_module_event_job({**job, "event_id": "evt-quiz-b"})
     r = await db_session.execute(
         select(CHWBehaviouralGapState).where(
             CHWBehaviouralGapState.chw_id == chw,
@@ -214,17 +202,13 @@ async def test_quiz_outcome_correct_hitting_zero_sets_resolved(
     chw = _test_chw_id()
     db_session.add(
         CHWBehaviouralGapState(
-            chw_id=chw,
-            behavioural_gap_id=gap.id,
-            failed_attempts_count=1,
-            status="active",
+            chw_id=chw, behavioural_gap_id=gap.id, failed_attempts_count=1, status="active", tenant_id=1
         )
     )
     await db_session.flush()
     await module_completion_worker.process_module_event_job(
         {
             "event_type": "module_quiz_attempted",
-            "event_id": str(uuid4()),
             "chw_id": str(chw),
             "module_id": str(module.id),
             "quiz_score_pct": 0.0,
@@ -255,7 +239,6 @@ async def test_three_fails_in_window_escalates_via_gap_state_service(
         await module_completion_worker.process_module_event_job(
             {
                 "event_type": "module_quiz_attempted",
-                "event_id": str(uuid4()),
                 "chw_id": str(chw),
                 "module_id": str(module.id),
                 "quiz_score_pct": 0.30,
@@ -285,7 +268,6 @@ async def test_quiz_event_for_module_without_primary_gap_skips_gap_update(
     await module_completion_worker.process_module_event_job(
         {
             "event_type": "module_quiz_attempted",
-            "event_id": str(uuid4()),
             "chw_id": str(chw),
             "module_id": str(module.id),
             "quiz_score_pct": 0.90,
@@ -317,7 +299,6 @@ async def test_quiz_event_with_missing_score_treated_as_zero_fail(
     await module_completion_worker.process_module_event_job(
         {
             "event_type": "module_quiz_attempted",
-            "event_id": str(uuid4()),
             "chw_id": str(chw),
             "module_id": str(module.id),
             # quiz_score_pct intentionally omitted
@@ -581,7 +562,7 @@ async def test_module_version_attribution_uses_event_module_id(
     family's current_published_module_id — important when a CHW completes
     v1 after v2 has been published (they synced before the new version
     landed)."""
-    family = ModuleFamily(module_code=f"VER-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"VER-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
     v1 = Module(
@@ -593,6 +574,7 @@ async def test_module_version_attribution_uses_event_module_id(
         domain="hypertension",
         estimated_minutes=5,
         difficulty_level="basic",
+        tenant_id=1,
     )
     v2 = Module(
         module_family_id=family.id,
@@ -603,6 +585,7 @@ async def test_module_version_attribution_uses_event_module_id(
         domain="hypertension",
         estimated_minutes=5,
         difficulty_level="basic",
+        tenant_id=1,
     )
     db_session.add_all([v1, v2])
     await db_session.flush()

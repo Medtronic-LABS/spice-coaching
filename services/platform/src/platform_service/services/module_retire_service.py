@@ -19,12 +19,12 @@ class ModuleRetireService:
     def __init__(self, session: AsyncSession) -> None:
         self._modules = ModuleRepository(session)
 
-    async def retire(self, module_id: UUID) -> Module:
-        module = await self._modules.retire_module(module_id)
+    async def retire(self, module_id: UUID, *, retired_by_user_id: int | None = None) -> Module:
+        module = await self._modules.retire_module(module_id, retired_by_user_id=retired_by_user_id)
         secondary_id = module.merge_secondary_module_id
         if secondary_id is not None:
             try:
-                await self._modules.retire_module(secondary_id)
+                await self._modules.retire_module(secondary_id, retired_by_user_id=retired_by_user_id)
             except ModuleNotFoundError:
                 pass
         return module

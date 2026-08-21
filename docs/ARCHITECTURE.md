@@ -95,7 +95,7 @@ graph LR
 
 | System | Used by | Purpose | Connection |
 |--------|---------|---------|------------|
-| **SPICE auth-service** | platform-api | JWT validation, admin vs device authorization planes | `POST {SPICE_AUTH_BASE_URL}/authenticate` |
+| **SPICE auth-service** | platform-api | JWT validation (authentication) | `POST {SPICE_AUTH_BASE_URL}/authenticate` |
 | **Google Vertex AI / Gemini** | ai-runtime | Inference, vision, transcription, embeddings | SDK via ADC or API key |
 | **MinIO / S3** | platform-api, workers | Source documents, thumbnails, admin file assets | S3-compatible API |
 | **Analytics dashboard** (separate repo) | Browser | Program-manager analytics UI | Calls platform dashboard routes |
@@ -128,7 +128,7 @@ graph LR
 | Task queue | Celery | platform workers | Ingest pipeline, post-publish, telemetry drain | Mature Python async job orchestration |
 | Object storage | MinIO or AWS S3 | S3 API via boto3 | PDFs, thumbnails, ingest artifacts | Presigned URLs for device offline access |
 | AI providers | google-genai | ai-runtime only | LLM inference and embeddings | Provider SDK isolated in stateless service |
-| Auth | SPICE middleware | platform | External IdP integration | Enterprise SSO; admin/device plane split |
+| Auth | SPICE middleware | platform | External IdP integration | Enterprise SSO; DB role→route AuthZ |
 | Observability | python-json-logger, request IDs | mc_foundation | Structured logs, correlation | Shared across services |
 | CI | GitHub Actions | `.github/workflows/ci.yml` | Lint, security scan, typecheck, tests | Gates on `main` and `dev` |
 | Containers | Docker Compose | `docker-compose.yml` | Local full stack | Mirrors production topology |
@@ -256,7 +256,7 @@ graph LR
 | Module / Layer | Responsibility | Key Files |
 |----------------|----------------|-----------|
 | API routers | HTTP surface, request validation | `api/admin_*.py`, `api/sync.py`, `api/telemetry.py`, `api/coaching_rag.py`, `api/dashboard.py`, `api/morning.py` |
-| Auth | SPICE token validation, admin/device planes | `auth/spice_auth_middleware.py`, `auth/spice_authorization_middleware.py`, `auth/rate_limit_middleware.py` |
+| Auth | SPICE token validation, DB role→route grants | `auth/spice_auth_middleware.py`, `auth/role_route_authorization_middleware.py`, `auth/rate_limit_middleware.py` |
 | Config | Pydantic settings from env | `config.py` |
 | DB models | SQLAlchemy entities | `db/models/*.py` |
 | Repositories | Persistence queries | `db/repositories/` |
@@ -273,9 +273,9 @@ All paths are relative to `API_ROOT_PATH` (default `/medtronics-api`).
 | `/coaching` | Device | `POST /rag-query` |
 | `/telemetry` | Device | `POST /events` |
 | `/sync` | Device | `GET /modules`, `/triggers`, `/gaps`, `/config`; presign batches |
-| `/morning` | Device | `GET /cards` |
-| `/admin` | Admin | `/ingest`, `/modules`, `/trigger-bindings`, `/fusion`, `/files` |
-| `/dashboard` | Admin | `/supervisor/{chw_id}`, `/district/{upazila_id}`, `/llm-quality` |
+| `/morning` | Device | `GET /cards` (authenticated CHW; empty when SPICE auth disabled) |
+| `/admin` | Admin | `/ingest`, `/modules`, `/fusion`, `/files` |
+| `/dashboard` | Admin | `/digital-help-modules`, `/module-creation-suggestions`, `/team-activity`, `/document-usage` |
 | — | Ops | `/ready` |
 
 Full contract: [`README.md`](../README.md#canonical-endpoint-contract).
@@ -333,6 +333,10 @@ Chat FAQ clustering embeds questions in-process via ai-runtime and never writes 
 ### 6.2 Core Data Model
 
 The **module** is the unit of meaning. Cards live inline in `module.module_json` (no per-card tables). Versioning is per `module_family_id`.
+
+#### Soft user references (audit + relationship)
+
+Classic stampers (`created_by`, `updated_by`, `uploaded_by`, `ingested_by`, `published_by`, `activated_by`, `deactivated_by`, `assigned_by`, …) and user relationship columns (`module_assignment.user_id`, `document_assignment.user_id`, `user_upazila.user_id`, `users.parent_id`) store a **bigint** `users.id` with **no foreign key** to `users`. Writes stamp `resolve_spice_user_id` (nullable for stampers). Reads batch-load `users` and return shared `UserActorRef` (`id`, `name`); if the user row is missing, actor DTOs are `null` while the stored bigint is retained (orphan retention is intentional — deleting a user does not cascade-clear soft refs).
 
 ```mermaid
 erDiagram
@@ -480,7 +484,7 @@ sequenceDiagram
 
 ### 7.2 — Coaching RAG Query
 
-CHW asks a question in the app. Platform embeds the question, retrieves similar published modules via `VectorStore.search` (pgvector adapter applies published/tenant/assignable filters in SQL), builds a grounded prompt, and calls ai-runtime for a JSON answer with source attribution.
+CHW asks a question in the app. Greeting / chit-chat / crisis-looking messages may take an early `coaching_chat_route` path (warm or safety reply, no retrieval). Otherwise platform embeds the question, retrieves similar published modules via `VectorStore.search` (pgvector adapter applies published/tenant/assignable filters in SQL), builds a grounded prompt, and calls ai-runtime for a JSON answer with source attribution.
 
 ```mermaid
 sequenceDiagram
@@ -492,6 +496,11 @@ sequenceDiagram
     participant MinIO as MinIO
 
     CHW->>API: POST /coaching/rag-query
+    opt Cheap gate match
+        API->>AI: POST /internal/generate/coaching_chat_route
+        AI-->>API: intent + optional answer
+        API-->>CHW: warm/safety answer empty retrieval
+    end
     API->>AI: POST /internal/embed (question)
     AI-->>API: query vector
     API->>PG: VectorStore.search (modules collection)
@@ -620,7 +629,7 @@ override).
 |----------|---------|
 | `SPICE_AUTH_ENABLED` | Enable external auth (default `false` locally) |
 | `SPICE_AUTH_BASE_URL` | SPICE auth-service root |
-| `SPICE_ADMIN_PATH_PREFIXES`, `SPICE_DEVICE_PATH_PREFIXES` | Authorization plane routing |
+| `SPICE_AUTH_EXEMPT_PATHS` | Paths under API root exempt from auth |
 
 **ai-runtime — provider credentials:**
 
@@ -648,7 +657,7 @@ override).
 - ⚠️ Extra network hop and operational surface (two services to deploy/monitor)
 - ⚠️ Platform must assemble fully-resolved `InferenceRequest` objects (more contract surface)
 
-**Alternatives considered**: Monolith with inline SDK calls — rejected to prevent platform from importing `google.generativeai` (see `CLAUDE.md` service boundaries).
+**Alternatives considered**: Monolith with inline SDK calls — rejected to prevent platform from importing `google.generativeai` (see `.cursor/rules/repo-overview.mdc`).
 
 ### 9.2 — Module-Centric Model (Not Scenario-Centric)
 
@@ -672,7 +681,6 @@ override).
 - ✅ Faster time-to-device for new content
 - ✅ Failed candidates are skipped, not partially shipped
 - ⚠️ Unreviewed content can reach devices until admin sets `clinically_reviewed`
-- ⚠️ Requires strong pipeline quality monitoring (`/dashboard/llm-quality`)
 
 ### 9.4 — Unified Internal Generation Endpoint
 
@@ -714,8 +722,8 @@ override).
 
 When `SPICE_AUTH_ENABLED=true`:
 
-1. **SpiceAuthMiddleware** validates JWT via SPICE `POST /authenticate` (exempt: `health`, `ready`).
-2. **SpiceAuthorizationMiddleware** enforces **admin** vs **device** planes by path prefix — strict partition; `SUPER_USER` may access both.
+1. **SpiceAuthMiddleware** validates JWT via SPICE `POST /authenticate` (exempt: `ready`, docs, `auth/session`) and binds hierarchy `users` / `role_id` for non-SUPER/JOB principals.
+2. **RoleRouteAuthorizationMiddleware** loads `role_route_access` grants for that role and allows only matching path templates; `SUPER_USER` / `JOB_USER` bypass. Seeded roles include `SUPER_ADMIN` (all catalogued routes except `/sync/*`, grant-based — not the SPICE bypass). Failures return `403` `forbidden`.
 3. Default local/docker: auth disabled for smoke tests.
 
 Headers: `Authorization: Bearer <jwt>`, optional `client` (`web` for admin, `mob` for Android).
@@ -750,8 +758,15 @@ Headers: `Authorization: Bearer <jwt>`, optional `client` (`web` for admin, `mob
 
 ### Observability
 
-- **Logging**: `mc_foundation.logging.setup_logging` — JSON logs in production (`log_json=true` in compose).
-- **Request correlation**: `RequestIdMiddleware` on both services.
+- **Logging**: `mc_foundation.logging.setup_logging` — JSON to stdout always. When `LOG_DIR` is set (compose: `/var/log/microcoaching` bind-mounted to `./logs`), also writes size-rotated files per type, suffixed by service:
+  - platform-api: `access|application|audit|security|error.platform-api.log`
+  - ai-runtime: `access|ai-runtime|security|error.ai-runtime.log`
+  - celery worker: `worker|error.platform-celery-worker.{pid}.log` (pid avoids prefork collisions)
+  - celery beat: `worker|error.platform-celery-beat.log`
+- **Log types**: `mc.access` (HTTP, skips `health`/`ready`), `mc.audit` (SPICE auth success), `mc.security` (auth failure, 403, rate-limit, invalid internal token). ERROR+ is duplicated into `error.{service}.log`.
+- **Rotation**: `LOG_MAX_BYTES` (default 50MB) × `LOG_BACKUP_COUNT` (default 10). Unset `LOG_DIR` keeps stdout-only (CI/tests).
+- **Not collected here**: Postgres/Redis/ClickHouse/MinIO logs; no Loki/ELK/CloudWatch shipping; no in-app log viewer.
+- **Request correlation**: `RequestIdMiddleware` on both services (wraps auth so 401s still get `X-Request-ID` and an access line).
 - **Health**: `/ready` (platform dependency matrix); ai-runtime `/health` (liveness).
 - **Metrics/tracing**: No dedicated APM integration detected in codebase — relies on structured logs.
 
@@ -765,7 +780,7 @@ Headers: `Authorization: Bearer <jwt>`, optional `client` (`web` for admin, `mob
 
 ## Appendix A — Dependency Graph
 
-Allowed import boundaries (enforced by convention; see `CLAUDE.md`):
+Allowed import boundaries (enforced by convention and `.cursor/rules/repo-overview.mdc`):
 
 ```mermaid
 graph LR
@@ -850,7 +865,6 @@ coaching-platform/
 - [ ] **Production deployment topology** — Compose documents local dev; no Terraform/Kubernetes manifests in this repo for prod networking, IAM, or multi-region layout.
 - [ ] **SPICE auth-service internals** — Integration contract is documented in README; auth-service implementation lives outside this repo.
 - [ ] **Android SDK sync client** — Device-side caching and offline behavior are out of scope per `ARCHITECTURE_RESET.md`.
-- [ ] **`GET /dashboard/district/{upazila_id}`** — Returns `501 Not Implemented`; district analytics design TBD.
 - [ ] **Legacy routes** — `POST /coaching/counselling`, quiz-answer, it-help, and scenario-centric admin routes are listed in historical docs but not implemented on platform-api.
 - [ ] **APM / distributed tracing** — Structured logging only; no OpenTelemetry or Datadog integration found in source.
 - [ ] **Rate limiting coverage** — Middleware exists; README notes device-plane rate limiting as recommended future work.

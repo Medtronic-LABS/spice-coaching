@@ -406,7 +406,7 @@ class TestValidateCandidate:
 
     @pytest.mark.parametrize(
         "card_count,expected",
-        [(2, False), (3, True), (5, True), (7, True), (10, True), (11, False)],
+        [(2, False), (3, True), (5, True), (7, True), (8, False)],
     )
     def test_card_count_bounds(self, card_count: int, expected: bool) -> None:
         b1 = uuid4()

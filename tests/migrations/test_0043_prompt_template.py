@@ -36,4 +36,6 @@ async def test_seed_file_lists_all_catalog_templates() -> None:
     template_ids = {row["template_id"] for row in rows}
     assert "module-identifier" in template_ids
     assert "coaching-rag" in template_ids
-    assert len(template_ids) >= 14
+    assert "coaching-chat-route" in template_ids
+    assert "vision-image-text" in template_ids
+    assert len(template_ids) >= 16

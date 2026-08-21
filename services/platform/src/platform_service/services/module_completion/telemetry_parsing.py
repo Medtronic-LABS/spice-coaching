@@ -53,15 +53,20 @@ def parse_uuid(value: object, *, field: str) -> UUID | None:
         return None
 
 
-def coerce_tenant_uuid(value: object) -> UUID | None:
-    """tenant_id arrives as int (legacy) or str (uuid). Only forward the UUID
-    flavour to chw_module_completion.tenant_id (which is UUID-typed in the
-    v3.3 schema). Integer tenant ids stay legacy-only."""
-    if value is None or isinstance(value, int):
+def coerce_tenant_id(value: object) -> int | None:
+    """Normalize telemetry/worker ``tenant_id`` to a platform bigint or ``None``."""
+    if value is None or isinstance(value, bool):
         return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        s = value.strip()
+        if not s or not s.isdigit():
+            return None
+        return int(s)
     try:
-        return UUID(str(value))
-    except (ValueError, TypeError):
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
         return None
 
 

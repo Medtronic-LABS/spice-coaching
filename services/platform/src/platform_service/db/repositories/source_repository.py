@@ -7,16 +7,21 @@ extraction results.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Select, delete, func, or_, select
+from sqlalchemy import Select, delete, exists, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.content_block import ContentBlock
+from platform_service.db.models.document_assignment import DocumentAssignment
+from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.source_document import SourceDocument
+from platform_service.db.models.source_image import SourceImage
 from platform_service.db.models.source_page import SourcePage
+from platform_service.services.image_alt_text import is_usable_image_alt
 
 
 def _escape_ilike_pattern(value: str) -> str:
@@ -27,6 +32,7 @@ def _escape_ilike_pattern(value: str) -> str:
 SOURCE_DOCUMENT_SORT_KEYS = frozenset(
     {
         "ingested_at",
+        "uploaded_date",
         "title",
         "source_type",
         "status",
@@ -51,6 +57,8 @@ def _source_document_order_clauses(sort_by: str, sort_dir: str) -> list[Any]:
 
     if sort_by == "ingested_at":
         primary = order_fn(SourceDocument.ingested_at)
+    elif sort_by == "uploaded_date":
+        primary = order_fn(SourceDocument.uploaded_date)
     elif sort_by == "title":
         primary = order_fn(SourceDocument.title)
     elif sort_by == "source_type":
@@ -86,16 +94,19 @@ class SourceRepository:
         source_document_family_id: UUID | None = None,
         version_label: str | None = None,
         publication_date: date | None = None,
-        ingested_by: UUID | None = None,
+        ingested_by: int | None = None,
         content_sha256: str | None = None,
         original_filename: str | None = None,
-        uploaded_by: str | None = None,
+        uploaded_by: int | None = None,
         description: str | None = None,
+        duration_ms: int | None = None,
         sync_published_visible: bool = False,
         status: str = "ingesting",
+        uploaded_date: datetime | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> SourceDocument:
         """Insert a new source_document and return the persisted row."""
-        doc = SourceDocument(
+        kwargs: dict[str, Any] = dict(
             title=title,
             source_type=source_type,
             primary_language=primary_language,
@@ -109,9 +120,14 @@ class SourceRepository:
             original_filename=original_filename,
             uploaded_by=uploaded_by,
             description=description,
+            duration_ms=duration_ms,
             sync_published_visible=sync_published_visible,
             status=status,
+            tenant_id=tenant_id,
         )
+        if uploaded_date is not None:
+            kwargs["uploaded_date"] = uploaded_date
+        doc = SourceDocument(**kwargs)
         self._session.add(doc)
         await self._session.flush()
         return doc
@@ -123,15 +139,19 @@ class SourceRepository:
     async def list_duplicate_candidates_by_content_sha256(
         self,
         content_sha256: str,
+        *,
+        tenant_id: int,
     ) -> list[SourceDocument]:
         """Return uploaded/ingested docs with the same content hash (newest first).
 
-        ``failed`` and ``ingesting`` rows do not block re-upload.
+        Scoped to ``tenant_id`` (including ``0``). ``failed`` and ``ingesting``
+        rows do not block re-upload.
         """
         result = await self._session.execute(
             select(SourceDocument)
             .where(
                 SourceDocument.content_sha256 == content_sha256,
+                SourceDocument.tenant_id == tenant_id,
                 SourceDocument.status.in_(("uploaded", "ingested")),
             )
             .order_by(SourceDocument.ingested_at.desc())
@@ -145,6 +165,11 @@ class SourceRepository:
         source_types: list[str] | None = None,
         filename_query: str | None = None,
         sync_published_visible: bool | None = None,
+        uploaded_from: datetime | None = None,
+        uploaded_to: datetime | None = None,
+        uploaded_by_ids: list[int] | None = None,
+        assigned: bool | None = None,
+        assigned_to_user_ids: frozenset[int] | None = None,
     ) -> Select[tuple[SourceDocument]]:
         """Shared filter tree for ``list_source_documents`` / ``count_source_documents``."""
         stmt = select(SourceDocument)
@@ -165,6 +190,26 @@ class SourceRepository:
             )
         if sync_published_visible is not None:
             stmt = stmt.where(SourceDocument.sync_published_visible.is_(sync_published_visible))
+        if uploaded_from is not None:
+            stmt = stmt.where(SourceDocument.uploaded_date >= uploaded_from)
+        if uploaded_to is not None:
+            stmt = stmt.where(SourceDocument.uploaded_date <= uploaded_to)
+        if uploaded_by_ids:
+            stmt = stmt.where(SourceDocument.uploaded_by.in_(uploaded_by_ids))
+        if assigned is True:
+            stmt = stmt.where(exists().where(DocumentAssignment.source_document_id == SourceDocument.id))
+        elif assigned is False:
+            stmt = stmt.where(~exists().where(DocumentAssignment.source_document_id == SourceDocument.id))
+        if assigned_to_user_ids is not None:
+            if not assigned_to_user_ids:
+                stmt = stmt.where(false())
+            else:
+                stmt = stmt.where(
+                    exists().where(
+                        DocumentAssignment.source_document_id == SourceDocument.id,
+                        DocumentAssignment.user_id.in_(assigned_to_user_ids),
+                    )
+                )
         return stmt
 
     async def count_source_documents(
@@ -174,6 +219,11 @@ class SourceRepository:
         source_types: list[str] | None = None,
         filename_query: str | None = None,
         sync_published_visible: bool | None = None,
+        uploaded_from: datetime | None = None,
+        uploaded_to: datetime | None = None,
+        uploaded_by_ids: list[int] | None = None,
+        assigned: bool | None = None,
+        assigned_to_user_ids: frozenset[int] | None = None,
     ) -> int:
         """Count source documents matching the same filters as ``list_source_documents``."""
         base = self._source_documents_filtered_stmt(
@@ -181,6 +231,11 @@ class SourceRepository:
             source_types=source_types,
             filename_query=filename_query,
             sync_published_visible=sync_published_visible,
+            uploaded_from=uploaded_from,
+            uploaded_to=uploaded_to,
+            uploaded_by_ids=uploaded_by_ids,
+            assigned=assigned,
+            assigned_to_user_ids=assigned_to_user_ids,
         )
         count_stmt = select(func.count()).select_from(
             base.with_only_columns(SourceDocument.id, maintain_column_froms=True).subquery()
@@ -195,6 +250,11 @@ class SourceRepository:
         source_types: list[str] | None = None,
         filename_query: str | None = None,
         sync_published_visible: bool | None = None,
+        uploaded_from: datetime | None = None,
+        uploaded_to: datetime | None = None,
+        uploaded_by_ids: list[int] | None = None,
+        assigned: bool | None = None,
+        assigned_to_user_ids: frozenset[int] | None = None,
         sort_by: str = DEFAULT_SOURCE_DOCUMENT_SORT_BY,
         sort_dir: str = DEFAULT_SOURCE_DOCUMENT_SORT_DIR,
         limit: int = 50,
@@ -207,6 +267,11 @@ class SourceRepository:
                 source_types=source_types,
                 filename_query=filename_query,
                 sync_published_visible=sync_published_visible,
+                uploaded_from=uploaded_from,
+                uploaded_to=uploaded_to,
+                uploaded_by_ids=uploaded_by_ids,
+                assigned=assigned,
+                assigned_to_user_ids=assigned_to_user_ids,
             )
             .order_by(*_source_document_order_clauses(sort_by, sort_dir))
             .limit(limit)
@@ -221,6 +286,24 @@ class SourceRepository:
             return []
         result = await self._session.execute(
             select(SourceDocument).where(SourceDocument.id.in_(document_ids))
+        )
+        return list(result.scalars().all())
+
+    async def list_by_ids_updated_since(
+        self,
+        document_ids: list[UUID],
+        *,
+        since: datetime,
+    ) -> list[SourceDocument]:
+        """Return non-retired docs in ``document_ids`` with ``updated_at > since``."""
+        if not document_ids:
+            return []
+        result = await self._session.execute(
+            select(SourceDocument).where(
+                SourceDocument.id.in_(document_ids),
+                SourceDocument.updated_at > since,
+                SourceDocument.status != "retired",
+            )
         )
         return list(result.scalars().all())
 
@@ -245,36 +328,58 @@ class SourceRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def clone_for_reingest(
-        self, source: SourceDocument, *, uploaded_by: str | None = None
-    ) -> SourceDocument:
-        """Create a new source_document row pointing at the same stored bytes."""
-        return await self.create_source_document(
-            title=source.title,
-            source_type=source.source_type,
-            primary_language=source.primary_language,
-            content_domain=source.content_domain,
-            original_storage_path=source.original_storage_path,
-            source_document_family_id=source.source_document_family_id,
-            version_label=source.version_label,
-            publication_date=source.publication_date,
-            content_sha256=source.content_sha256,
-            original_filename=source.original_filename,
-            uploaded_by=uploaded_by or source.uploaded_by,
-            sync_published_visible=source.sync_published_visible,
-            status="uploaded",
+    async def list_knowledge_uploaders(self, *, tenant_id: int) -> list[HierarchyUser]:
+        """Distinct hierarchy users who uploaded active knowledge docs in ``tenant_id``.
+
+        Knowledge docs are ``sync_published_visible=true`` and not ``retired``.
+        Rows with null ``uploaded_by`` or no matching hierarchy user are omitted.
+        Ordered by display name, then id.
+        """
+        uploader_ids = (
+            select(SourceDocument.uploaded_by)
+            .where(
+                SourceDocument.tenant_id == tenant_id,
+                SourceDocument.sync_published_visible.is_(True),
+                SourceDocument.status != "retired",
+                SourceDocument.uploaded_by.is_not(None),
+            )
+            .distinct()
         )
+        stmt = (
+            select(HierarchyUser)
+            .where(
+                HierarchyUser.tenant_id == tenant_id,
+                HierarchyUser.id.in_(uploader_ids),
+            )
+            .order_by(HierarchyUser.name.asc(), HierarchyUser.id.asc())
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def mark_source_document_ingest_failed(self, document_id: UUID) -> None:
+        """Mark a source document failed after terminal ingest failure (skip retired)."""
+        doc = await self.get_source_document(document_id)
+        if doc is None or doc.status == "retired":
+            return
+        await self.update_status(document_id, "failed")
 
     async def update_status(
-        self, document_id: UUID, status: str, *, calibration: dict[str, Any] | None = None
+        self,
+        document_id: UUID,
+        status: str,
+        *,
+        calibration: dict[str, Any] | None = None,
+        ingested_by: int | None = None,
     ) -> None:
-        """Update status and (optionally) the extraction calibration result."""
+        """Update status and (optionally) calibration / ingest starter user id."""
         doc = await self.get_source_document(document_id)
         if doc is None:
             raise ValueError(f"source_document {document_id} not found")
         doc.status = status
         if calibration is not None:
             doc.extraction_calibration_jsonb = calibration
+        if ingested_by is not None:
+            doc.ingested_by = ingested_by
         await self._session.flush()
 
     async def update_outline(
@@ -291,11 +396,19 @@ class SourceRepository:
         doc.outline_jsonb = outline_jsonb
         await self._session.flush()
 
-    async def update_thumbnail_storage_path(self, document_id: UUID, thumbnail_storage_path: str) -> None:
+    async def update_thumbnail_storage_path(
+        self,
+        document_id: UUID,
+        thumbnail_storage_path: str,
+        *,
+        updated_by: int | None = None,
+    ) -> None:
         doc = await self.get_source_document(document_id)
         if doc is None:
             raise ValueError(f"source_document {document_id} not found")
         doc.thumbnail_storage_path = thumbnail_storage_path
+        if updated_by is not None:
+            doc.updated_by = updated_by
         await self._session.flush()
 
     async def clear_thumbnail_storage_path(self, document_id: UUID) -> None:
@@ -327,6 +440,7 @@ class SourceRepository:
         title: str | None = None,
         description: str | None = None,
         update_description: bool = False,
+        updated_by: int | None = None,
     ) -> SourceDocument | None:
         """Update title and/or description without touching ingest status."""
         doc = await self.get_source_document(document_id)
@@ -336,6 +450,8 @@ class SourceRepository:
             doc.title = title
         if update_description:
             doc.description = description
+        if updated_by is not None:
+            doc.updated_by = updated_by
         await self._session.flush()
         return doc
 
@@ -489,3 +605,49 @@ class SourceRepository:
             .where(ContentBlock.id.in_(block_ids))
         )
         return [(row[0], row[1], row[2], row[3], row[4]) for row in result.all()]
+
+    # ── source_image ─────────────────────────────────────────────────────
+
+    async def list_images_for_document(self, document_id: UUID) -> list[SourceImage]:
+        result = await self._session.execute(
+            select(SourceImage)
+            .where(SourceImage.source_document_id == document_id)
+            .order_by(SourceImage.page_number, SourceImage.image_order)
+        )
+        return list(result.scalars().all())
+
+    async def list_images_for_documents(self, document_ids: list[UUID]) -> list[SourceImage]:
+        if not document_ids:
+            return []
+        result = await self._session.execute(
+            select(SourceImage)
+            .where(SourceImage.source_document_id.in_(document_ids))
+            .order_by(
+                SourceImage.source_document_id,
+                SourceImage.page_number,
+                SourceImage.image_order,
+            )
+        )
+        return list(result.scalars().all())
+
+    async def find_usable_alt_text_by_sha256(self, content_sha256: str) -> str | None:
+        """Return the newest usable alt_text for this figure digest, if any.
+
+        Looks across all documents/tenants. Placeholder Office names are
+        skipped in Python so a prior ``Picture 3`` row cannot poison reuse.
+        """
+        result = await self._session.execute(
+            select(SourceImage.alt_text)
+            .where(
+                SourceImage.content_sha256 == content_sha256,
+                SourceImage.alt_text.is_not(None),
+            )
+            .order_by(SourceImage.created_at.desc())
+            .limit(20)
+        )
+        for alt in result.scalars().all():
+            if is_usable_image_alt(alt) and alt is not None:
+                stripped = alt.strip()
+                if stripped:
+                    return stripped
+        return None

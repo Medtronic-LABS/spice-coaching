@@ -9,15 +9,12 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Self
-from uuid import UUID
 
 from mc_contracts.localized import LocaleConfig
 from mc_foundation.config import BaseAppSettings
-from mc_foundation.locale import get_supported_locales
+from mc_foundation.locale import LOCALE_REGISTRY, get_supported_locales
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
-
-from platform_service.tenant_mapping import parse_spice_tenant_id_map
 
 _DEV_AI_RUNTIME_TOKEN = "dev-internal-token"
 _DEV_OBJECT_STORAGE_ACCESS_KEY = "minioadmin"
@@ -62,6 +59,9 @@ class Settings(BaseAppSettings):
     clickhouse_database: str = "default"
     clickhouse_user: str = "default"
     clickhouse_password: str = ""
+    # App-level retries for query/insert transport blips (1 = disable).
+    clickhouse_query_max_attempts: int = Field(default=3, ge=1, le=10)
+    clickhouse_query_retry_backoff_ms: int = Field(default=100, ge=0, le=5000)
 
     # ── AI Runtime (internal call) ────────────────────────────
     ai_runtime_base_url: str = "http://localhost:8000"
@@ -77,14 +77,9 @@ class Settings(BaseAppSettings):
     spice_auth_base_url: str = "https://spice-dev-backend.uhis.labsplatform.com/auth-service/"
     spice_auth_timeout_seconds: float = 5.0
     # Fallback ``client`` header when the caller omits it (SPICE mobile = mob).
-    spice_auth_default_client: str = "mob"
+    spice_auth_default_client: str = "web"
     # Comma-separated path suffixes exempt from auth (under api_root_path).
-    spice_auth_exempt_paths: str = "ready"
-    # Comma-separated relative path prefixes (under api_root_path) per authorization plane.
-    spice_admin_path_prefixes: str = "admin,dashboard"
-    spice_device_path_prefixes: str = "telemetry,sync,morning,coaching"
-    # JSON ``{"1": "<uuid>", ...}`` or comma-separated ``1=<uuid>,2=<uuid>``.
-    spice_tenant_id_map: str = ""
+    spice_auth_exempt_paths: str = "ready,docs,openapi.json,auth/session"
 
     # ── Rate limiting (Redis sliding window per client IP) ─────
     rate_limit_enabled: bool = True
@@ -97,6 +92,9 @@ class Settings(BaseAppSettings):
     # Override via DEPLOYMENT_PRIMARY_LOCALE, DEPLOYMENT_REGION_CONTEXT env vars.
     deployment_primary_locale: str = "bn"
     deployment_region_context: str = "rural Bangladesh"
+    # Comma-separated locale codes allowed for RAG response_language beyond primary.
+    # Override via DEPLOYMENT_ADDITIONAL_LOCALES (e.g. "en,hi").
+    deployment_additional_locales: str = "en"
 
     # ── Embedding / vector store ──────────────────────────────
     embedding_dimension: int = 768
@@ -148,6 +146,10 @@ class Settings(BaseAppSettings):
         return f"{self.spice_auth_base_url.rstrip('/')}/authenticate"
 
     @property
+    def spice_auth_session_url(self) -> str:
+        return f"{self.spice_auth_base_url.rstrip('/')}/session"
+
+    @property
     def spice_auth_exempt_path_set(self) -> frozenset[str]:
         root = self.api_root_path_normalized
         paths: set[str] = set()
@@ -159,29 +161,6 @@ class Settings(BaseAppSettings):
                 else:
                     paths.add(f"/{clean}")
         return frozenset(paths)
-
-    @property
-    def spice_admin_path_prefix_set(self) -> frozenset[str]:
-        return self._spice_path_prefix_set(self.spice_admin_path_prefixes)
-
-    @property
-    def spice_device_path_prefix_set(self) -> frozenset[str]:
-        return self._spice_path_prefix_set(self.spice_device_path_prefixes)
-
-    def _spice_path_prefix_set(self, raw: str) -> frozenset[str]:
-        prefixes: set[str] = set()
-        for item in raw.split(","):
-            clean = item.strip().strip("/").lower()
-            if clean:
-                prefixes.add(clean)
-        return frozenset(prefixes)
-
-    @property
-    def spice_tenant_uuid_by_id(self) -> dict[int, UUID]:
-        try:
-            return parse_spice_tenant_id_map(self.spice_tenant_id_map)
-        except ValueError as exc:
-            raise ValueError(f"invalid SPICE_TENANT_ID_MAP: {exc}") from exc
 
     # ── Stage 1 — quality heuristic thresholds ──────────────────
     extraction_quality_text_empty_min_chars: int = 50
@@ -256,13 +235,33 @@ class Settings(BaseAppSettings):
     # Max characters for optional admin ingestion steering text (Stage C).
     ingestion_instructions_max_length: int = 2000
 
+    # ── Stage 1 — embedded figure extraction ─────────────────────
+    # Native PDF/PPTX/DOCX image extract into object storage + source_image.
+    ingest_source_image_extraction_enabled: bool = True
+    ingest_source_image_min_edge_px: int = 64
+    ingest_source_image_min_bytes: int = 2048
+    ingest_source_image_max_aspect_ratio: float = 12.0
+    ingest_source_image_min_strip_edge_px: int = 32
+    # Fill source_image.alt_text via vision when document alt is missing/unusable.
+    ingest_source_image_llm_text_enabled: bool = True
+
+    # ── Stage 1 — video visual extraction ────────────────────────
+    # Sample frames from video, vision-extract, append markdown + source_image.
+    # Soft-fail; does not block transcript Stage A. Defaults off.
+    ingest_video_visual_extraction_enabled: bool = True
+    ingest_video_frame_interval_ms: int = 30_000
+    ingest_video_max_frames_per_document: int = 40
+
     # ── Stage 2-draft — bilingual card drafting ─────────────────
     # Cardinality bounds. Quiz bounds also apply to the post-publish quiz
     # generation worker.
-    quiz_min_questions: int = 3
+    quiz_min_questions: int = 1
     quiz_max_questions: int = 10
-    card_min_count: int = 3
+    card_min_count: int = 1
     card_max_count: int = 10
+    # Draft-time LLM image → card assignment via alt-text catalog.
+    ingest_card_image_assignment_enabled: bool = True
+    ingest_card_image_max_per_card: int = 5
 
     # ── Post-publish — behavioural gap classification ───────────
     post_publish_gap_classification_enabled: bool = False
@@ -277,6 +276,9 @@ class Settings(BaseAppSettings):
     # ── Post-publish — search metadata for lexical retrieval ──────
     post_publish_search_metadata_enabled: bool = True
     post_publish_card_search_metadata_enabled: bool = True
+    # When True, admin publish runs card + module search-metadata LLM calls
+    # concurrently, then embedding. Set False to restore sequential metadata.
+    publish_enrichment_parallel_metadata_enabled: bool = True
     search_metadata_max_keywords: int = 15
     search_metadata_max_search_phrases: int = 10
     search_metadata_max_synonyms: int = 10
@@ -295,9 +297,6 @@ class Settings(BaseAppSettings):
     chat_faq_cluster_candidate_limit: int = 100
     chat_faq_weekly_hour_utc: int = 2
     chat_faq_weekly_day_of_week: int = 0  # 0=Sunday (Celery crontab convention)
-
-    # ── Module demand summary (daily Celery beat) ────────────────
-    module_demand_summary_daily_hour_utc: int = 3
 
     # ── Module creation suggestions (daily Celery beat) ──────────
     module_creation_suggestions_daily_hour_utc: int = 4
@@ -374,6 +373,8 @@ class Settings(BaseAppSettings):
     admin_file_upload_prefix: str = "uploads"
     admin_file_max_upload_bytes: int = 100 * 1024 * 1024
     admin_file_presigned_max_seconds: int = 24 * 60 * 60
+    # Max bytes for audio/video at POST /admin/ingest/upload (Stage A chunks before transcription).
+    ingest_media_max_upload_bytes: int = 100 * 1024 * 1024
 
     # ── Coaching RAG ────────────────────────────────────────────
     coaching_rag_module_limit: int = Field(5, ge=1, le=20)
@@ -401,6 +402,12 @@ class Settings(BaseAppSettings):
         )
 
     @property
+    def deployment_additional_locale_set(self) -> frozenset[str]:
+        return frozenset(
+            code.strip() for code in self.deployment_additional_locales.split(",") if code.strip()
+        )
+
+    @property
     def cors_allow_origins_list(self) -> list[str]:
         raw = (self.cors_allow_origins or "").strip()
         if raw == "*":
@@ -411,6 +418,21 @@ class Settings(BaseAppSettings):
     @classmethod
     def _strip_cors_origins(cls, value: str) -> str:
         return value.strip()
+
+    @model_validator(mode="after")
+    def _validate_deployment_additional_locales(self) -> Self:
+        primary = self.deployment_primary_locale
+        for code in self.deployment_additional_locale_set:
+            if code == primary:
+                raise ValueError(
+                    f"deployment_additional_locales must not include deployment_primary_locale {primary!r}"
+                )
+            if code not in LOCALE_REGISTRY:
+                raise ValueError(
+                    f"deployment_additional_locales contains unknown locale {code!r}; "
+                    f"register it in LOCALE_REGISTRY first"
+                )
+        return self
 
     @model_validator(mode="after")
     def _validate_admin_file_upload_prefix(self) -> Self:
@@ -486,8 +508,6 @@ class Settings(BaseAppSettings):
             )
         if not self.spice_auth_enabled:
             errors.append("SPICE_AUTH_ENABLED must be true in production")
-        if not self.spice_tenant_id_map.strip():
-            errors.append("SPICE_TENANT_ID_MAP must be configured in production")
         if "*" in self.cors_allow_origins_list:
             errors.append("CORS_ALLOW_ORIGINS must not include '*' in production")
         if errors:

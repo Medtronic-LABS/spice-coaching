@@ -71,7 +71,7 @@ class ModuleSuggestionService:
         self,
         *,
         chw_id: int,
-        tenant_id: UUID,
+        tenant_id: int,
     ) -> list[ModuleSuggestionItem]:
         if not get_settings().telemetry_behavioural_gap_state_enabled:
             return await self._suggest_from_quiz_state(chw_id=chw_id, tenant_id=tenant_id)
@@ -141,7 +141,7 @@ class ModuleSuggestionService:
         self,
         *,
         chw_id: int,
-        tenant_id: UUID,
+        tenant_id: int,
     ) -> list[ModuleSuggestionItem]:
         stmt = (
             select(CHWQuizQuestionState, Module)
@@ -193,7 +193,7 @@ class ModuleSuggestionService:
         self,
         *,
         chw_id: int,
-        tenant_id: UUID,
+        tenant_id: int,
     ) -> list[tuple[CHWBehaviouralGapState, BehaviouralGap]]:
         stmt = (
             select(CHWBehaviouralGapState, BehaviouralGap)
@@ -211,7 +211,7 @@ class ModuleSuggestionService:
         result = await self._session.execute(stmt)
         return [(row[0], row[1]) for row in result.all()]
 
-    async def _fallback_items(self, *, tenant_id: UUID) -> list[ModuleSuggestionItem]:
+    async def _fallback_items(self, *, tenant_id: int) -> list[ModuleSuggestionItem]:
         rows = await self._modules.list_recent_published_one_per_family(
             tenant_id=tenant_id,
             limit=5,

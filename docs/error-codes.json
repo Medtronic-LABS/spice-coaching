@@ -137,6 +137,14 @@
       "retryable": false,
       "audience": "operator"
     },
+    "source_document_not_found": {
+      "title": "Source Document Not Found",
+      "description": "Source document id does not exist.",
+      "typical_status": 404,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
     "unknown_stage": {
       "title": "Unknown Stage",
       "description": "Requested pipeline stage name is not recognized.",
@@ -171,7 +179,31 @@
     },
     "merge_override_source_unavailable": {
       "title": "Merge Override Source Unavailable",
-      "description": "The matched source module for the dual-path merge is missing or already retired.",
+      "description": "The matched source module for the dual-path merge is missing.",
+      "typical_status": 409,
+      "domain": "ingest",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "merge_split_not_primary": {
+      "title": "Merge Split Not Primary",
+      "description": "Split-merge requires the dual-path primary module (the row that references a secondary).",
+      "typical_status": 400,
+      "domain": "ingest",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "merge_split_not_review_pending": {
+      "title": "Merge Split Not Review Pending",
+      "description": "Split-merge is only allowed while the primary module is review_pending.",
+      "typical_status": 409,
+      "domain": "ingest",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "merge_split_secondary_unavailable": {
+      "title": "Merge Split Secondary Unavailable",
+      "description": "The secondary merge module is missing or no longer review_pending.",
       "typical_status": 409,
       "domain": "ingest",
       "retryable": false,
@@ -305,22 +337,6 @@
       "retryable": false,
       "audience": "operator"
     },
-    "trigger_binding_not_found": {
-      "title": "Trigger Binding Not Found",
-      "description": "Trigger binding id does not exist.",
-      "typical_status": 404,
-      "domain": "modules",
-      "retryable": false,
-      "audience": "operator"
-    },
-    "assignment_not_found": {
-      "title": "Assignment Not Found",
-      "description": "Module assignment id does not exist.",
-      "typical_status": 404,
-      "domain": "modules",
-      "retryable": false,
-      "audience": "operator"
-    },
     "assignment_validation_error": {
       "title": "Assignment Validation Error",
       "description": "Assignment create/update failed business validation.",
@@ -369,6 +385,126 @@
       "retryable": false,
       "audience": "operator"
     },
+    "badge_not_found": {
+      "title": "Badge Not Found",
+      "description": "Badge id does not exist or is soft-deleted.",
+      "typical_status": 404,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_name_conflict": {
+      "title": "Badge Name Conflict",
+      "description": "An active badge with the same name already exists.",
+      "typical_status": 409,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_domain_invalid": {
+      "title": "Badge Domain Invalid",
+      "description": "Badge domain is missing/invalid, or does not already exist on any module.",
+      "typical_status": 400,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_sequence_conflict": {
+      "title": "Badge Sequence Conflict",
+      "description": "An active badge with the same sequence already exists.",
+      "typical_status": 409,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "badge_module_not_published": {
+      "title": "Badge Module Not Published",
+      "description": "One or more module_ids are missing or not in published lifecycle status.",
+      "typical_status": 400,
+      "domain": "modules",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_division_not_found": {
+      "title": "Hierarchy Division Not Found",
+      "description": "Division id does not exist for the selected tenant.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_district_not_found": {
+      "title": "Hierarchy District Not Found",
+      "description": "District id does not exist for the selected tenant.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_upazila_not_found": {
+      "title": "Hierarchy Upazila Not Found",
+      "description": "Upazila id does not exist for the selected tenant or district.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_upazila_invalid": {
+      "title": "Hierarchy Upazila Invalid",
+      "description": "Upazila assignment violates district or parent upazila constraints.",
+      "typical_status": 400,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_user_not_found": {
+      "title": "Hierarchy User Not Found",
+      "description": "Hierarchy user id does not exist for the selected tenant.",
+      "typical_status": 404,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_user_conflict": {
+      "title": "Hierarchy User Conflict",
+      "description": "A hierarchy user with the same externally supplied id already exists.",
+      "typical_status": 409,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_parent_invalid": {
+      "title": "Hierarchy Parent Invalid",
+      "description": "Parent/role/district/tenant tree rules were violated (AM→PM→SK, same district and tenant).",
+      "typical_status": 400,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_role_mismatch": {
+      "title": "Hierarchy Role Mismatch",
+      "description": "Unsupported or mismatched hierarchy role value.",
+      "typical_status": 400,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
+    "hierarchy_auth_failed": {
+      "title": "Hierarchy Auth Failed",
+      "description": "Authenticated SPICE user is missing from the hierarchy table or role names do not exactly match the hierarchy row.",
+      "typical_status": 403,
+      "domain": "auth",
+      "retryable": false,
+      "audience": "client"
+    },
+    "hierarchy_import_invalid": {
+      "title": "Hierarchy Import Invalid",
+      "description": "Hierarchy CSV/XLSX import failed validation (bad headers, empty cells, size/row limits, or intra-file conflicts such as disagreeing name/role/parent/district for the same user id).",
+      "typical_status": 400,
+      "domain": "hierarchy",
+      "retryable": false,
+      "audience": "operator"
+    },
     "chw_id_required": {
       "title": "Chw Id Required",
       "description": "Request requires a community health worker (CHW) id.",
@@ -388,6 +524,22 @@
     "tenant_mismatch": {
       "title": "Tenant Mismatch",
       "description": "Resource tenant does not match the authenticated principal's tenant.",
+      "typical_status": 403,
+      "domain": "auth",
+      "retryable": false,
+      "audience": "client"
+    },
+    "tenant_id_required": {
+      "title": "Tenant Id Required",
+      "description": "Legacy spice 20006: a tenant id was required. Coaching-platform selects tenant from authenticate userDetail.country.tenantId instead of the TenantId header; missing country tenant yields not_authenticated.",
+      "typical_status": 400,
+      "domain": "auth",
+      "retryable": false,
+      "audience": "client"
+    },
+    "tenant_permission_denied": {
+      "title": "Tenant Permission Denied",
+      "description": "Legacy spice 20005: selected tenant was not in organizationIds. Coaching-platform no longer membership-checks the country tenant from authenticate.",
       "typical_status": 403,
       "domain": "auth",
       "retryable": false,
@@ -492,6 +644,8 @@
     "pipeline_crashed": {
       "title": "Pipeline Crashed",
       "description": "Ingest pipeline worker crashed while processing a run.",
+      "user_message": "Processing was interrupted unexpectedly. Please retry the ingestion.",
+      "action_hint": "Retry the ingestion from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -500,6 +654,8 @@
     "stage_failed": {
       "title": "Stage Failed",
       "description": "A generic pipeline stage failed without a more specific code.",
+      "user_message": "Something went wrong while processing this file. Try re-uploading or contact support if the problem persists.",
+      "action_hint": "Re-upload the file or retry the ingestion.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -508,6 +664,8 @@
     "extract_failed": {
       "title": "Extract Failed",
       "description": "Source extract stage failed, including when extracted or transcribed text is empty or below the configured minimum character threshold.",
+      "user_message": "We couldn't extract content from this file. Try re-exporting it from the original source.",
+      "action_hint": "Re-export the document or media from the original application and upload again.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -516,6 +674,8 @@
     "identify_failed": {
       "title": "Identify Failed",
       "description": "Module identify stage failed.",
+      "user_message": "We couldn't identify training modules in this document. Try a document with clearer sections or headings.",
+      "action_hint": "Use a document with clearer headings and section structure, then retry.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -524,6 +684,8 @@
     "identify_no_candidates": {
       "title": "Identify No Candidates",
       "description": "Module identify stage completed without emitting any candidates.",
+      "user_message": "We couldn't find any training modules in this document. Try a document with clearer sections or headings.",
+      "action_hint": "Use a document with clearer headings and section structure, then retry.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -532,6 +694,8 @@
     "draft_failed": {
       "title": "Draft Failed",
       "description": "Card draft generation stage failed.",
+      "user_message": "We couldn't draft module cards for one or more candidates. Try retrying or reviewing the source document.",
+      "action_hint": "Review the source document and retry drafting from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -540,6 +704,8 @@
     "fusion_failed": {
       "title": "Fusion Failed",
       "description": "Cross-source fusion stage failed.",
+      "user_message": "We couldn't merge content across multiple sources. Please retry the batch.",
+      "action_hint": "Retry the batch ingestion.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -548,6 +714,8 @@
     "thumbnail_failed": {
       "title": "Thumbnail Failed",
       "description": "Thumbnail generation worker failed.",
+      "user_message": "We couldn't generate a preview image for this file.",
+      "action_hint": "Ingestion can continue; retry later if a preview is needed.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -556,6 +724,8 @@
     "embedding_failed": {
       "title": "Embedding Failed",
       "description": "Module embedding worker failed.",
+      "user_message": "We couldn't generate search embeddings for this module. Please retry.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -564,6 +734,8 @@
     "search_metadata_failed": {
       "title": "Search Metadata Failed",
       "description": "Search metadata generation worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -572,6 +744,8 @@
     "card_search_metadata_failed": {
       "title": "Card Search Metadata Failed",
       "description": "Per-card search metadata generation worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -580,6 +754,8 @@
     "trigger_binding_failed": {
       "title": "Trigger Binding Failed",
       "description": "Trigger binding worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -588,6 +764,8 @@
     "gap_classification_failed": {
       "title": "Gap Classification Failed",
       "description": "Gap classification worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -596,6 +774,8 @@
     "quiz_generation_failed": {
       "title": "Quiz Generation Failed",
       "description": "Quiz generation worker failed.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -604,6 +784,8 @@
     "enqueue_failed": {
       "title": "Enqueue Failed",
       "description": "Failed to enqueue a follow-on pipeline or worker job.",
+      "user_message": "A background task could not be started. Please retry the ingestion.",
+      "action_hint": "Retry the ingestion from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,
@@ -612,6 +794,8 @@
     "module_has_no_text": {
       "title": "Module Has No Text",
       "description": "Embedding or generation requires module text that is empty.",
+      "user_message": "This module has no text content to process for the next step.",
+      "action_hint": "Review the drafted module content before retrying.",
       "typical_status": 400,
       "domain": "worker",
       "retryable": false,
@@ -620,6 +804,8 @@
     "generation_failed": {
       "title": "Generation Failed",
       "description": "Generic AI generation step failed in a worker pipeline.",
+      "user_message": "A content generation step failed. Please retry the ingestion.",
+      "action_hint": "Retry from the admin dashboard.",
       "typical_status": 500,
       "domain": "worker",
       "retryable": true,

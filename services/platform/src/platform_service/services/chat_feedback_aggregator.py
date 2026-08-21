@@ -22,7 +22,7 @@ _QUESTION_MAX_LEN = 300
 @dataclass(frozen=True)
 class FeedbackEvent:
     event_id: str
-    tenant_id: UUID
+    tenant_id: int
     chw_id: int | None
     event_type: str
     inference_mode: str | None
@@ -55,7 +55,7 @@ class FeedbackEvent:
 
 @dataclass(frozen=True)
 class TenantFeedbackBatch:
-    tenant_id: UUID
+    tenant_id: int
     events: list[FeedbackEvent]
 
     @property
@@ -243,7 +243,7 @@ class ChatFeedbackAggregator:
         self._ch = ch_client
         self._settings = settings or get_settings()
 
-    async def distinct_tenant_ids(self) -> list[UUID]:
+    async def distinct_tenant_ids(self) -> list[int]:
         query = """
         SELECT DISTINCT tenant_id
         FROM coaching_events
@@ -255,9 +255,9 @@ class ChatFeedbackAggregator:
             "negative": _NEGATIVE_EVENT,
         }
         rows = await self._ch.query_rows(query, parameters=parameters)
-        tenant_ids: list[UUID] = []
+        tenant_ids: list[int] = []
         for row in rows:
-            tenant_id = _to_uuid(row.get("tenant_id"))
+            tenant_id = _to_int(row.get("tenant_id"))
             if tenant_id is not None:
                 tenant_ids.append(tenant_id)
         return tenant_ids
@@ -276,7 +276,7 @@ class ChatFeedbackAggregator:
 
     async def fetch_since(
         self,
-        tenant_id: UUID,
+        tenant_id: int,
         *,
         since_ts: datetime,
     ) -> TenantFeedbackBatch:
@@ -291,7 +291,7 @@ class ChatFeedbackAggregator:
     async def _query_events(
         self,
         *,
-        tenant_id: UUID,
+        tenant_id: int,
         since_ts: datetime,
     ) -> list[dict[str, Any]]:
         if since_ts.tzinfo is None:
@@ -308,7 +308,7 @@ class ChatFeedbackAggregator:
           timestamp_utc
         FROM coaching_events
         WHERE event_type IN ({positive:String}, {negative:String})
-          AND tenant_id = {tenant_id:UUID}
+          AND tenant_id = {tenant_id:Int64}
           AND timestamp_utc > {since_ts:DateTime64(3)}
         ORDER BY timestamp_utc ASC
         """

@@ -18,6 +18,7 @@ from platform_service.db.repositories.module_read_repository import ModuleReadRe
 from platform_service.services.card_normalisation import card_row_to_dict
 from platform_service.services.module_search_metadata_generator import ModuleSearchMetadataGenerator
 from platform_service.services.post_publish_step import finish_post_publish_step
+from platform_service.workers.tenant_binding import with_module_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ def _enqueue_post_metadata(
     _enqueue_embedding(module_id, embedding_step_id)
 
 
+@with_module_tenant
 async def generate_search_metadata_for_module(
     module_id: UUID,
     *,

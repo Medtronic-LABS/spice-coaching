@@ -14,6 +14,16 @@ class SpiceRole(BaseModel):
     suite_access_name: str | None = Field(None, alias="suiteAccessName")
 
 
+class SpiceCountry(BaseModel):
+    """Nested country from SPICE ``UserContextDTO.country`` / ``CountryDTO``."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    id: int | None = None
+    name: str | None = None
+    tenant_id: int | None = Field(None, alias="tenantId")
+
+
 class SpiceUserContext(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -27,6 +37,7 @@ class SpiceUserContext(BaseModel):
     organization_ids: list[int] | None = Field(None, alias="organizationIds")
     roles: list[SpiceRole] = Field(default_factory=list)
     suite_access: list[str] | None = Field(None, alias="suiteAccess")
+    country: SpiceCountry | None = None
     client: str | None = None
 
 

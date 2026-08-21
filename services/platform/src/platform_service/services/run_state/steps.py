@@ -10,11 +10,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.ingestion_run import IngestionRun, IngestionRunStep
+from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.run_state.constants import (
     _DEFAULT_CLAIM_STALE_SECONDS,
     _PIPELINE_CLAIM_KEY,
     _TERMINAL_STEP_STATUSES,
     ALL_STAGES,
+    FUSION_RUN_TYPE,
     POST_PUBLISH_STAGES,
     RUN_FAILED,
     RUN_PARTIALLY_SUCCEEDED,
@@ -46,7 +48,16 @@ _DOWNSTREAM_STAGES: dict[str, frozenset[str]] = {
 }
 
 _TERMINAL_ERROR_KEYS = frozenset(
-    {"failed_stage", "failed_stages", "draft_failures", "drafts_produced", "detail", "code"}
+    {
+        "failed_stage",
+        "failed_stages",
+        "draft_failures",
+        "drafts_produced",
+        "detail",
+        "code",
+        "message",
+        "causes",
+    }
 )
 
 
@@ -61,6 +72,15 @@ class RunStepMixin:
 
     async def get_run(self, run_id: UUID) -> IngestionRun | None:
         return await self._session.get(IngestionRun, run_id)
+
+    async def _mark_source_documents_failed_for_run(self, run: IngestionRun) -> None:
+        repo = SourceRepository(self._session)
+        if as_error_object(run.error_jsonb).get("type") == FUSION_RUN_TYPE:
+            raw_ids = as_error_object(run.error_jsonb).get("source_document_ids") or []
+            for raw_id in raw_ids:
+                await repo.mark_source_document_ingest_failed(UUID(str(raw_id)))
+            return
+        await repo.mark_source_document_ingest_failed(run.source_document_id)
 
     async def complete_run(
         self,
@@ -77,8 +97,18 @@ class RunStepMixin:
         run.status = status
         run.completed_at = now_utc()
         if error_jsonb is not None:
-            run.error_jsonb = error_jsonb
+            merged = dict(as_error_object(run.error_jsonb))
+            merged.update(error_jsonb)
+            run.error_jsonb = merged
         await self._session.flush()
+        if status in (RUN_FAILED, RUN_PARTIALLY_SUCCEEDED):
+            await self._mark_source_documents_failed_for_run(run)
+        # Lazy import: generation-counts service ↔ run_state cycle.
+        from platform_service.services.ingestion_run_generation_counts import (
+            IngestionRunGenerationCountsService,
+        )
+
+        await IngestionRunGenerationCountsService(self._session).upsert_after_run_complete(run)
         return run
 
     async def list_steps(self, run_id: UUID) -> list[IngestionRunStep]:
@@ -285,6 +315,17 @@ class RunStepMixin:
                 return False
 
         final_status, error_jsonb = terminal_run_status_from_steps(all_steps)
+        if error_jsonb is not None:
+            # Lazy import: ingest_run_error_summary ↔ run_state.steps cycle.
+            from platform_service.services.ingest_run_error_summary import (
+                summarize_ingestion_run_error,
+            )
+
+            error_jsonb = summarize_ingestion_run_error(
+                error_jsonb,
+                steps=all_steps,
+                status=final_status,
+            )
         run = await self.get_run(run_id)
         if run is None or run.status != RUN_RUNNING:
             return False

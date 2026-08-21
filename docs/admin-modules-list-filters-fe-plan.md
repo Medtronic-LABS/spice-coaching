@@ -1,5 +1,14 @@
 # Admin modules listing — domain & date filters (frontend plan)
 
+> **Historical note (Aug 2026):** This plan predates Module Library lifecycle tabs
+> (Needs Review / Deactivated / Discarded), typed date filters
+> (`created_*` / `published_*` / `activated_*` / `deactivated_*`), actor fields,
+> and `updated_at`. Prefer the live contract in `README.md` Canonical Endpoint
+> Contract and `packages/contracts/.../modules.py`.
+>
+> Current All-tab semantics: omit `status` → **retired excluded**; **deactivated**
+> + **review_pending** included. List rows expose `updated_at` and last-actor refs.
+
 Companion doc for MR **feat/admin-modules-topic-date-filters**. Backend adds tab-aware date filtering on the existing module list endpoint; domain filtering uses the `domain` query param; domain dropdown options use `GET /admin/modules/domains`.
 
 **API base (local):** `http://localhost:18000/medtronics-api` (or your deployment `API_ROOT_PATH`).
@@ -41,7 +50,7 @@ GET /admin/modules
 
 | Param | Type | Notes |
 |-------|------|-------|
-| `status` | `draft` \| `published` \| `retired` | Omit for **All** (retired excluded by default) |
+| `status` | `draft` \| `published` \| `retired` \| `deactivated` \| `review_pending` | Omit for **All** (retired excluded; deactivated + review_pending included) |
 | `domain` | string | **Domain filter** (`module.domain`) |
 | `date_from` | ISO 8601 datetime | Inclusive start |
 | `date_to` | ISO 8601 datetime | Inclusive end — send end-of-day for calendar pickers |
@@ -78,7 +87,7 @@ GET /admin/modules?domain=clinical
 }
 ```
 
-Each row includes `domain`, `lifecycle_status`, `created_at`, `published_at` (see `packages/contracts/src/mc_contracts/admin_modules.py`). `total_modules` / `total_pages` respect the same filters as the page.
+Each row includes `domain`, `lifecycle_status`, `created_at`, `published_at` (see `packages/contracts/src/mc_contracts/modules.py`). `total_modules` / `total_pages` respect the same filters as the page.
 
 ---
 

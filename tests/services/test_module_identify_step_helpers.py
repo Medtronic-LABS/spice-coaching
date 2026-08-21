@@ -18,17 +18,22 @@ from platform_service.services.run_state_service import (
     STEP_SUCCEEDED,
     RunStateService,
 )
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "ingestion_run_step, ingestion_run, source_document")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text("TRUNCATE ingestion_run_step, ingestion_run, source_document RESTART IDENTITY CASCADE")
+    )
+    await db_session.commit()
 
 
 async def _seed_run(session: AsyncSession) -> IngestionRun:
@@ -39,6 +44,7 @@ async def _seed_run(session: AsyncSession) -> IngestionRun:
         content_domain="clinical",
         original_storage_path="bucket/x.pdf",
         status="ingesting",
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()

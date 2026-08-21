@@ -6,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from platform_service.db.models.chw_module_completion import CHWModuleCompletion
 from platform_service.db.models.chw_module_quiz_progress import CHWModuleQuizProgress
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
@@ -25,7 +24,7 @@ def _test_chw_id() -> int:
 
 
 async def _make_module(session: AsyncSession) -> Module:
-    family = ModuleFamily(module_code=f"SYNC-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"SYNC-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     module = Module(
@@ -37,6 +36,7 @@ async def _make_module(session: AsyncSession) -> Module:
         domain="hypertension",
         estimated_minutes=5,
         difficulty_level="basic",
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()
@@ -77,11 +77,7 @@ async def _add_progress(
     quiz_id,
     first_correct_at: datetime | None = None,
 ) -> None:
-    row = CHWModuleQuizProgress(
-        chw_id=chw_id,
-        module_id=module.id,
-        quiz_id=quiz_id,
-    )
+    row = CHWModuleQuizProgress(chw_id=chw_id, module_id=module.id, quiz_id=quiz_id, tenant_id=1)
     if first_correct_at is not None:
         row.first_correct_at = first_correct_at
     session.add(row)
@@ -118,15 +114,6 @@ async def test_partial_completion_empty_when_all_questions_answered(
     await _add_progress(db_session, chw_id=chw_id, module=module, quiz_id=q1.id)
     await _add_progress(db_session, chw_id=chw_id, module=module, quiz_id=q2.id)
 
-    db_session.add(
-        CHWModuleCompletion(
-            chw_id=chw_id,
-            module_family_id=module.module_family_id,
-            latest_attempt_passed=False,
-            attempts_since_last_pass=0,
-        )
-    )
-    await db_session.flush()
     repo = ModuleCompletionRepository(db_session)
     await repo.mark_completed(
         chw_id=chw_id,
@@ -235,6 +222,7 @@ async def test_quiz_question_states_in_bundle_when_quiz_telemetry_mode(
             module_id=module.id,
             failed_attempts_count=1,
             status="active",
+            tenant_id=1,
         )
     )
     await db_session.flush()

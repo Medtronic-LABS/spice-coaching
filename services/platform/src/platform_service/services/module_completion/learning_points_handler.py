@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.services.learning_points_service import LearningPointsService
@@ -22,7 +20,7 @@ class LearningPointsHandler:
         *,
         event_id: str | None,
         chw_id: int,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
         event_type: str,
         payload: dict,
     ) -> None:

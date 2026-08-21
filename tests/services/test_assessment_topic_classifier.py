@@ -25,6 +25,7 @@ def _module_with_metadata() -> Module:
         lifecycle_status="draft",
         module_json={"cards": [{"title": {"bn": "t"}, "body": {"bn": "malaria treatment"}}]},
         search_metadata_jsonb={"topic_tags": {"bn": ["malaria"]}, "clinical_conditions": {"bn": []}},
+        tenant_id=1,
     )
 
 

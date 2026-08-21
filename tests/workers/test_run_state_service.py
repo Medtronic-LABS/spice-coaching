@@ -12,26 +12,31 @@ from platform_service.db.models.ingestion_run import IngestionRun
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.services.run_state_service import (
     FUSION_RUN_TYPE,
+    RUN_FAILED,
     RUN_PARTIALLY_SUCCEEDED,
     RUN_RUNNING,
     RUN_SUCCEEDED,
     STAGE_CARD_DRAFT,
-    STAGE_EMBEDDING_GENERATION,
     STAGE_GAP_CLASSIFICATION,
     STAGE_QUIZ_GENERATION,
     RunStateService,
 )
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "source_document, ingestion_run_step, ingestion_run")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text("TRUNCATE source_document, ingestion_run_step, ingestion_run RESTART IDENTITY CASCADE")
+    )
+    await db_session.commit()
 
 
 async def _seed_run(session: AsyncSession) -> tuple[RunStateService, object]:
@@ -41,6 +46,7 @@ async def _seed_run(session: AsyncSession) -> tuple[RunStateService, object]:
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/x.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -69,11 +75,6 @@ class TestMaybeFinalizeIngestionRun:
         )
         await run_state.start_step(
             run_id=run.id,
-            stage=STAGE_EMBEDDING_GENERATION,
-            input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
-        )
-        await run_state.start_step(
-            run_id=run.id,
             stage=STAGE_GAP_CLASSIFICATION,
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
@@ -93,18 +94,12 @@ class TestMaybeFinalizeIngestionRun:
             stage=STAGE_QUIZ_GENERATION,
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
-        embed = await run_state.start_step(
-            run_id=run.id,
-            stage=STAGE_EMBEDDING_GENERATION,
-            input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
-        )
         gap = await run_state.start_step(
             run_id=run.id,
             stage=STAGE_GAP_CLASSIFICATION,
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
         await run_state.complete_step(quiz.id, output_summary={"questions_written": 3})
-        await run_state.complete_step(embed.id, output_summary={"embedded": True})
         await run_state.complete_step(gap.id, output_summary={"secondary_links_written": 1})
         await db_session.commit()
 
@@ -122,26 +117,20 @@ class TestMaybeFinalizeIngestionRun:
             stage=STAGE_QUIZ_GENERATION,
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
-        embed = await run_state.start_step(
-            run_id=run.id,
-            stage=STAGE_EMBEDDING_GENERATION,
-            input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
-        )
         gap = await run_state.start_step(
             run_id=run.id,
             stage=STAGE_GAP_CLASSIFICATION,
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
-        await run_state.complete_step(quiz.id, output_summary={"questions_written": 1})
         await run_state.fail_step(
-            embed.id,
-            error_code=ErrorCode.EMBEDDING_FAILED.value,
+            quiz.id,
+            error_code=ErrorCode.GENERATION_FAILED.value,
             error_message="boom",
             error={"type": "TestError", "message": "boom"},
         )
-        await db_session.refresh(embed)
-        assert embed.error_code == ErrorCode.EMBEDDING_FAILED.value
-        assert embed.error_message == "boom"
+        await db_session.refresh(quiz)
+        assert quiz.error_code == ErrorCode.GENERATION_FAILED.value
+        assert quiz.error_message == "boom"
         await run_state.complete_step(gap.id, output_summary={"secondary_links_written": 0})
         await db_session.commit()
 
@@ -150,7 +139,8 @@ class TestMaybeFinalizeIngestionRun:
         row = await db_session.get(IngestionRun, run.id)
         assert row is not None
         assert row.status == RUN_PARTIALLY_SUCCEEDED
-        assert STAGE_EMBEDDING_GENERATION in (row.error_jsonb or {}).get("failed_stages", [])
+        assert STAGE_QUIZ_GENERATION in (row.error_jsonb or {}).get("failed_stages", [])
+        assert "Generating quiz" in (row.error_jsonb or {}).get("message", "")
 
     async def test_skipped_quiz_counts_as_terminal(self, db_session: AsyncSession) -> None:
         run_state, run = await _seed_run(db_session)
@@ -160,17 +150,11 @@ class TestMaybeFinalizeIngestionRun:
             reason="assessment_mode_read_only",
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
-        embed = await run_state.start_step(
-            run_id=run.id,
-            stage=STAGE_EMBEDDING_GENERATION,
-            input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
-        )
         gap = await run_state.start_step(
             run_id=run.id,
             stage=STAGE_GAP_CLASSIFICATION,
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
-        await run_state.complete_step(embed.id, output_summary={"embedded": True})
         await run_state.complete_step(gap.id, output_summary={"secondary_links_written": 0})
         await db_session.commit()
 
@@ -199,17 +183,11 @@ class TestMaybeFinalizeIngestionRun:
             reason="assessment_mode_read_only",
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
-        embed = await run_state.start_step(
-            run_id=run.id,
-            stage=STAGE_EMBEDDING_GENERATION,
-            input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
-        )
         gap = await run_state.start_step(
             run_id=run.id,
             stage=STAGE_GAP_CLASSIFICATION,
             input_summary={"candidate_id": str(uuid4()), "module_id": str(uuid4())},
         )
-        await run_state.complete_step(embed.id, output_summary={"embedded": True})
         await run_state.complete_step(gap.id, output_summary={"secondary_links_written": 0})
         await db_session.commit()
 
@@ -220,6 +198,7 @@ class TestMaybeFinalizeIngestionRun:
         assert row.status == RUN_PARTIALLY_SUCCEEDED
         assert row.error_jsonb is not None
         assert row.error_jsonb.get("draft_failures") == 1
+        assert "Card drafting failed" in (row.error_jsonb.get("message") or "")
 
 
 class TestFusionRunLookup:
@@ -230,6 +209,7 @@ class TestFusionRunLookup:
             primary_language="en",
             content_domain="clinical",
             original_storage_path="/tmp/a.pdf",
+            tenant_id=1,
         )
         sd2 = SourceDocument(
             title="b",
@@ -237,6 +217,7 @@ class TestFusionRunLookup:
             primary_language="en",
             content_domain="clinical",
             original_storage_path="/tmp/b.pdf",
+            tenant_id=1,
         )
         db_session.add_all([sd1, sd2])
         await db_session.flush()
@@ -274,3 +255,89 @@ class TestPatchStepInputSummary:
         assert step.input_summary_jsonb is not None
         assert step.input_summary_jsonb.get("activity") == "published_module_merge"
         assert "candidate_id" in step.input_summary_jsonb
+
+
+class TestCompleteRunMarksSourceFailed:
+    async def test_partially_succeeded_marks_ingested_source_failed(self, db_session: AsyncSession) -> None:
+        run_state, run = await _seed_run(db_session)
+        sd = await db_session.get(SourceDocument, run.source_document_id)
+        assert sd is not None
+        sd.status = "ingested"
+        await db_session.commit()
+
+        await run_state.complete_run(
+            run.id,
+            status=RUN_PARTIALLY_SUCCEEDED,
+            error_jsonb={"failed_stage": "module_identify"},
+        )
+        await db_session.commit()
+        await db_session.refresh(sd)
+        assert sd.status == "failed"
+
+    async def test_failed_marks_ingesting_source_failed(self, db_session: AsyncSession) -> None:
+        run_state, run = await _seed_run(db_session)
+        sd = await db_session.get(SourceDocument, run.source_document_id)
+        assert sd is not None
+        sd.status = "ingesting"
+        await db_session.commit()
+
+        await run_state.complete_run(run.id, status=RUN_FAILED, error_jsonb={"code": "extract_failed"})
+        await db_session.commit()
+        await db_session.refresh(sd)
+        assert sd.status == "failed"
+
+    async def test_succeeded_does_not_mark_source_failed(self, db_session: AsyncSession) -> None:
+        run_state, run = await _seed_run(db_session)
+        sd = await db_session.get(SourceDocument, run.source_document_id)
+        assert sd is not None
+        sd.status = "ingested"
+        await db_session.commit()
+
+        await run_state.complete_run(run.id, status=RUN_SUCCEEDED)
+        await db_session.commit()
+        await db_session.refresh(sd)
+        assert sd.status == "ingested"
+
+    async def test_skips_retired_source_documents(self, db_session: AsyncSession) -> None:
+        run_state, run = await _seed_run(db_session)
+        sd = await db_session.get(SourceDocument, run.source_document_id)
+        assert sd is not None
+        sd.status = "retired"
+        await db_session.commit()
+
+        await run_state.complete_run(run.id, status=RUN_FAILED, error_jsonb={"code": "extract_failed"})
+        await db_session.commit()
+        await db_session.refresh(sd)
+        assert sd.status == "retired"
+
+    async def test_fusion_run_marks_all_source_documents_failed(self, db_session: AsyncSession) -> None:
+        sd_a = SourceDocument(
+            title="a",
+            source_type="pdf",
+            primary_language="en",
+            content_domain="clinical",
+            original_storage_path="/tmp/a.pdf",
+            status="ingested",
+            tenant_id=1,
+        )
+        sd_b = SourceDocument(
+            title="b",
+            source_type="pdf",
+            primary_language="en",
+            content_domain="clinical",
+            original_storage_path="/tmp/b.pdf",
+            status="ingested",
+            tenant_id=1,
+        )
+        db_session.add_all([sd_a, sd_b])
+        await db_session.flush()
+        run_state = RunStateService(db_session)
+        fusion_run = await run_state.start_fusion_run(source_document_ids=[sd_a.id, sd_b.id])
+        await db_session.commit()
+
+        await run_state.complete_run(fusion_run.id, status=RUN_FAILED)
+        await db_session.commit()
+        await db_session.refresh(sd_a)
+        await db_session.refresh(sd_b)
+        assert sd_a.status == "failed"
+        assert sd_b.status == "failed"

@@ -23,7 +23,7 @@ def _module(**overrides) -> Module:
         module_json={},
     )
     base.update(overrides)
-    return Module(**base)
+    return Module(**base, tenant_id=1)
 
 
 def _default_cards() -> list[dict]:

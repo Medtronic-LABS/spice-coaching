@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
-from uuid import uuid4
 
 import pytest
 from mc_contracts.enums import GenerationType
@@ -49,7 +48,7 @@ def _inference_response(
 @pytest.mark.asyncio
 class TestChatFaqGenerator:
     async def test_synthesizes_bilingual_faqs_from_llm(self) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         clusters = [_cluster("child cough", 5), _cluster("fever", 3)]
         ai_mock = AsyncMock()
         ai_mock.generate.return_value = _inference_response(
@@ -70,12 +69,12 @@ class TestChatFaqGenerator:
         results = await ChatFaqGenerator(client=ai_mock).synthesize(tenant_id, clusters)
         assert len(results) == 2
         assert results[0].question_localized["bn"] == "শিশুর কাশি"
-        assert "en" not in results[0].question_localized
+        assert results[0].question_localized.get("en") == "Child cough"
         assert results[0].occurrence_count == 5
         assert results[0].rank == 1
 
     async def test_falls_back_to_seed_text_on_llm_error(self) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         clusters = [_cluster("child cough", 5)]
         ai_mock = AsyncMock()
         ai_mock.generate.return_value = _inference_response(error="provider down")
@@ -83,4 +82,4 @@ class TestChatFaqGenerator:
         results = await ChatFaqGenerator(client=ai_mock).synthesize(tenant_id, clusters)
         assert len(results) == 1
         assert results[0].question_localized["bn"] == "child cough"
-        assert "en" not in results[0].question_localized
+        assert results[0].question_localized.get("en") == "child cough"

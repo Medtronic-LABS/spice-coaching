@@ -16,7 +16,7 @@ from tests.conftest import requires_db
 
 async def _make_module(db_session: AsyncSession, family: ModuleFamily | None = None) -> Module:
     if family is None:
-        family = ModuleFamily(module_code=f"BIND-{uuid4().hex[:8]}")
+        family = ModuleFamily(module_code=f"BIND-{uuid4().hex[:8]}", tenant_id=1)
         db_session.add(family)
         await db_session.flush()
     module = Module(
@@ -27,6 +27,7 @@ async def _make_module(db_session: AsyncSession, family: ModuleFamily | None = N
         module_type="refresher",
         lifecycle_status="published",
         module_json={"cards": []},
+        tenant_id=1,
     )
     db_session.add(module)
     await db_session.flush()

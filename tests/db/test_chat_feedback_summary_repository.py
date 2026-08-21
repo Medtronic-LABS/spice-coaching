@@ -4,27 +4,29 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from platform_service.db.repositories.chat_feedback_summary_repository import ChatFeedbackSummaryRepository
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "chat_feedback_summary")
     yield
+    await db_session.rollback()
+    await db_session.execute(text("TRUNCATE chat_feedback_summary RESTART IDENTITY CASCADE"))
+    await db_session.commit()
 
 
 class TestChatFeedbackSummaryRepository:
     async def test_upsert_and_read_watermark(self, db_session: AsyncSession) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         computed_at = datetime(2026, 6, 1, tzinfo=UTC)
         repo = ChatFeedbackSummaryRepository(db_session)
         payload = {
@@ -61,7 +63,7 @@ class TestChatFeedbackSummaryRepository:
         assert stored["llm_summary"] == "One positive feedback event."
 
     async def test_upsert_replaces_existing_snapshot(self, db_session: AsyncSession) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         repo = ChatFeedbackSummaryRepository(db_session)
         first_at = datetime(2026, 6, 1, tzinfo=UTC)
         second_at = first_at + timedelta(days=7)

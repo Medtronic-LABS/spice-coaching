@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from mc_contracts.admin_assignments import AssignmentCreateRequest
+from mc_contracts.assignments import AssignmentCreateRequest
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.repositories.module_family_repository import ModuleFamilyRepository
@@ -27,9 +27,7 @@ async def _seed_published_module(
     *,
     chatbot_faqs_only: bool = False,
 ) -> tuple[ModuleFamily, Module]:
-    family = ModuleFamily(
-        module_code=f"faq-{uuid4().hex[:8]}",
-    )
+    family = ModuleFamily(module_code=f"faq-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     module = Module(
@@ -42,6 +40,7 @@ async def _seed_published_module(
         module_json={"cards": [{"title": {"bn": "c"}, "body": {"bn": "b"}}]},
         published_at=datetime.now(UTC),
         chatbot_faqs_only=chatbot_faqs_only,
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()
@@ -77,7 +76,6 @@ async def test_assignment_service_rejects_chatbot_faq_module(db_session: AsyncSe
         await service.create_assignments(
             AssignmentCreateRequest(
                 module_id=module.id,
-                assignment_type="individual",
                 user_ids=[1313053891],
             ),
             assigned_by=1,

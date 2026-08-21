@@ -43,6 +43,8 @@ def _step(
     chunk_id: str | None = None,
     activity: str | None = None,
     error: dict | None = None,
+    error_code: str | None = None,
+    error_message: str | None = None,
     output_summary: dict | None = None,
 ) -> SimpleNamespace:
     input_summary: dict = {}
@@ -61,8 +63,8 @@ def _step(
         input_summary_jsonb=input_summary or None,
         output_summary_jsonb=output_summary,
         error_jsonb=error,
-        error_code=None,
-        error_message=None,
+        error_code=error_code,
+        error_message=error_message,
     )
 
 
@@ -193,6 +195,8 @@ class TestBuildRunTree:
         assert identify["children"][1]["chunk_id"] == "chunk-2"
         assert identify["children"][1]["status"] == STEP_FAILED
         assert identify["children"][1]["error"]["type"] == "Timeout"
+        assert identify["error"] is not None
+        assert identify["error"]["message"] == "ai-runtime"
         assert [c["key"] for c in identify["children"][0]["children"]] == ["candidate"]
         assert identify["children"][0]["children"][0]["candidate_id"] == str(cand)
         assert identify["children"][1]["children"] == []

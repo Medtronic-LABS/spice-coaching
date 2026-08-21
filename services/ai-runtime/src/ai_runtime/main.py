@@ -55,6 +55,10 @@ def create_app() -> FastAPI:
         log_level=settings.log_level,
         json_logs=settings.log_json,
         app_env=settings.app_env,
+        log_dir=settings.log_dir,
+        log_role="http_ai",
+        log_max_bytes=settings.log_max_bytes,
+        log_backup_count=settings.log_backup_count,
     )
 
     app = FastAPI(
@@ -86,4 +90,4 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, access_log=False)

@@ -18,7 +18,16 @@ import logging
 
 from celery import Celery
 from celery.schedules import crontab
-from celery.signals import worker_process_init, worker_process_shutdown
+from celery.signals import (
+    beat_init,
+    worker_init,
+    worker_process_init,
+    worker_process_shutdown,
+)
+from celery.signals import (
+    setup_logging as celery_setup_logging,
+)
+from mc_foundation.logging import reset_logging, setup_logging
 
 from platform_service.config import get_settings
 from platform_service.db.base import dispose_all_engines, reset_engine_caches
@@ -43,6 +52,14 @@ def create_celery_app() -> Celery:
         enable_utc=True,
         timezone="UTC",
         task_track_started=True,
+        # Own logging via the setup_logging signal below. Leaving Celery's
+        # defaults on lets it redirect sys.stdout to LoggingProxy; our
+        # StreamHandler then writes into that proxy and messages are dropped
+        # by recurse protection — so app logger.info inside tasks vanishes
+        # while Celery's own "task received" lines (bound to sys.__stderr__)
+        # still appear.
+        worker_hijack_root_logger=False,
+        worker_redirect_stdouts=False,
         beat_schedule={
             "drain-telemetry-buffer": {
                 "task": "platform.drain_telemetry_buffer",
@@ -64,13 +81,6 @@ def create_celery_app() -> Celery:
                     day_of_week=settings.chat_feedback_summary_weekly_day_of_week,
                 ),
             },
-            "refresh-module-demand-summary": {
-                "task": "platform.refresh_module_demand_summary",
-                "schedule": crontab(
-                    hour=settings.module_demand_summary_daily_hour_utc,
-                    minute=0,
-                ),
-            },
             "refresh-module-creation-suggestions": {
                 "task": "platform.refresh_module_creation_suggestions",
                 "schedule": crontab(
@@ -87,9 +97,46 @@ def create_celery_app() -> Celery:
 celery_app = create_celery_app()
 
 
+def _configure_worker_logging(*, include_pid: bool) -> None:
+    settings = get_settings()
+    setup_logging(
+        service_name=settings.log_service_name or settings.app_name,
+        log_level=settings.log_level,
+        json_logs=settings.log_json,
+        app_env=settings.app_env,
+        log_dir=settings.log_dir,
+        log_role="worker",
+        log_max_bytes=settings.log_max_bytes,
+        log_backup_count=settings.log_backup_count,
+        include_pid=include_pid,
+    )
+
+
+@celery_setup_logging.connect
+def _on_celery_setup_logging(**_kwargs: object) -> None:
+    """Claim logging so Celery skips its root/handler/stdout-redirect setup."""
+    reset_logging()
+    _configure_worker_logging(include_pid=False)
+
+
+@worker_init.connect
+def _on_worker_init(**_kwargs: object) -> None:
+    # setup_logging signal usually already configured us; re-apply if needed.
+    if not getattr(logging.getLogger(), "_mc_configured", False):
+        _configure_worker_logging(include_pid=False)
+
+
+@beat_init.connect
+def _on_beat_init(**_kwargs: object) -> None:
+    if not getattr(logging.getLogger(), "_mc_configured", False):
+        _configure_worker_logging(include_pid=False)
+
+
 @worker_process_init.connect
 def _on_worker_process_init(**_kwargs: object) -> None:
-    """Post-fork: configure logging, dispose inherited SQLAlchemy pools, reset engine caches."""
+    """Post-fork: reopen log files, dispose inherited SQLAlchemy pools, reset engine caches."""
+    reset_logging()
+    _configure_worker_logging(include_pid=True)
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(dispose_all_engines())

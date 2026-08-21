@@ -12,6 +12,7 @@ from platform_service.services.card_drafter import (
     CardDrafter,
     CardDrafterError,
 )
+from platform_service.services.card_image_assigner import ImageCatalogEntry
 from platform_service.services.prompt_variables.card_drafter_variables import build_card_drafter_variables
 from platform_service.services.prompts.card_drafter_prompt import _SYSTEM_BASE
 
@@ -228,7 +229,7 @@ class TestCardDrafterValidation:
             cited_blocks=[],
             valid_block_ids={UUID(b1)},
         )
-        # card_max_count default is 10.
+        # card_max_count default is 10
         assert len(result.cards) == 10
 
     @pytest.mark.asyncio
@@ -453,3 +454,159 @@ class TestMultiSourceCoverage:
         # the imbalance to apply the per-source coverage rule correctly.
         assert "'d1': 5" in msg
         assert "'d2': 1" in msg
+
+
+# ─── Image catalog and media resolution ─────────────────────────────────────
+
+
+def _catalog_entry(short_id: str, *, alt: str = "Chart") -> ImageCatalogEntry:
+    return ImageCatalogEntry(
+        short_id=short_id,
+        source_image_id=uuid4(),
+        alt_text=alt,
+        storage_path=f"bucket/ingest/figures/{short_id}.png",
+        content_type="image/png",
+        page_number=1,
+        start_ms=None,
+        end_ms=None,
+    )
+
+
+class TestImageCatalogInVariables:
+    def test_available_images_body_included_when_catalog_provided(self) -> None:
+        entry = _catalog_entry("img_1", alt="Blood pressure chart")
+        variables = build_card_drafter_variables(
+            module_type="refresher",
+            card_min_count=3,
+            card_max_count=7,
+            candidate=_candidate(),
+            cited_blocks=[],
+            image_catalog=[entry],
+            max_images_per_card=5,
+        )
+        assert "img_1" in variables["available_images_body"]
+        assert "Blood pressure chart" in variables["available_images_body"]
+
+    def test_available_images_body_empty_when_no_catalog(self) -> None:
+        variables = build_card_drafter_variables(
+            module_type="refresher",
+            card_min_count=3,
+            card_max_count=7,
+            candidate=_candidate(),
+            cited_blocks=[],
+        )
+        assert variables["available_images_body"] == ""
+
+    def test_image_assignment_rules_contains_cap(self) -> None:
+        variables = build_card_drafter_variables(
+            module_type="refresher",
+            card_min_count=3,
+            card_max_count=7,
+            candidate=_candidate(),
+            cited_blocks=[],
+            max_images_per_card=3,
+        )
+        rules = variables["image_assignment_rules"]
+        assert "3" in rules
+        assert "source_image_ids" in rules
+
+
+class TestImageMediaResolution:
+    @pytest.mark.asyncio
+    async def test_valid_image_id_resolves_to_media_on_card(self) -> None:
+        b1 = str(uuid4())
+        entry = _catalog_entry("img_1", alt="BP chart")
+        card_payload = _refresher_card([b1])
+        card_payload["source_image_ids"] = ["img_1"]
+        client = AsyncMock()
+        client.generate = AsyncMock(
+            return_value=_resp(parsed_json={"cards": [card_payload, _refresher_card([b1])]})
+        )
+        drafter = CardDrafter(client=client)
+        result = await drafter.draft(
+            candidate=_candidate(),
+            cited_blocks=[],
+            valid_block_ids={UUID(b1)},
+            image_catalog=[entry],
+        )
+        assert result.insufficient_reason is None
+        card_with_img = result.cards[0]
+        assert "media" in card_with_img
+        assert len(card_with_img["media"]) == 1
+        assert card_with_img["media"][0]["anchor"]["strategy"] == "llm_draft"
+        # Short id field stripped
+        assert "source_image_ids" not in card_with_img
+
+    @pytest.mark.asyncio
+    async def test_unknown_image_id_produces_no_media(self) -> None:
+        b1 = str(uuid4())
+        entry = _catalog_entry("img_1")
+        card_payload = _refresher_card([b1])
+        card_payload["source_image_ids"] = ["img_99"]
+        client = AsyncMock()
+        client.generate = AsyncMock(return_value=_resp(parsed_json={"cards": [card_payload]}))
+        drafter = CardDrafter(client=client)
+        result = await drafter.draft(
+            candidate=_candidate(),
+            cited_blocks=[],
+            valid_block_ids={UUID(b1)},
+            image_catalog=[entry],
+        )
+        assert result.insufficient_reason is None
+        assert result.cards[0].get("media") is None
+
+    @pytest.mark.asyncio
+    async def test_image_capped_at_max_per_card(self) -> None:
+        b1 = str(uuid4())
+        entries = [_catalog_entry(f"img_{i}") for i in range(1, 4)]
+        card_payload = _refresher_card([b1])
+        card_payload["source_image_ids"] = ["img_1", "img_2", "img_3"]
+        client = AsyncMock()
+        client.generate = AsyncMock(return_value=_resp(parsed_json={"cards": [card_payload]}))
+        drafter = CardDrafter(client=client)
+        result = await drafter.draft(
+            candidate=_candidate(),
+            cited_blocks=[],
+            valid_block_ids={UUID(b1)},
+            image_catalog=entries,
+            card_max_count=10,
+        )
+        # Default max_images_per_card=5 from settings — all 3 fit
+        assert len(result.cards[0]["media"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_same_image_id_reused_across_cards(self) -> None:
+        b1 = str(uuid4())
+        entry = _catalog_entry("img_1")
+        card_a = _refresher_card([b1], title="Card A")
+        card_a["source_image_ids"] = ["img_1"]
+        card_b = _refresher_card([b1], title="Card B")
+        card_b["source_image_ids"] = ["img_1"]
+        client = AsyncMock()
+        client.generate = AsyncMock(return_value=_resp(parsed_json={"cards": [card_a, card_b]}))
+        drafter = CardDrafter(client=client)
+        result = await drafter.draft(
+            candidate=_candidate(),
+            cited_blocks=[],
+            valid_block_ids={UUID(b1)},
+            image_catalog=[entry],
+        )
+        assert len(result.cards) == 2
+        assert result.cards[0]["media"][0]["source_image_id"] == str(entry.source_image_id)
+        assert result.cards[1]["media"][0]["source_image_id"] == str(entry.source_image_id)
+
+    @pytest.mark.asyncio
+    async def test_empty_catalog_produces_no_media(self) -> None:
+        b1 = str(uuid4())
+        card_payload = _refresher_card([b1])
+        card_payload["source_image_ids"] = ["img_1"]
+        client = AsyncMock()
+        client.generate = AsyncMock(return_value=_resp(parsed_json={"cards": [card_payload]}))
+        drafter = CardDrafter(client=client)
+        result = await drafter.draft(
+            candidate=_candidate(),
+            cited_blocks=[],
+            valid_block_ids={UUID(b1)},
+            image_catalog=[],
+        )
+        assert result.cards[0].get("media") is None

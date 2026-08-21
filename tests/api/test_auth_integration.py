@@ -1,10 +1,11 @@
-"""Full-app integration tests with SPICE auth + authorization middleware."""
+"""Full-app integration tests with SPICE auth + role-route authorization."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from unittest.mock import AsyncMock
-from uuid import uuid4
+from contextlib import asynccontextmanager
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -14,11 +15,16 @@ from httpx import ASGITransport, AsyncClient
 from mc_contracts.morning import MorningCardsResponse
 from mc_foundation.problem import register_problem_handlers
 from platform_service.api.morning import router as morning_router
+from platform_service.auth.api_route_catalog import ALL_PATH_TEMPLATES, path_templates_for_role
 from platform_service.auth.rate_limit_middleware import RateLimitMiddleware
+from platform_service.auth.role_route_authorization_middleware import (
+    RoleRouteAuthorizationMiddleware,
+)
 from platform_service.auth.spice_auth_middleware import SpiceAuthMiddleware
-from platform_service.auth.spice_authorization_middleware import SpiceAuthorizationMiddleware
 from platform_service.auth.spice_context import SpiceContexts, SpiceUserContext
+from platform_service.auth.tenant_context import HEADER_TENANT_ID
 from platform_service.config import Settings, get_settings
+from platform_service.db.models.hierarchy_user import ROLE_SHASTIYA_KORMI
 from platform_service.integrations.spice_auth_client import SpiceAuthClient
 from pydantic_settings import SettingsConfigDict
 
@@ -26,20 +32,40 @@ from tests.conftest import platform_path
 
 API_ROOT = "/medtronics-api"
 VALID_TOKEN = "Bearer test.jwt.token"
-TENANT_UUID = uuid4()
+ROLE_ID_SK = 3
 
 DEVICE_USER = SpiceUserContext.model_validate(
     {
         "id": 42,
         "username": "chw_user",
         "tenantId": 7,
-        "roles": [{"name": "CHW", "suiteAccessName": "mob"}],
+        "organizationIds": [7],
+        "country": {"tenantId": 7},
+        "roles": [{"name": "SHASTIYA_KORMI", "suiteAccessName": "mob"}],
     }
 )
 
 
 def _contexts_for(user: SpiceUserContext) -> SpiceContexts:
     return SpiceContexts(user_detail=user, tenants=None)
+
+
+class _FakeRoleRouteAccessRepository:
+    def __init__(self, _session: Any) -> None:
+        pass
+
+    async def list_all_path_templates(self) -> list[str]:
+        return list(ALL_PATH_TEMPLATES)
+
+    async def list_path_templates_for_role(self, role_id: int) -> list[str]:
+        if role_id != ROLE_ID_SK:
+            return []
+        return list(path_templates_for_role(ROLE_SHASTIYA_KORMI))
+
+
+@asynccontextmanager
+async def _fake_session_local() -> AsyncIterator[MagicMock]:
+    yield MagicMock()
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +75,18 @@ def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         Settings,
         "model_config",
         SettingsConfigDict(env_file=None, env_file_encoding="utf-8", extra="ignore"),
+    )
+    monkeypatch.setattr(
+        "platform_service.auth.spice_auth_middleware.enforce_hierarchy_principal",
+        AsyncMock(return_value=ROLE_ID_SK),
+    )
+    monkeypatch.setattr(
+        "platform_service.auth.role_route_authorization_middleware.SessionLocal",
+        _fake_session_local,
+    )
+    monkeypatch.setattr(
+        "platform_service.auth.role_route_authorization_middleware.RoleRouteAccessRepository",
+        _FakeRoleRouteAccessRepository,
     )
     yield
     get_settings.cache_clear()
@@ -69,7 +107,6 @@ async def integration_client(
     monkeypatch.setenv("SPICE_AUTH_ENABLED", "true")
     monkeypatch.setenv("API_ROOT_PATH", API_ROOT)
     monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
-    monkeypatch.setenv("SPICE_TENANT_ID_MAP", f'{{"7": "{TENANT_UUID}"}}')
     get_settings.cache_clear()
 
     app = FastAPI()
@@ -82,7 +119,7 @@ async def integration_client(
     api_router.include_router(morning_router)
     app.include_router(api_router)
     app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(SpiceAuthorizationMiddleware)
+    app.add_middleware(RoleRouteAuthorizationMiddleware)
     app.add_middleware(SpiceAuthMiddleware, client=mock_spice_client)
 
     transport = ASGITransport(app=app)
@@ -97,7 +134,7 @@ async def test_device_user_cannot_query_other_chw_id(
     resp = await integration_client.get(
         platform_path("/morning/cards"),
         params={"chw_id": 99},
-        headers={"Authorization": VALID_TOKEN},
+        headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
     assert resp.status_code == 403
 
@@ -114,7 +151,7 @@ async def test_device_user_can_query_own_chw_id(
     resp = await integration_client.get(
         platform_path("/morning/cards"),
         params={"chw_id": 42},
-        headers={"Authorization": VALID_TOKEN},
+        headers={"Authorization": VALID_TOKEN, HEADER_TENANT_ID: "7"},
     )
     assert resp.status_code == 200
 

@@ -14,9 +14,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class CHWQuizQuestionState(Base):
+class CHWQuizQuestionState(TenantMixin, Base):
     __tablename__ = "chw_quiz_question_state"
     __table_args__ = (
         PrimaryKeyConstraint("chw_id", "quiz_id", name="pk_chw_quiz_question_state"),
@@ -34,7 +35,6 @@ class CHWQuizQuestionState(Base):
         ForeignKey("module.id", ondelete="CASCADE"),
         nullable=False,
     )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     failed_attempts_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_failed_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

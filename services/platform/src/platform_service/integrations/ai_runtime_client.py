@@ -21,6 +21,7 @@ from mc_contracts.internal_ai import (
 )
 from mc_foundation.problem import AppError, parse_problem_body
 
+from platform_service.auth.tenant_context import HEADER_TENANT_ID, get_context_selected_tenant_id
 from platform_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,14 @@ def _raise_ai_runtime_http_error(exc: httpx.HTTPStatusError) -> None:
         detail,
         status=status if status >= 400 else 502,
     ) from exc
+
+
+def _internal_headers(token: str) -> dict[str, str]:
+    return {
+        "X-Internal-Token": token,
+        "Content-Type": "application/json",
+        HEADER_TENANT_ID: str(get_context_selected_tenant_id()),
+    }
 
 
 class AIRuntimeClient:
@@ -72,7 +81,7 @@ class AIRuntimeClient:
     async def generate(self, request: InferenceRequest) -> InferenceResponse:
         """Post a fully-resolved InferenceRequest to ai-runtime and return the response."""
         url = f"{self._base_url}/internal/generate/{request.generation_type.value}"
-        headers = {"X-Internal-Token": self._token, "Content-Type": "application/json"}
+        headers = _internal_headers(self._token)
         payload = request.model_dump(mode="json")
 
         try:
@@ -108,7 +117,7 @@ class AIRuntimeClient:
         Returns a list of embedding vectors (one per input text), in the same order.
         """
         url = f"{self._base_url}/internal/embed"
-        headers = {"X-Internal-Token": self._token, "Content-Type": "application/json"}
+        headers = _internal_headers(self._token)
 
         payload = EmbedRequest(texts=texts)
         try:
@@ -132,7 +141,7 @@ class AIRuntimeClient:
     async def transcribe_media(self, media_bytes: bytes, mime_type: str) -> str:
         """Request speech transcription from ai-runtime."""
         url = f"{self._base_url}/internal/transcribe"
-        headers = {"X-Internal-Token": self._token, "Content-Type": "application/json"}
+        headers = _internal_headers(self._token)
         payload = TranscribeRequest(
             data_base64=base64.b64encode(media_bytes).decode("utf-8"),
             mime_type=mime_type,

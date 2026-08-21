@@ -107,8 +107,8 @@ GROUPING RULES — do NOT over-fragment, do NOT under-emit:
    reference tables (e.g. "Healthcare Services by Facility Level") are
    JOB AIDS — the CHW fills them out or looks at them on the job, not
    topics they internalise through training. Detection cues:
-   - Page or section heading begins with "Annexure", "Appendix", "Job Aid",
-     "layXud", {annexure_terms}, or similar.
+   - Page or section heading begins with {annexure_terms}
+     or similar.
    - Content is dominated by blank fields, tick-box rows, signature
      lines, or columnar reference data the user fills in or looks up.
    The training-content equivalent (e.g. "How to fill the NCD reporting

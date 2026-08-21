@@ -15,8 +15,8 @@ class ConfigBundleBuilder:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def build(self) -> ConfigSyncBundle:
-        rows = await ConfigThresholdRepository(self._session).list_all()
+    async def build(self, *, tenant_id: int) -> ConfigSyncBundle:
+        rows = await ConfigThresholdRepository(self._session).list_all(tenant_id=tenant_id)
         thresholds = {row.key: row.value_json for row in rows}
         settings = get_settings()
         return ConfigSyncBundle(

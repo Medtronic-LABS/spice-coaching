@@ -34,8 +34,8 @@ async def storage_mock() -> MagicMock:
             bucket_name=_TEST_BUCKET,
             object_name="uploads/test.txt",
             storage_path=f"{_TEST_BUCKET}/uploads/test.txt",
-            content_type="application/pdf",
-            size_bytes=len(_TEST_PDF_BYTES),
+            content_type="text/plain",
+            size_bytes=5,
         )
     )
     storage.stat_object = AsyncMock()
@@ -76,7 +76,7 @@ async def _seed_file_upload(
         content_sha256=content_sha256,
         content_type="application/pdf",
         size_bytes=len(_TEST_PDF_BYTES),
-        uploaded_by="test-user",
+        uploaded_by=None,
     )
     await db_session.flush()
 

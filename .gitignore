@@ -36,6 +36,9 @@ node_modules/
 # Uploads
 /uploads/
 
+# Typed application logs (compose bind-mounts ./logs)
+/logs/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -43,4 +46,5 @@ Thumbs.db
 # uv
 .python-version
 .claude/
+
 .cursor/

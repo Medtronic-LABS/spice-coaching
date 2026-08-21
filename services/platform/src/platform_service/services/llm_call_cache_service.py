@@ -25,7 +25,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.auth.tenant_context import get_context_selected_tenant_id
 from platform_service.db.base import SessionLocal
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.llm_call_cache import LlmCallCache
 from platform_service.deps import get_ai_client
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
@@ -83,25 +85,41 @@ def compute_input_hash(request: InferenceRequest) -> str:
     return hashlib.sha256(serialised.encode("utf-8")).hexdigest()
 
 
+async def _fetch_cache_row(
+    session: AsyncSession,
+    input_hash: str,
+    tenant_id: int,
+) -> LlmCallCache | None:
+    result = await session.execute(
+        select(LlmCallCache).where(
+            LlmCallCache.input_hash == input_hash,
+            LlmCallCache.tenant_id == tenant_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 class LlmCallCacheService:
     """Read/write helper around the llm_call_cache table.
 
-    Reads use the orchestrator's session (cheap, transactional consistency
-    is fine for "did we already see this hash"). Writes use a *fresh* short-
-    lived session that commits independently — the cache must survive
-    rollbacks of the orchestrator's stage-level transaction. Without this,
-    a Stage 1/2/3 failure wipes every cached LLM call from that run on
-    rollback, defeating the purpose of caching for retry.
+    Both reads and writes use a *fresh* short-lived ``SessionLocal`` session
+    that commits independently of the orchestrator's stage-level transaction.
+
+    Writes must survive rollbacks of that stage transaction — without this, a
+    Stage 1/2/3 failure wipes every cached LLM call from that run, defeating
+    retry. Reads must not share the orchestrator session either: Stage C
+    identify runs chunks concurrently via ``asyncio.gather``, and SQLAlchemy
+    ``AsyncSession`` forbids concurrent operations on one session
+    (``InvalidRequestError`` / ``isce``). Cache hits still see committed rows
+    because writes already commit on their own session.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def get(self, input_hash: str) -> LlmCallCache | None:
-        result = await self._session.execute(
-            select(LlmCallCache).where(LlmCallCache.input_hash == input_hash)
-        )
-        return result.scalar_one_or_none()
+    async def get(self, input_hash: str, *, tenant_id: int = DEFAULT_TENANT_ID) -> LlmCallCache | None:
+        async with SessionLocal() as own_session:
+            row = await _fetch_cache_row(own_session, input_hash, tenant_id)
+            if row is not None:
+                own_session.expunge(row)
+            return row
 
     async def put(
         self,
@@ -111,6 +129,7 @@ class LlmCallCacheService:
         response_jsonb: dict[str, Any],
         token_usage: dict[str, Any] | None = None,
         prompt_template_id: UUID | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> LlmCallCache:
         async with SessionLocal() as own_session:
             row = LlmCallCache(
@@ -119,6 +138,7 @@ class LlmCallCacheService:
                 response_jsonb=response_jsonb,
                 token_usage_jsonb=token_usage,
                 prompt_template_id=prompt_template_id,
+                tenant_id=tenant_id,
             )
             own_session.add(row)
             try:
@@ -127,10 +147,12 @@ class LlmCallCacheService:
                 # Concurrent insert — another worker won the race. Discard
                 # our pending add and return the row another writer landed.
                 await own_session.rollback()
-                existing = await self.get(input_hash)
+                existing = await _fetch_cache_row(own_session, input_hash, tenant_id)
                 if existing is None:
                     raise
+                own_session.expunge(existing)
                 return existing
+            own_session.expunge(row)
             return row
 
 
@@ -148,10 +170,9 @@ class CachingAIRuntimeClient:
     def __init__(
         self,
         *,
-        session: AsyncSession,
         inner: AIRuntimeClient | None = None,
     ) -> None:
-        self._cache = LlmCallCacheService(session)
+        self._cache = LlmCallCacheService()
         self._inner = inner
 
     @property
@@ -163,7 +184,8 @@ class CachingAIRuntimeClient:
 
     async def generate(self, request: InferenceRequest) -> InferenceResponse:
         input_hash = compute_input_hash(request)
-        hit = await self._cache.get(input_hash)
+        tenant_id = get_context_selected_tenant_id()
+        hit = await self._cache.get(input_hash, tenant_id=tenant_id)
         if hit is not None and not _stored_response_has_error(hit.response_jsonb):
             logger.info(
                 "llm_call_cache HIT generation_type=%s hash=%s",
@@ -196,6 +218,7 @@ class CachingAIRuntimeClient:
                 "output": response.token_usage.output,
             },
             prompt_template_id=request.prompt.prompt_template_db_id,
+            tenant_id=tenant_id,
         )
         logger.info(
             "llm_call_cache MISS+stored generation_type=%s hash=%s",

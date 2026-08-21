@@ -52,7 +52,6 @@ from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.ingestion_run import IngestionRun, IngestionRunStep
 from platform_service.db.models.module import Module
-from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.services.card_drafter import (
@@ -73,23 +72,31 @@ from platform_service.workers.quiz_generation_worker import generate_quiz_for_mo
 from platform_service.workers.stage_a_extract import StageAExtractor
 from platform_service.workers.stage_c_identify import StageCOrchestrator
 from platform_service.workers.stage_d_draft import StageDOrchestrator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db]
+
 
 # ─── Cleanup ──────────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "module_quiz_question, module, module_family, behavioural_gap, module_candidate_draft, content_block, source_page, source_document, ingestion_run_step, ingestion_run, llm_call_cache",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module_quiz_question, module, module_family, "
+            "behavioural_gap, module_candidate_draft, content_block, source_page, "
+            "source_document, ingestion_run_step, ingestion_run, "
+            "llm_call_cache "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +161,7 @@ def _draft_response(*, cards: list[dict] | None = None, insufficient: str | None
 def _card(idx: int = 0) -> dict[str, Any]:
     return {
         "title": {"bn": f"কার্ড {idx}", "en": f"Card {idx}" * 5},
-        "body": {"bn": "মূল বিষয় এবং পরবর্তী পদক্ষেপ। " * 5},
+        "body": {"bn": "মূল বিষয় এবং পরবর্তী পদক্ষেপ। "} * 5,
         "next_action": {"bn": "পরবর্তী পদক্ষেপ নিন।"},
         "source_block_ids": [str(uuid4())],
     }
@@ -187,6 +194,7 @@ async def _seed_source_doc(session: AsyncSession) -> UUID:
         primary_language="en",
         content_domain="clinical",
         original_storage_path="/tmp/fake.pdf",
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -245,7 +253,6 @@ async def _run_orchestrator(
             card_drafter = MagicMock()
             card_drafter.draft = AsyncMock(return_value=_draft_response())
         stage_d = StageDOrchestrator(own_session, card_drafter=card_drafter)
-        stage_d._propose_published_merge = AsyncMock(return_value=None)
 
         orch = PipelineOrchestrator(own_session, stage_a=stage_a, stage_c=stage_c, stage_d=stage_d)
         result = await orch.run(
@@ -337,19 +344,13 @@ async def _run_post_publish_inproc(
             vec = embed_vector if embed_vector is not None else [0.1] * dim
             return [vec]
 
-    with patch(
-        "platform_service.workers.quiz_generation_worker.get_ai_client",
-        return_value=_QuizClientStub(),
-    ):
+    with patch("platform_service.workers.quiz_generation_worker.AIRuntimeClient", _QuizClientStub):
         try:
             await generate_quiz_for_module(module_id)
         except Exception:  # noqa: BLE001 — workers must not propagate
             pass
 
-    with patch(
-        "platform_service.workers.embedding_worker.get_ai_client",
-        return_value=_EmbedClientStub(),
-    ):
+    with patch("platform_service.workers.embedding_worker.AIRuntimeClient", _EmbedClientStub):
         try:
             await generate_embedding_for_module(module_id)
         except Exception:  # noqa: BLE001
@@ -375,8 +376,8 @@ async def _run_post_publish_inproc(
             return gap_resp
 
     with patch(
-        "platform_service.services.module_gap_classifier.get_ai_client",
-        return_value=_GapClientStub(),
+        "platform_service.services.module_gap_classifier.AIRuntimeClient",
+        _GapClientStub,
     ):
         try:
             await classify_module_gaps_for_module(module_id)
@@ -403,12 +404,13 @@ class TestHappyPath:
         assert result.candidates_emitted >= 1
         assert result.drafts_produced >= 1
 
-        # Stage D now lands modules as ``lifecycle_status="draft"`` per the
-        # gated-publish flow (commit 28c0d06). Publish happens via
-        # ``set_clinically_reviewed(True)`` on the admin path. The test
-        # asserts Stage D's outputs end up in the draft bucket and the
-        # attribution graph is wired (source_document_ids populated, cards
-        # carry source_block_ids).
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "ingested"
+
+        # Stage D lands modules as ``lifecycle_status="draft"`` per the
+        # gated-publish flow. The test asserts Stage D's outputs end up in
+        # the draft bucket and the attribution graph is wired
+        # (source_document_ids populated, cards carry source_block_ids).
         modules = (
             (await db_session.execute(select(Module).where(Module.lifecycle_status == "draft")))
             .scalars()
@@ -416,9 +418,8 @@ class TestHappyPath:
         )
         assert len(modules) >= 1
         m = modules[0]
-        cards = (
-            (await db_session.execute(select(ModuleCard).where(ModuleCard.module_id == m.id))).scalars().all()
-        )
+        assert m.module_json is not None
+        cards = m.module_json.get("cards", [])
         assert len(cards) >= 3
         assert m.clinically_reviewed is False
         assert m.primary_gap_id is not None
@@ -426,7 +427,7 @@ class TestHappyPath:
         # module and source_block_ids on each card so /coaching/rag-query can
         # surface page references downstream.
         assert m.source_document_ids
-        assert all(card.source_block_ids for card in cards)
+        assert all(card.get("source_block_ids") for card in cards)
 
         # Run post-publish workers and verify their effects.
         await _run_post_publish_inproc(m.id)
@@ -458,13 +459,17 @@ class TestOutlineEmptyFailsRun:
 
         result, _ = await _run_orchestrator(source_document_id=sd_id, text_pages=text_pages)
 
-        assert result.final_status == "succeeded"
+        assert result.final_status == "failed"
         modules = (await db_session.execute(select(Module))).scalars().all()
-        assert modules
+        assert modules == []
         run = (
             await db_session.execute(select(IngestionRun).where(IngestionRun.id == result.run_id))
         ).scalar_one()
-        assert run.status == "succeeded"
+        assert run.status == "failed"
+        assert run.error_jsonb["failed_stage"] == "extract"
+
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "failed"
 
 
 # ─── Scenario 3: Stage C zero candidates ──────────────────────────────────
@@ -513,6 +518,9 @@ class TestStageCZeroCandidatesFailsIdentify:
             "message": "zero candidates were identified",
         }
 
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "failed"
+
 
 # ─── Scenario 4: Per-candidate Stage D failure ────────────────────────────
 
@@ -548,7 +556,7 @@ class TestStageDPerCandidateFailure:
 
         assert result.final_status == "partially_succeeded"
         modules = (
-            (await db_session.execute(select(Module).where(Module.lifecycle_status == "draft")))
+            (await db_session.execute(select(Module).where(Module.lifecycle_status == "published")))
             .scalars()
             .all()
         )
@@ -558,6 +566,9 @@ class TestStageDPerCandidateFailure:
         ).scalar_one()
         assert run.error_jsonb["draft_failures"] == 1
         assert run.error_jsonb["drafts_produced"] == 2
+
+        sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
+        assert sd.status == "failed"
 
 
 # ─── Scenario 5: Resume after partial failure ─────────────────────────────
@@ -690,7 +701,7 @@ class TestEmbeddingWorkerFailureNonBlocking:
 
         assert result.final_status == "succeeded"
         modules = (
-            (await db_session.execute(select(Module).where(Module.lifecycle_status == "draft")))
+            (await db_session.execute(select(Module).where(Module.lifecycle_status == "published")))
             .scalars()
             .all()
         )
@@ -721,7 +732,7 @@ class TestQuizWorkerMalformedJsonNonBlocking:
 
         assert result.final_status == "succeeded"
         modules = (
-            (await db_session.execute(select(Module).where(Module.lifecycle_status == "draft")))
+            (await db_session.execute(select(Module).where(Module.lifecycle_status == "published")))
             .scalars()
             .all()
         )

@@ -101,6 +101,9 @@ class GenerationType(str, enum.Enum):
     # Grounded coaching Q&A over the published v3.3 module corpus
     # (platform /coaching/rag-query). Replaces the prior IT_HELP misuse.
     COACHING_RAG = "coaching_rag"
+    # Pre-RAG router for /coaching/rag-query: classify chit-chat / crisis /
+    # coaching_question and optionally draft a warm or safety reply.
+    COACHING_CHAT_ROUTE = "coaching_chat_route"
     # Eval harness: LLM-as-judge scoring for RAG golden-dataset runs.
     RAG_EVAL_JUDGE = "rag_eval_judge"
     # Post-publish: map a drafted module to seeded behavioural_gap registry codes.
@@ -113,8 +116,6 @@ class GenerationType(str, enum.Enum):
     CARD_SEARCH_METADATA = "card_search_metadata"
     # Nightly: synthesize bilingual chat FAQ chips from clustered telemetry.
     CHAT_FAQ_SYNTHESIS = "chat_faq_synthesis"
-    # Admin: short narrative over top-K module training-request demand.
-    MODULE_DEMAND_SUMMARY = "module_demand_summary"
     # Weekly: synthesize chat feedback digest from positive/negative telemetry.
     CHAT_FEEDBACK_SUMMARY = "chat_feedback_summary"
     # Daily: map unattributed chat/request demand to draft modules or new topics.
@@ -264,3 +265,23 @@ class ValidatorStatus(str, enum.Enum):
     WARN = "warn"
     FALLBACK = "fallback"
     UNKNOWN = "unknown"
+
+
+class HierarchyRole(str, enum.Enum):
+    """Org-hierarchy role on ``users`` (exact SPICE ``roles[].name`` parity)."""
+
+    AREA_MANAGER = "AREA_MANAGER"
+    PO = "PO"
+    SHASTIYA_KORMI = "SHASTIYA_KORMI"
+    SUPER_ADMIN = "SUPER_ADMIN"
+
+
+class DashboardActorView(str, enum.Enum):
+    """Optional dashboard lens: filter demand events to PO or SK actors.
+
+    Omit the query param for all roles (default). Values are lowercase for the
+    ``view`` query string (``po`` / ``sk``).
+    """
+
+    PO = "po"
+    SK = "sk"

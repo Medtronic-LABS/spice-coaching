@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from mc_contracts.localized import LocalizedString
 from sqlalchemy import delete, select
@@ -30,7 +30,7 @@ class ChatFaqRepository:
 
     async def replace_tenant_faqs(
         self,
-        tenant_id: uuid.UUID,
+        tenant_id: int,
         rows: list[ChatFaqRow],
         *,
         computed_at: datetime,
@@ -44,7 +44,7 @@ class ChatFaqRepository:
             )
             return
 
-        now = computed_at
+        now = datetime.now(UTC)
         for row in rows:
             stmt = (
                 pg_insert(ChatFrequentQuestion)
@@ -87,7 +87,7 @@ class ChatFaqRepository:
     async def list_updated_since(
         self,
         *,
-        tenant_id: uuid.UUID | None = None,
+        tenant_id: int | None = None,
         since: datetime,
     ) -> list[ChatFrequentQuestion]:
         stmt = select(ChatFrequentQuestion).where(ChatFrequentQuestion.updated_at > since)
@@ -97,7 +97,7 @@ class ChatFaqRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def max_computed_at(self, *, tenant_id: uuid.UUID | None = None) -> datetime | None:
+    async def max_computed_at(self, *, tenant_id: int | None = None) -> datetime | None:
         stmt = select(ChatFrequentQuestion.computed_at)
         if tenant_id is not None:
             stmt = stmt.where(ChatFrequentQuestion.tenant_id == tenant_id)

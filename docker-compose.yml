@@ -101,20 +101,21 @@ services:
       stage_d_published_merge_card_similarity_threshold: ${STAGE_D_PUBLISHED_MERGE_CARD_SIMILARITY_THRESHOLD:-0.0}
       stage_d_published_merge_module_similarity_threshold: ${STAGE_D_PUBLISHED_MERGE_MODULE_SIMILARITY_THRESHOLD:-0.0}
       post_publish_search_metadata_enabled: ${POST_PUBLISH_SEARCH_METADATA_ENABLED:-true}
+      publish_enrichment_parallel_metadata_enabled: ${PUBLISH_ENRICHMENT_PARALLEL_METADATA_ENABLED:-true}
       search_metadata_max_keywords: ${SEARCH_METADATA_MAX_KEYWORDS:-15}
       search_metadata_max_search_phrases: ${SEARCH_METADATA_MAX_SEARCH_PHRASES:-10}
       search_metadata_max_synonyms: ${SEARCH_METADATA_MAX_SYNONYMS:-10}
       search_metadata_max_tags: ${SEARCH_METADATA_MAX_TAGS:-10}
       # Local compose MinIO (host .env may set localhost:19902 for non-compose runs).
       object_storage_backend: minio
-      object_storage_endpoint: minio:9000
-      object_storage_presigned_endpoint: minio:9000
+      object_storage_endpoint: https://agent-qa.beehyv.com
+      object_storage_presigned_endpoint: https://agent-qa.beehyv.com
       object_storage_presign_mode: proxy
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
       object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-medtronics-storage}
       object_storage_auto_create_bucket: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-true}
-      object_storage_secure: "false"
+      object_storage_secure: "true"
       object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
       admin_file_allowed_prefixes: ${ADMIN_FILE_ALLOWED_PREFIXES:-uploads,source-documents,media,ingest,module-thumbnails}
       admin_file_upload_prefix: ${ADMIN_FILE_UPLOAD_PREFIX:-uploads}
@@ -123,12 +124,19 @@ services:
       coaching_rag_presigned_url_ttl_seconds: ${COACHING_RAG_PRESIGNED_URL_TTL_SECONDS:-3600}
       coaching_rag_context_max_chars: ${COACHING_RAG_CONTEXT_MAX_CHARS:-28000}
       # SPICE auth-service (optional; default off for local compose)
-      spice_auth_enabled: ${SPICE_AUTH_ENABLED:-false}
-      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-http://host.docker.internal:8089}
+      spice_auth_enabled: ${SPICE_AUTH_ENABLED:-true}
+      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-https://spice-dev-backend.uhis.labsplatform.com/auth-service/}
       spice_auth_timeout_seconds: ${SPICE_AUTH_TIMEOUT_SECONDS:-5}
-      spice_auth_default_client: ${SPICE_AUTH_DEFAULT_CLIENT:-mob}
+      spice_auth_default_client: ${SPICE_AUTH_DEFAULT_CLIENT:-web}
       app_env: ${APP_ENV:-development}
+      log_service_name: platform-api
+      log_level: ${LOG_LEVEL:-INFO}
       log_json: "true"
+      log_dir: /var/log/microcoaching
+      log_max_bytes: ${LOG_MAX_BYTES:-50000000}
+      log_backup_count: ${LOG_BACKUP_COUNT:-10}
+    volumes:
+      - ./logs:/var/log/microcoaching
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -167,6 +175,7 @@ services:
       stage_d_published_merge_card_similarity_threshold: ${STAGE_D_PUBLISHED_MERGE_CARD_SIMILARITY_THRESHOLD:-0.0}
       stage_d_published_merge_module_similarity_threshold: ${STAGE_D_PUBLISHED_MERGE_MODULE_SIMILARITY_THRESHOLD:-0.0}
       post_publish_search_metadata_enabled: ${POST_PUBLISH_SEARCH_METADATA_ENABLED:-true}
+      publish_enrichment_parallel_metadata_enabled: ${PUBLISH_ENRICHMENT_PARALLEL_METADATA_ENABLED:-true}
       search_metadata_max_keywords: ${SEARCH_METADATA_MAX_KEYWORDS:-15}
       search_metadata_max_search_phrases: ${SEARCH_METADATA_MAX_SEARCH_PHRASES:-10}
       search_metadata_max_synonyms: ${SEARCH_METADATA_MAX_SYNONYMS:-10}
@@ -198,7 +207,14 @@ services:
       object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
       app_env: ${APP_ENV:-development}
       log_service_name: platform-celery-worker
+      # App logger level (Settings.log_level). Distinct from celery --loglevel.
+      log_level: ${LOG_LEVEL:-INFO}
       log_json: "true"
+      log_dir: /var/log/microcoaching
+      log_max_bytes: ${LOG_MAX_BYTES:-50000000}
+      log_backup_count: ${LOG_BACKUP_COUNT:-10}
+    volumes:
+      - ./logs:/var/log/microcoaching
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -242,7 +258,13 @@ services:
       chat_feedback_summary_max_negative_offline_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_OFFLINE_SAMPLES:-30}
       app_env: ${APP_ENV:-development}
       log_service_name: platform-celery-beat
+      log_level: ${LOG_LEVEL:-INFO}
       log_json: "true"
+      log_dir: /var/log/microcoaching
+      log_max_bytes: ${LOG_MAX_BYTES:-50000000}
+      log_backup_count: ${LOG_BACKUP_COUNT:-10}
+    volumes:
+      - ./logs:/var/log/microcoaching
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -287,8 +309,13 @@ services:
       # Canonical pgvector corpus dimension; align matches platform's setting.
       embedding_dimension: ${EMBEDDING_DIMENSION:-768}
       app_env: ${APP_ENV:-development}
+      log_level: ${LOG_LEVEL:-INFO}
       log_json: "true"
+      log_dir: /var/log/microcoaching
+      log_max_bytes: ${LOG_MAX_BYTES:-50000000}
+      log_backup_count: ${LOG_BACKUP_COUNT:-10}
     volumes:
+      - ./logs:/var/log/microcoaching
       # Bind-mount the service-account JSON so the path the container
       # reads matches GOOGLE_APPLICATION_CREDENTIALS. Host path is set
       # via GCP_SERVICE_ACCOUNT_JSON_HOST_PATH in .env. The default
@@ -320,10 +347,17 @@ services:
       context: ${ANALYTICS_DASHBOARD_BUILD_CONTEXT:-../micro-learning-analytics-dashboard}
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://agent-qa.beehyv.com/medtronics-api}
         VITE_ADMIN_API_BASE_URL: ${VITE_ADMIN_API_BASE_URL:-https://agent-qa.beehyv.com/medtronics-api}
-        VITE_USE_MOCK_API: ${VITE_USE_MOCK_API:-true}
-        VITE_APP_ROLE: ${VITE_APP_ROLE:-programManager}
+        VITE_USE_MOCK_API: ${VITE_USE_MOCK_API:-false}
+        VITE_USE_MOCK_MODULE_PIPELINE: ${VITE_USE_MOCK_MODULE_PIPELINE:-false}
+        VITE_SPICE_API_BASE_URL: ${VITE_SPICE_API_BASE_URL:-https://spice-dev-backend.uhis.labsplatform.com}
+        VITE_SPICE_WEB_LOGIN_URL: ${VITE_SPICE_WEB_LOGIN_URL:-https://agent-qa.beehyv.com/medtronics-ai-coaching}
+        VITE_COACHING_SUITE_ACCESS: ${VITE_COACHING_SUITE_ACCESS:-admin}
+        VITE_SPICE_ADMIN_API_URL: ${VITE_SPICE_ADMIN_API_URL:-/admin-service}
+        VITE_SPICE_USER_API_URL: ${VITE_SPICE_USER_API_URL:-/user-service}
+        VITE_ERROR_REPORTING_URL: ${VITE_ERROR_REPORTING_URL:-}
+        VITE_ROUTE_PREFIX: ${VITE_ROUTE_PREFIX:-/medtronics-ui}
+        VITE_DEPLOYMENT_PRIMARY_LOCALE: ${VITE_DEPLOYMENT_PRIMARY_LOCALE:-bn}
     ports:
       - "${ANALYTICS_DASHBOARD_PORT:-18080}:80"
     depends_on:

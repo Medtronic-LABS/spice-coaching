@@ -7,7 +7,6 @@ import asyncio
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import UUID
 
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
 
@@ -74,7 +73,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Batch JSON report path (default: eval/rag/reports/<method>-run.json)",
     )
-    parser.add_argument("--tenant-id", type=UUID, default=None, help="Optional tenant UUID filter")
+    parser.add_argument("--tenant-id", type=int, default=None, help="Optional tenant bigint filter")
     parser.add_argument(
         "--run-id",
         default=None,

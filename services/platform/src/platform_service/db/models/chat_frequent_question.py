@@ -10,16 +10,16 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class ChatFrequentQuestion(Base):
+class ChatFrequentQuestion(TenantMixin, Base):
     __tablename__ = "chat_frequent_question"
     __table_args__ = (
         UniqueConstraint("tenant_id", "normalized_question", name="uq_chat_faq_tenant_question"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     question_localized: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False)
     normalized_question: Mapped[str] = mapped_column(Text, nullable=False)
     occurrence_count: Mapped[int] = mapped_column(Integer, nullable=False)

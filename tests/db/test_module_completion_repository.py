@@ -20,7 +20,7 @@ def _test_chw_id() -> int:
 
 
 async def _make_family(session: AsyncSession) -> ModuleFamily:
-    family = ModuleFamily(module_code=f"COMP-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"COMP-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
     await session.flush()
     return family

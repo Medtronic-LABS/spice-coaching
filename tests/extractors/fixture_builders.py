@@ -8,6 +8,8 @@ Training PDF when available; the test gracefully skips if it's not present.
 
 from __future__ import annotations
 
+import struct
+import zlib
 from pathlib import Path
 
 import pymupdf  # type: ignore[import-untyped]
@@ -182,4 +184,75 @@ def build_formatted_english_pptx(out_path: Path) -> Path:
     bullet.text = "Bulleted clinical point"
     bullet.level = 1
     prs.save(str(out_path))
+    return out_path
+
+
+def _pattern_png_bytes(*, width: int = 160, height: int = 160) -> bytes:
+    """Return a PNG large enough to pass Stage A figure filters (≥2KB / ≥64px)."""
+
+    def _chunk(tag: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
+
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)  # filter none
+        for x in range(width):
+            raw.append((x * 3 + y) % 256)
+            raw.append((x + y * 5) % 256)
+            raw.append((x * 7 + y * 3) % 256)
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", ihdr)
+        + _chunk(b"IDAT", zlib.compress(bytes(raw), level=1))
+        + _chunk(b"IEND", b"")
+    )
+
+
+def build_pdf_with_embedded_png(out_path: Path, *, page_count: int = 2) -> Path:
+    """PDF with extractable text plus one large embedded PNG per page."""
+    png = _pattern_png_bytes()
+    doc = pymupdf.open()
+    for i in range(page_count):
+        page = doc.new_page()
+        page.insert_text(
+            (72, 72),
+            f"Clinical figure page {i + 1}. Blood pressure chart explanation.",
+            fontsize=12,
+        )
+        page.insert_image(pymupdf.Rect(72, 120, 280, 328), stream=png)
+    doc.save(str(out_path))
+    doc.close()
+    return out_path
+
+
+def build_pptx_with_embedded_png(out_path: Path) -> Path:
+    """PPTX with a picture shape and nearby slide text."""
+    png_path = out_path.parent / "_fig.png"
+    png_path.write_bytes(_pattern_png_bytes())
+    prs = Presentation()
+    layout = prs.slide_layouts[6]  # blank
+    slide = prs.slides.add_slide(layout)
+    # Title-like text box
+    box = slide.shapes.add_textbox(left=0, top=0, width=prs.slide_width, height=800000)
+    box.text_frame.text = "Hypertension screening flowchart"
+    slide.shapes.add_picture(str(png_path), left=500000, top=1000000, width=2000000)
+    prs.save(str(out_path))
+    png_path.unlink(missing_ok=True)
+    return out_path
+
+
+def build_docx_with_embedded_png(out_path: Path) -> Path:
+    """DOCX with an inline picture between paragraphs."""
+    png_path = out_path.parent / "_fig.docx.png"
+    png_path.write_bytes(_pattern_png_bytes())
+    doc = Document()
+    doc.add_heading("Danger signs in pregnancy", level=1)
+    doc.add_paragraph("Refer when the woman has severe headache or blurred vision.")
+    doc.add_picture(str(png_path))
+    doc.add_paragraph("Document observation and escalate to the facility.")
+    doc.save(str(out_path))
+    png_path.unlink(missing_ok=True)
     return out_path

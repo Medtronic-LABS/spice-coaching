@@ -18,7 +18,7 @@ pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 async def test_bind_triggers_writes_bindings(db_session) -> None:
-    family = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
     module = Module(
@@ -30,6 +30,7 @@ async def test_bind_triggers_writes_bindings(db_session) -> None:
         lifecycle_status="draft",
         module_json={"cards": [{"title": {"bn": "c"}, "body": {"bn": "b"}}]},
         search_metadata_jsonb={"topic_tags": {"bn": ["anc"]}, "clinical_conditions": {"bn": []}},
+        tenant_id=1,
     )
     db_session.add(module)
     await db_session.flush()
@@ -63,7 +64,7 @@ async def test_bind_triggers_writes_bindings(db_session) -> None:
 
 
 async def test_bind_triggers_skips_when_no_topics(db_session) -> None:
-    family = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
     module = Module(
@@ -74,6 +75,7 @@ async def test_bind_triggers_skips_when_no_topics(db_session) -> None:
         module_type="refresher",
         lifecycle_status="draft",
         module_json={"cards": [{"title": {"bn": "c"}, "body": {"bn": "b"}}]},
+        tenant_id=1,
     )
     db_session.add(module)
     await db_session.commit()

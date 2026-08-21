@@ -16,6 +16,7 @@ from mc_contracts.localized import LocalizedString
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.module_candidate_draft import ModuleCandidateDraft
 
 
@@ -43,11 +44,13 @@ class ModuleCandidateRepository:
         rationale_summary: str | None = None,
         ingestion_instruction_rationale: str | None = None,
         source_chunk_ids: list[str] | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> ModuleCandidateDraft:
         cand = ModuleCandidateDraft(
             ingestion_run_id=ingestion_run_id,
             proposed_title=proposed_title,
             behavioural_gap_code=behavioural_gap_code,
+            tenant_id=tenant_id,
             scope_summary=scope_summary,
             description_localized=description_localized,
             domain=domain,

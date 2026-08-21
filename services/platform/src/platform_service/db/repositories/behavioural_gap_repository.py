@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +19,7 @@ class BehaviouralGapRepository:
         self,
         since: datetime | None,
         *,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
     ) -> list[BehaviouralGap]:
         stmt = select(BehaviouralGap).where(BehaviouralGap.status == "active")
         if since is not None:

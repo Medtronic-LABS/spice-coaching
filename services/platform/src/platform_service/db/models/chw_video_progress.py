@@ -8,9 +8,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class CHWVideoProgress(Base):
+class CHWVideoProgress(TenantMixin, Base):
     __tablename__ = "chw_video_progress"
     __table_args__ = (UniqueConstraint("chw_id", "source_document_id", name="uq_video_progress_chw_video"),)
 
@@ -28,7 +29,6 @@ class CHWVideoProgress(Base):
     last_watched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

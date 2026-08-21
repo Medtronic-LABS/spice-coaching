@@ -101,7 +101,7 @@ async def test_get_digital_help_module_usage_empty_window() -> None:
 
 @pytest.mark.asyncio
 async def test_get_digital_help_module_usage_passes_tenant_id_to_clickhouse() -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     ch_mock = MagicMock()
     ch_mock.query_rows = AsyncMock(return_value=[])
 
@@ -227,19 +227,34 @@ async def test_get_digital_help_module_questions_paginates_and_skips_blank() -> 
                 "question": "How to treat fever?",
                 "occurrence_count": 3,
                 "last_asked_at": last_asked,
+                "sample_chw_id": 3001,
             },
             {
                 "question": "  ",
                 "occurrence_count": 1,
                 "last_asked_at": datetime(2026, 1, 10, tzinfo=UTC),
+                "sample_chw_id": 3002,
             },
         ]
 
     ch_mock.query_rows = AsyncMock(side_effect=_query_rows)
     session = MagicMock()
     module_row = MagicMock(id=module_id, title_localized={"bn": "Fever BN", "en": "Fever EN"})
+    org_user = MagicMock()
+    org_user.name = "SK One"
+    org_user.role = "SHASTIYA_KORMI"
+    org_user.division = "D"
+    org_user.district = "Dist"
+    org_user.upazila_names = frozenset({"Up"})
 
-    with patch.object(ModuleRepository, "list_modules_by_ids", new_callable=AsyncMock) as mock_by_ids:
+    with (
+        patch.object(ModuleRepository, "list_modules_by_ids", new_callable=AsyncMock) as mock_by_ids,
+        patch(
+            "platform_service.services.dashboard_analytics_service.org_user_index",
+            new_callable=AsyncMock,
+            return_value={3001: org_user},
+        ),
+    ):
         mock_by_ids.return_value = [module_row]
         result = await DashboardAnalyticsService(ch_mock, session).get_digital_help_module_questions(
             module_id=module_id,
@@ -258,11 +273,17 @@ async def test_get_digital_help_module_questions_paginates_and_skips_blank() -> 
     assert result.questions[0].question == "How to treat fever?"
     assert result.questions[0].occurrence_count == 3
     assert result.questions[0].last_asked_at == last_asked
+    assert result.questions[0].asked_by.user_id == 3001
+    assert result.questions[0].asked_by.user_name == "SK One"
+    assert result.questions[0].asked_by.user_role == "SHASTIYA_KORMI"
     assert ch_mock.query_rows.await_count == 2
     page_call = ch_mock.query_rows.await_args_list[1]
     assert page_call.kwargs["parameters"]["module_id"] == module_id
     assert page_call.kwargs["parameters"]["event_type"] == "digital_help_used"
     assert "module_id = {module_id:UUID}" in page_call.args[0]
+    assert "max(timestamp_local) AS last_asked_at" in page_call.args[0]
+    assert "argMax(raw_question, timestamp_local)" in page_call.args[0]
+    assert "ORDER BY max(timestamp_utc) DESC" in page_call.args[0]
 
 
 @pytest.mark.asyncio
@@ -295,7 +316,7 @@ async def test_get_digital_help_module_questions_empty_window() -> None:
 @pytest.mark.asyncio
 async def test_get_digital_help_module_questions_passes_tenant_id() -> None:
     module_id = uuid4()
-    tenant_id = uuid4()
+    tenant_id = 1
     ch_mock = MagicMock()
 
     async def _query_rows(query: str, parameters: dict | None = None) -> list[dict]:
@@ -316,33 +337,74 @@ async def test_get_digital_help_module_questions_passes_tenant_id() -> None:
 
     for call in ch_mock.query_rows.await_args_list:
         assert call.kwargs["parameters"]["tenant_id"] == tenant_id
-        assert "tenant_id = {tenant_id:UUID}" in call.args[0]
+        assert "tenant_id = {tenant_id:Int64}" in call.args[0]
 
 
 @pytest.mark.asyncio
-async def test_get_digital_help_module_requests_returns_count_and_title() -> None:
+async def test_get_digital_help_module_requests_returns_paginated_rows() -> None:
     module_id = uuid4()
+    requested_at = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
     ch_mock = MagicMock()
-    ch_mock.query_rows = AsyncMock(return_value=[{"module_requested_count": 7}])
+
+    async def _query_rows(query: str, parameters: dict | None = None) -> list[dict]:
+        if "total_requests" in query:
+            return [{"total_requests": 2}]
+        return [
+            {
+                "chw_id": 3001,
+                "requested_at": requested_at,
+                "reason": "Need refresher",
+            },
+            {
+                "chw_id": 3002,
+                "requested_at": datetime(2026, 1, 10, tzinfo=UTC),
+                "reason": "",
+            },
+        ]
+
+    ch_mock.query_rows = AsyncMock(side_effect=_query_rows)
     session = MagicMock()
     module_row = MagicMock(id=module_id, title_localized={"bn": "Req BN"})
+    org_user = MagicMock()
+    org_user.name = "SK One"
+    org_user.role = "SHASTIYA_KORMI"
+    org_user.division = "D"
+    org_user.district = "Dist"
+    org_user.upazila_names = frozenset({"Up"})
 
-    with patch.object(ModuleRepository, "list_modules_by_ids", new_callable=AsyncMock) as mock_by_ids:
+    with (
+        patch.object(ModuleRepository, "list_modules_by_ids", new_callable=AsyncMock) as mock_by_ids,
+        patch(
+            "platform_service.services.dashboard_analytics_service.org_user_index",
+            new_callable=AsyncMock,
+            return_value={3001: org_user},
+        ),
+    ):
         mock_by_ids.return_value = [module_row]
         result = await DashboardAnalyticsService(ch_mock, session).get_digital_help_module_requests(
             module_id=module_id,
             tenant_id=None,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
+            limit=50,
+            offset=0,
         )
 
     assert result.module_id == module_id
-    assert result.module_requested_count == 7
+    assert result.total_requests == 2
+    assert result.total_pages == 1
+    assert len(result.requests) == 2
+    assert result.requests[0].requested_at == requested_at
+    assert result.requests[0].reason == "Need refresher"
+    assert result.requests[0].requested_by.user_id == 3001
+    assert result.requests[0].requested_by.user_name == "SK One"
     assert result.title == {"bn": "Req BN"}
-    call = ch_mock.query_rows.await_args_list[0]
-    assert call.kwargs["parameters"]["module_id"] == module_id
-    assert call.kwargs["parameters"]["event_type"] == "module_requested"
-    assert "module_id = {module_id:UUID}" in call.args[0]
+    page_call = ch_mock.query_rows.await_args_list[1]
+    assert page_call.kwargs["parameters"]["module_id"] == module_id
+    assert page_call.kwargs["parameters"]["event_type"] == "module_requested"
+    assert "module_id = {module_id:UUID}" in page_call.args[0]
+    assert "timestamp_local AS requested_at" in page_call.args[0]
+    assert "ORDER BY timestamp_utc DESC" in page_call.args[0]
 
 
 @pytest.mark.asyncio
@@ -358,16 +420,18 @@ async def test_get_digital_help_module_requests_zero_when_empty() -> None:
         to_date=date(2026, 1, 7),
     )
 
-    assert result.module_requested_count == 0
+    assert result.total_requests == 0
+    assert result.total_pages == 0
+    assert result.requests == []
     assert result.title is None
 
 
 @pytest.mark.asyncio
 async def test_get_digital_help_module_requests_passes_tenant_id() -> None:
     module_id = uuid4()
-    tenant_id = uuid4()
+    tenant_id = 1
     ch_mock = MagicMock()
-    ch_mock.query_rows = AsyncMock(return_value=[{"module_requested_count": 0}])
+    ch_mock.query_rows = AsyncMock(return_value=[{"total_requests": 0}])
 
     await DashboardAnalyticsService(ch_mock, None).get_digital_help_module_requests(
         module_id=module_id,
@@ -378,4 +442,76 @@ async def test_get_digital_help_module_requests_passes_tenant_id() -> None:
 
     call = ch_mock.query_rows.await_args_list[0]
     assert call.kwargs["parameters"]["tenant_id"] == tenant_id
-    assert "tenant_id = {tenant_id:UUID}" in call.args[0]
+    assert "tenant_id = {tenant_id:Int64}" in call.args[0]
+
+
+@pytest.mark.asyncio
+async def test_get_digital_help_module_usage_passes_chw_ids() -> None:
+    ch_mock = MagicMock()
+    ch_mock.query_rows = AsyncMock(return_value=[])
+
+    await DashboardAnalyticsService(ch_mock, None).get_digital_help_module_usage(
+        tenant_id=None,
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 14),
+        chw_ids=frozenset({3001, 3002}),
+    )
+
+    call = ch_mock.query_rows.await_args_list[0]
+    assert set(call.kwargs["parameters"]["chw_ids"]) == {3001, 3002}
+    assert "chw_id IN {chw_ids:Array(Int64)}" in call.args[0]
+
+
+@pytest.mark.asyncio
+async def test_get_digital_help_module_usage_empty_chw_ids_short_circuits() -> None:
+    ch_mock = MagicMock()
+    ch_mock.query_rows = AsyncMock(return_value=[{"should": "not_run"}])
+
+    result = await DashboardAnalyticsService(ch_mock, None).get_digital_help_module_usage(
+        tenant_id=None,
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 14),
+        chw_ids=frozenset(),
+    )
+
+    assert result.total_modules == 0
+    assert result.modules == []
+    ch_mock.query_rows.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_digital_help_module_questions_passes_chw_ids() -> None:
+    module_id = uuid4()
+    ch_mock = MagicMock()
+    ch_mock.query_rows = AsyncMock(side_effect=[[{"total_questions": 0}], []])
+
+    await DashboardAnalyticsService(ch_mock, None).get_digital_help_module_questions(
+        module_id=module_id,
+        tenant_id=None,
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 14),
+        chw_ids=frozenset({3001}),
+    )
+
+    for call in ch_mock.query_rows.await_args_list:
+        assert call.kwargs["parameters"]["chw_ids"] == [3001]
+        assert "chw_id IN {chw_ids:Array(Int64)}" in call.args[0]
+
+
+@pytest.mark.asyncio
+async def test_get_digital_help_module_requests_empty_chw_ids_short_circuits() -> None:
+    module_id = uuid4()
+    ch_mock = MagicMock()
+    ch_mock.query_rows = AsyncMock(return_value=[{"total_requests": 99}])
+
+    result = await DashboardAnalyticsService(ch_mock, None).get_digital_help_module_requests(
+        module_id=module_id,
+        tenant_id=None,
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 14),
+        chw_ids=frozenset(),
+    )
+
+    assert result.total_requests == 0
+    assert result.requests == []
+    ch_mock.query_rows.assert_not_awaited()

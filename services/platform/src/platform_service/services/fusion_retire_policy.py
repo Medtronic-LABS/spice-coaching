@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import get_settings
+from platform_service.db.repositories.module_repository import ModuleRepository
 from platform_service.localized import deployment_locales
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class FusionRetirePolicy:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._modules = ModuleRepository(session)
 
     async def retire_constituent_modules(
         self,
@@ -52,16 +54,18 @@ class FusionRetirePolicy:
             title_filter = json.dumps({title_locale: title})
             result = await self._session.execute(
                 text("""
-                    UPDATE module
-                    SET lifecycle_status = 'retired'
+                    SELECT id
+                    FROM module
                     WHERE lifecycle_status = 'published'
                       AND title_localized @> CAST(:title_filter AS jsonb)
                       AND :sd_id = ANY(source_document_ids)
-                    RETURNING id
                 """),
                 {"title_filter": title_filter, "sd_id": str(sd_id)},
             )
-            n = len(list(result.scalars().all()))
+            module_ids = list(result.scalars().all())
+            for module_id in module_ids:
+                await self._modules.retire_module(module_id)
+            n = len(module_ids)
             if n:
                 logger.info(
                     "Stage 2b runner: retired %d constituent module(s) titled %r (source %s)",

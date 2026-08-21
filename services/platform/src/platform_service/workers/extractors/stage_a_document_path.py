@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from platform_service.config import get_settings
+from platform_service.services.source_image_persist_service import SourceImagePersistService
 from platform_service.workers.extractors.calibration import sample_calibration_for_document
 from platform_service.workers.extractors.extraction_markdown import persist_markdown_content
 from platform_service.workers.extractors.quality_heuristic import score_page
@@ -158,6 +159,23 @@ async def run_document_path(
         page_markdowns=[p.markdown_content or "" for p in pages_rows],
         total_pages=total_pages,
     )
+
+    # Best-effort native figure extract after pages exist (for source_page_id).
+    try:
+        persist = SourceImagePersistService(host._session, vision=host._vision)
+        images = await persist.extract_and_persist(
+            source_document_id=source_document_id,
+            source_path=source_path,
+            source_type=source_type,
+        )
+        if images:
+            await host._session.commit()
+    except Exception:
+        logger.exception(
+            "Stage A embedded image persist failed source_document_id=%s (continuing without card figures)",
+            source_document_id,
+        )
+
     logger.info(
         "Stage 1 complete source_document_id=%s pages=%d sections=%d methods=%s",
         source_document_id,

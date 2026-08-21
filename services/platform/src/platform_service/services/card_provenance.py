@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from mc_contracts.admin_modules import CardSourcePageRef
+from mc_contracts.modules import CardSourcePageRef
 from mc_foundation.objectstore import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 

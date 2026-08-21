@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from uuid import UUID
 
-from mc_contracts.admin_modules import QuizQuestionEditRequest
+from mc_contracts.modules import QuizQuestionEditRequest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 

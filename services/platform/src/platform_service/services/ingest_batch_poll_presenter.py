@@ -9,9 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import get_settings
+from platform_service.db.models.hierarchy_user import HierarchyUser
 from platform_service.db.models.ingestion_run import IngestionRun, IngestionRunStep
 from platform_service.db.models.module_candidate_draft import ModuleCandidateDraft
 from platform_service.db.models.source_document import SourceDocument
+from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
 from platform_service.db.repositories.module_candidate_repository import (
     ModuleCandidateRepository,
 )
@@ -20,11 +22,18 @@ from platform_service.services.ingest_progress_catalog import (
     catalog_entry,
     chunk_catalog_entry,
 )
+from platform_service.services.ingest_run_error_summary import (
+    summarize_batch_error,
+    summarize_error_from_failed_children,
+    summarize_ingestion_run_error,
+)
 from platform_service.services.ingestion_run_presenter import IngestionRunPresenter
 from platform_service.services.run_state.constants import as_error_object
 from platform_service.services.run_state.steps import is_module_identify_chunk_step
 from platform_service.services.run_state_service import (
     POST_PUBLISH_STAGES,
+    RUN_FAILED,
+    RUN_PARTIALLY_SUCCEEDED,
     RUN_RUNNING,
     STAGE_CARD_DRAFT,
     STAGE_EXTRACT,
@@ -53,6 +62,15 @@ def _document_label(doc: SourceDocument | None) -> str:
     return doc.title
 
 
+def _actor_ref(user_id: int | None, users_by_id: dict[int, HierarchyUser]) -> dict[str, Any] | None:
+    if user_id is None:
+        return None
+    user = users_by_id.get(user_id)
+    if user is None:
+        return None
+    return {"id": user.id, "name": user.name}
+
+
 def _candidate_id_from_step(step: IngestionRunStep) -> str | None:
     summary = step.input_summary_jsonb or {}
     raw = summary.get("candidate_id")
@@ -73,7 +91,7 @@ def _step_node(step: IngestionRunStep) -> dict[str, Any]:
         "completed_at": step.completed_at.isoformat() if step.completed_at else None,
         "error": step.error_jsonb,
         "error_code": step.error_code,
-        "error_message": step.error_message,
+        "error_message": poll.get("error_message"),
         "children": [],
     }
     if activity:
@@ -124,7 +142,7 @@ def _chunk_node(step: IngestionRunStep) -> dict[str, Any]:
         "completed_at": step.completed_at.isoformat() if step.completed_at else None,
         "error": step.error_jsonb,
         "error_code": step.error_code,
-        "error_message": step.error_message,
+        "error_message": IngestionRunPresenter._present_step_error_message(step),
         "children": [],
     }
     if step.input_summary_jsonb is not None:
@@ -188,6 +206,7 @@ def build_run_tree(
         proposed = cand.proposed_title if cand is not None else ""
         title, description = candidate_catalog_entry(proposed)
         child_steps = _sort_steps(by_candidate[cand_id], _CANDIDATE_STAGE_ORDER)
+        child_nodes = [_step_node(s) for s in child_steps]
         branch = {
             "key": "candidate",
             "title": title,
@@ -198,14 +217,18 @@ def build_run_tree(
             "started_at": child_steps[0].started_at.isoformat() if child_steps[0].started_at else None,
             "completed_at": None,
             "error": None,
-            "children": [_step_node(s) for s in child_steps],
+            "children": child_nodes,
         }
+        if branch["status"] == "partially_succeeded" and not branch.get("error"):
+            branch["error"] = summarize_error_from_failed_children(child_nodes)
         chunk_node["children"].append(branch)
 
     for chunk_node in chunk_nodes:
         identify_status = str(chunk_node["status"])
         nested_statuses = [str(b["status"]) for b in chunk_node["children"]]
         chunk_node["status"] = _rollup_statuses([identify_status, *nested_statuses])
+        if chunk_node["status"] == "partially_succeeded" and not chunk_node.get("error"):
+            chunk_node["error"] = summarize_error_from_failed_children(chunk_node["children"])
 
     identify_node: dict[str, Any] | None = None
     if parent_steps:
@@ -227,6 +250,8 @@ def build_run_tree(
         identify_node["children"] = chunk_nodes
         if chunk_nodes:
             identify_node["status"] = _rollup_statuses([str(n["status"]) for n in chunk_nodes])
+            if identify_node["status"] == "partially_succeeded" and not identify_node.get("error"):
+                identify_node["error"] = summarize_error_from_failed_children(chunk_nodes)
         nodes.append(identify_node)
 
     # Fusion / other non-shared stages without candidate_id (e.g. cross_source_fusion).
@@ -320,22 +345,36 @@ class IngestBatchPollPresenter:
 
         sources: list[dict[str, Any]] = []
         retries: list[dict[str, Any]] = []
+        source_errors: list[dict[str, Any] | None] = []
+        document_labels: list[str] = []
         for run in pipeline_runs:
             steps = await self._state.list_steps(run.id)
             candidates = await self._candidate_repo.list_candidates_for_run(run.id)
             blocked = run.status == RUN_RUNNING and self._state.has_active_pipeline_claim(run)
+            label = _document_label(docs_by_id.get(run.source_document_id))
+            run_error = summarize_ingestion_run_error(
+                run.error_jsonb,
+                steps=steps,
+                status=run.status,
+            )
             sources.append(
                 {
                     "source_document_id": str(run.source_document_id),
                     "run_id": str(run.id),
-                    "document_label": _document_label(docs_by_id.get(run.source_document_id)),
+                    "document_label": label,
                     "status": run.status,
                     "started_at": run.started_at.isoformat() if run.started_at else None,
                     "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-                    "error": run.error_jsonb,
+                    "error": run_error,
                     "nodes": build_run_tree(steps=steps, candidates=candidates),
                 }
             )
+            # Include any non-succeeded terminal run in batch causes.
+            if run.status in (RUN_PARTIALLY_SUCCEEDED, RUN_FAILED):
+                source_errors.append(run_error)
+            else:
+                source_errors.append(None)
+            document_labels.append(label)
             retries.extend(
                 _retry_targets_for_run(
                     batch_id=batch_id,
@@ -350,6 +389,11 @@ class IngestBatchPollPresenter:
             steps = await self._state.list_steps(fusion_run.id)
             candidates = await self._candidate_repo.list_candidates_for_run(fusion_run.id)
             fusion_title, fusion_description = catalog_entry("fusion")
+            fusion_error = summarize_ingestion_run_error(
+                fusion_run.error_jsonb,
+                steps=steps,
+                status=fusion_run.status,
+            )
             fusion_payload: dict[str, Any] = {
                 "key": "fusion",
                 "title": fusion_title,
@@ -358,7 +402,7 @@ class IngestBatchPollPresenter:
                 "status": fusion_run.status,
                 "started_at": fusion_run.started_at.isoformat() if fusion_run.started_at else None,
                 "completed_at": fusion_run.completed_at.isoformat() if fusion_run.completed_at else None,
-                "error": fusion_run.error_jsonb,
+                "error": fusion_error,
                 "source_document_ids": as_error_object(fusion_run.error_jsonb).get("source_document_ids"),
                 "nodes": build_run_tree(steps=steps, candidates=candidates),
             }
@@ -372,15 +416,35 @@ class IngestBatchPollPresenter:
                     ),
                 )
             )
+            if fusion_run.status in (RUN_PARTIALLY_SUCCEEDED, RUN_FAILED):
+                fusion_cause = {
+                    k: v for k, v in (fusion_error or {}).items() if k not in ("type", "source_document_ids")
+                }
+                if fusion_cause:
+                    source_errors.append(fusion_cause)
+                    document_labels.append("fusion")
         else:
             fusion_payload = None
+
+        users_by_id: dict[int, HierarchyUser] = {}
+        if batch.ingested_by is not None:
+            users_by_id = await HierarchyRepository(self._session).get_users_by_ids([batch.ingested_by])
+
+        batch_error = summarize_batch_error(
+            batch.status,
+            source_errors,
+            document_labels=document_labels,
+        )
+        if batch_error is None and batch.error_jsonb:
+            batch_error = summarize_ingestion_run_error(batch.error_jsonb, status=batch.status)
 
         payload: dict[str, Any] = {
             "batch_id": str(batch.id),
             "status": batch.status,
             "created_at": batch.created_at.isoformat() if batch.created_at else None,
             "completed_at": batch.completed_at.isoformat() if batch.completed_at else None,
-            "error": batch.error_jsonb,
+            "error": batch_error,
+            "ingested_by": _actor_ref(batch.ingested_by, users_by_id),
             "sources": sources,
             "retry_url": (
                 get_settings().api_path(f"/admin/ingest/batches/{batch_id}/retry") if retries else None

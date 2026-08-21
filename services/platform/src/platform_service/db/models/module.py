@@ -17,6 +17,12 @@ Per `docs/ARCHITECTURE_RESET.md`:
   normal ingest drafts use `draft`.
 - `module_type` enum: refresher | content_update | digital_proficiency.
 - `urgent_publish` is a quality flag for the dashboard, not a publish gate.
+- `created_by` is the hierarchy user id (`users.id`) stamped per version at insert.
+- `published_by` is the hierarchy user id stamped once per version on first publish.
+- `deactivated_by` is the hierarchy user id stamped on each deactivation.
+- `activated_by` is the hierarchy user id stamped on each reactivation.
+- `retired_at` is set once per version on first retire.
+- `retired_by` is the hierarchy user id stamped once per version on first retire.
 """
 
 import uuid
@@ -24,17 +30,18 @@ from datetime import datetime
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DateTime, Float, Integer, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSTZRANGE, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.config import get_settings
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 _EMBEDDING_DIM = get_settings().embedding_dimension
 
 
-class Module(Base):
+class Module(TenantMixin, Base):
     __tablename__ = "module"
     __table_args__ = (UniqueConstraint("module_family_id", "version", name="uq_module_family_version"),)
 
@@ -48,9 +55,12 @@ class Module(Base):
     domain: Mapped[str] = mapped_column(Text, nullable=False)
     sub_domain: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # clinical | digital | operational — copied from the first linked source
+    # document at ingest; optional on manual create (defaults to clinical).
+    content_domain: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # refresher | content_update | digital_proficiency
     module_type: Mapped[str] = mapped_column(Text, nullable=False, default="refresher")
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     # Denormalised primary gap for quiz gap-state updates. Full mapping lives
     # in ``module_behavioural_gap`` (many gaps per module). Stage 2-draft
@@ -62,6 +72,14 @@ class Module(Base):
     difficulty_level: Mapped[str] = mapped_column(Text, nullable=False, default="moderate")
     source_document_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=True
+    )
+
+    # Pipeline run that produced this module (Stage D). NULL for manual creates
+    # and pre-column rows. Used by admin list when filtering by source_document_id.
+    ingestion_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ingestion_run.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     # Object-storage path to module preview PNG. Defaults from the first linked
@@ -123,21 +141,45 @@ class Module(Base):
     # draft | published | retired | deactivated | review_pending
     lifecycle_status: Mapped[str] = mapped_column(Text, nullable=False, default="draft")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    first_activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    deactivated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    reactivated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    published_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        index=True,
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deactivated_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        index=True,
+    )
+    activated_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        index=True,
+    )
     # When this module-version was retired (admin action). Distinct from
     # `published_at` for the same row — a published module that is later
     # retired carries both timestamps.
-    deprecated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retired_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        index=True,
+    )
     supersedes_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     # Dual-path merge links (Stage D). Primary points at secondary; secondary
     # points at primary; both point at the matched tip used for the LLM merge.
     merge_secondary_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     merge_primary_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     merge_source_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    # Soft hierarchy user id (`users.id`); set per version when the row is inserted.
+    created_by: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        index=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

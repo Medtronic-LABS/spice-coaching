@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.chw_module_completion import CHWModuleCompletion
 
 
@@ -47,7 +48,7 @@ class ModuleCompletionRepository:
         passed: bool,
         attempt_at: datetime | None = None,
         reinforcement_days: int = 90,
-        tenant_id: UUID | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> CHWModuleCompletion:
         """Apply one quiz attempt to the (chw, module_family) completion row.
 
@@ -72,7 +73,7 @@ class ModuleCompletionRepository:
         comp.latest_attempt_at = ts
         comp.latest_quiz_score = score_pct
         comp.latest_attempt_passed = passed
-        if tenant_id is not None and comp.tenant_id is None:
+        if comp.tenant_id is None:
             comp.tenant_id = tenant_id
 
         if passed:

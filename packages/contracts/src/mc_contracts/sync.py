@@ -56,6 +56,8 @@ class SourceDocumentSyncPayload(BaseModel):
     version_label: str | None = None
     publication_date: date | None = None
     original_filename: str | None = None
+    storage_path: str
+    thumbnail_storage_path: str | None = None
     has_thumbnail: bool = False
 
 
@@ -64,8 +66,9 @@ class ModuleSyncPayload(BaseModel):
 
     Each card dict may include ``source_block_ids`` (when pipeline-drafted) and
     a server-enriched ``source_pages`` list (``CardSourcePageRef`` shape from
-    ``mc_contracts.admin_modules``). Presign fields on ``source_pages`` are null;
-    devices fetch URLs via ``POST /sync/source-documents/presigned-urls``.
+    ``mc_contracts.modules``). Presign fields on ``source_pages`` are null
+    in the modules bundle; published document URLs are available via
+    ``GET /sync/source-documents``.
     """
 
     id: UUID
@@ -78,7 +81,7 @@ class ModuleSyncPayload(BaseModel):
     module_type: str
     # Single content-domain tag for Learning Library / Practice Zone (Clinical | Digital | Operational).
     content_domain: ContentDomain = ContentDomain.CLINICAL
-    tenant_id: UUID | None
+    tenant_id: int
     estimated_minutes: int
     difficulty_level: str
     pass_threshold_override: float | None
@@ -87,6 +90,9 @@ class ModuleSyncPayload(BaseModel):
     updated_at: datetime
     source_documents: list[SourceDocumentSyncPayload] = Field(default_factory=list)
     has_thumbnail: bool = False
+    thumbnail_storage_path: str | None = None
+    thumbnail_presigned_url: str | None = None
+    thumbnail_presigned_expires_seconds: int | None = None
     search_metadata: dict[str, Any] | None = None
     primary_gap_id: UUID | None = None
     behavioural_gap_ids: list[UUID] = Field(default_factory=list)
@@ -98,7 +104,7 @@ class ModuleFamilySyncPayload(BaseModel):
     id: UUID
     module_code: str
     created_at: datetime
-    created_by: UUID | None
+    created_by: int | None
     current_published_module_id: UUID | None
 
 
@@ -108,36 +114,19 @@ class AssignedModulePayload(BaseModel):
 
 
 class VideoProgressPayload(BaseModel):
-    """Current watch progress for a single video."""
+    """Current watch progress for a single assigned video."""
 
+    source_document_id: UUID
     last_position_ms: int
     percent_watched: float
     completed: bool
     last_watched_at: datetime
 
 
-class AssignedVideoPayload(BaseModel):
-    """One video assigned to a device user for offline learning."""
+class VideoProgressSyncBundle(BaseModel):
+    """Delta watch progress for videos still assigned to the authenticated CHW."""
 
-    video_id: UUID
-    title: str
-    description: str | None = None
-    thumbnail_storage_path: str | None = None
-    thumbnail_presigned_url: str | None = None
-    thumbnail_presigned_expires_seconds: int | None = None
-    duration_ms: int | None = None
-    assigned_at: datetime
-    video_progress: VideoProgressPayload | None = None
-
-
-class AssignedVideosBundle(BaseModel):
-    """Paginated list of videos assigned to a user."""
-
-    videos: list[AssignedVideoPayload] = Field(default_factory=list)
-    total_videos: int
-    total_pages: int
-    limit: int
-    offset: int
+    videos: list[VideoProgressPayload] = Field(default_factory=list)
     server_time_utc: str
 
 
@@ -159,27 +148,34 @@ class ModulesSyncBundle(BaseModel):
     server_time_utc: str
 
 
-class PublishedSourceDocumentPayload(BaseModel):
-    """Presigned access for one source document with ``sync_published_visible=true``.
+class SourceDocumentSyncDownloadPayload(BaseModel):
+    """Presigned download payload for one source document on device sync.
 
-    This payload supplies downloadable URLs for published-visible source documents
-    (knowledge uploads and any other docs flagged for device sync).
+    Used for module-linked documents (``source_documents``) and for the CHW's
+    direct ``document_assignment`` snapshot (``assigned_documents``).
+    ``assigned_at`` is set only on assigned-document rows.
     """
 
     source_document_id: UUID
+    source_type: str
     title: str | None = None
+    description: str | None = None
     original_filename: str | None = None
+    storage_path: str
+    thumbnail_storage_path: str | None = None
+    assigned_at: datetime | None = None
+    duration_ms: int | None = None
     presigned_url: str | None = None
     presigned_expires_seconds: int | None = None
     thumbnail_presigned_url: str | None = None
     thumbnail_presigned_expires_seconds: int | None = None
 
 
-class PublishedSourceDocumentsBundle(BaseModel):
-    """Presigned URLs for source documents with ``sync_published_visible=true``."""
+class SourceDocumentsSyncBundle(BaseModel):
+    """Presigned URLs for module-linked and assigned source documents."""
 
-    source_documents: list[PublishedSourceDocumentPayload]
-    missing_ids: list[UUID] = Field(default_factory=list)
+    source_documents: list[SourceDocumentSyncDownloadPayload] = Field(default_factory=list)
+    assigned_documents: list[SourceDocumentSyncDownloadPayload] = Field(default_factory=list)
     server_time_utc: str
 
 
@@ -191,7 +187,7 @@ class TriggerDefinitionSyncPayload(BaseModel):
     predicate_jsonb: dict[str, Any]
     predicate_schema_version: int
     status: str
-    tenant_id: UUID | None
+    tenant_id: int
     created_at: datetime
     updated_at: datetime
 
@@ -224,7 +220,7 @@ class BehaviouralGapSyncPayload(BaseModel):
 class CHWBehaviouralGapStateSyncPayload(BaseModel):
     chw_id: int
     behavioural_gap_id: UUID
-    tenant_id: UUID | None
+    tenant_id: int
     severity_current: str
     first_observed_at: datetime | None
     last_observed_at: datetime | None
@@ -241,7 +237,7 @@ class CHWQuizQuestionStateSyncPayload(BaseModel):
     chw_id: int
     quiz_id: UUID
     module_id: UUID
-    tenant_id: UUID | None
+    tenant_id: int
     failed_attempts_count: int
     last_failed_attempt_at: datetime | None
     first_attempt_at: datetime | None
@@ -262,7 +258,7 @@ class CHWModuleCompletionSyncPayload(BaseModel):
     latest_attempt_passed: bool
     attempts_since_last_pass: int
     reinforcement_due_at: datetime | None
-    tenant_id: UUID | None
+    tenant_id: int
 
 
 class CHWModulePartialCompletionSyncPayload(BaseModel):
@@ -270,7 +266,7 @@ class CHWModulePartialCompletionSyncPayload(BaseModel):
     module_id: UUID
     module_family_id: UUID
     incomplete_quiz_ids: list[UUID]
-    tenant_id: UUID | None = None
+    tenant_id: int
 
 
 class GapsSyncBundle(BaseModel):
@@ -281,10 +277,6 @@ class GapsSyncBundle(BaseModel):
     chw_module_partial_completions: list[CHWModulePartialCompletionSyncPayload] = Field(default_factory=list)
     server_time_utc: str
     total_points: int = 0
-
-
-class SourceDocumentsPresignRequest(BaseModel):
-    source_document_ids: list[UUID] = Field(max_length=50)
 
 
 class SourceDocumentPresignedUrlPayload(BaseModel):
@@ -300,27 +292,6 @@ class SourceDocumentsPresignResponse(BaseModel):
     server_time_utc: str
 
 
-class ModuleThumbnailsPresignRequest(BaseModel):
-    module_ids: list[UUID] = Field(max_length=50)
-
-
-class ModuleThumbnailPresignedUrlPayload(BaseModel):
-    module_id: UUID
-    storage_path: str
-    presigned_url: str
-    expires_seconds: int
-
-
-class ModuleThumbnailsPresignResponse(BaseModel):
-    urls: list[ModuleThumbnailPresignedUrlPayload]
-    missing_ids: list[UUID]
-    server_time_utc: str
-
-
-class SourceDocumentThumbnailsPresignRequest(BaseModel):
-    source_document_ids: list[UUID] = Field(max_length=50)
-
-
 class SourceDocumentThumbnailPresignedUrlPayload(BaseModel):
     source_document_id: UUID
     storage_path: str
@@ -331,4 +302,52 @@ class SourceDocumentThumbnailPresignedUrlPayload(BaseModel):
 class SourceDocumentThumbnailsPresignResponse(BaseModel):
     urls: list[SourceDocumentThumbnailPresignedUrlPayload]
     missing_ids: list[UUID]
+    server_time_utc: str
+
+
+_MAX_STORAGE_PATHS_PER_BATCH = 50
+
+
+class StoragePathsPresignRequest(BaseModel):
+    storage_paths: list[str] = Field(..., min_length=1, max_length=_MAX_STORAGE_PATHS_PER_BATCH)
+
+
+class StoragePathPresignedUrlPayload(BaseModel):
+    storage_path: str
+    presigned_url: str
+    expires_seconds: int
+
+
+class StoragePathsPresignResponse(BaseModel):
+    urls: list[StoragePathPresignedUrlPayload]
+    missing_paths: list[str]
+    server_time_utc: str
+
+
+class AvailableBadgePayload(BaseModel):
+    id: UUID
+    name: str
+    domain: str
+    image_storage_path: str
+    image_presigned_url: str | None = None
+    image_presigned_expires_seconds: int | None = None
+    sequence: int | None = None
+    module_ids: list[UUID] = Field(default_factory=list)
+
+
+class EarnedBadgePayload(BaseModel):
+    id: UUID
+    name: str
+    domain: str
+    image_storage_path: str
+    image_presigned_url: str | None = None
+    image_presigned_expires_seconds: int | None = None
+    sequence: int | None = None
+    module_ids: list[UUID] = Field(default_factory=list)
+    earned_at: datetime
+
+
+class BadgesSyncBundle(BaseModel):
+    available_badges: list[AvailableBadgePayload] = Field(default_factory=list)
+    earned_badges: list[EarnedBadgePayload] = Field(default_factory=list)
     server_time_utc: str

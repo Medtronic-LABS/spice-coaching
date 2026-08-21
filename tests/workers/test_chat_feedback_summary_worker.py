@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -15,21 +14,23 @@ from platform_service.workers.chat_feedback_summary_worker import aggregate_chat
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "chat_feedback_summary")
     yield
+    await db_session.rollback()
+    await db_session.execute(text("TRUNCATE chat_feedback_summary RESTART IDENTITY CASCADE"))
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
 class TestChatFeedbackSummaryWorker:
     async def test_persists_synthesized_summary(self, db_session: AsyncSession) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         computed_at = datetime(2026, 6, 2, tzinfo=UTC)
         batch = TenantFeedbackBatch(
             tenant_id=tenant_id,

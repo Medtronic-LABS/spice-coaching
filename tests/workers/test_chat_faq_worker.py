@@ -15,21 +15,23 @@ from platform_service.workers.chat_faq_worker import aggregate_chat_faqs_job
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "chat_frequent_question")
     yield
+    await db_session.rollback()
+    await db_session.execute(text("TRUNCATE chat_frequent_question RESTART IDENTITY CASCADE"))
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
 class TestChatFaqWorker:
     async def test_persists_synthesized_faqs(self, db_session: AsyncSession) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         faq_id = uuid4()
         synthesized = [
             SynthesizedChatFaq(

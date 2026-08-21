@@ -12,9 +12,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class FileUpload(Base):
+class FileUpload(TenantMixin, Base):
     __tablename__ = "file_upload"
     __table_args__ = (UniqueConstraint("bucket_name", "object_key", name="uq_file_upload_object"),)
 
@@ -26,7 +27,7 @@ class FileUpload(Base):
     content_sha256: Mapped[str] = mapped_column(Text, nullable=False)
     content_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    uploaded_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

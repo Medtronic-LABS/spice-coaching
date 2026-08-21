@@ -23,11 +23,8 @@ STAGE_THUMBNAIL = "thumbnail"
 PIPELINE_STAGES = (STAGE_EXTRACT, STAGE_MODULE_IDENTIFY, STAGE_CARD_DRAFT)
 POST_PUBLISH_STAGES = (
     STAGE_QUIZ_GENERATION,
-    STAGE_CARD_SEARCH_METADATA_GENERATION,
-    STAGE_SEARCH_METADATA_GENERATION,
-    STAGE_TRIGGER_BINDING,
-    STAGE_EMBEDDING_GENERATION,
     STAGE_GAP_CLASSIFICATION,
+    STAGE_TRIGGER_BINDING,
 )
 ALL_STAGES = PIPELINE_STAGES + POST_PUBLISH_STAGES + (STAGE_CROSS_SOURCE_FUSION, STAGE_THUMBNAIL)
 
@@ -100,6 +97,24 @@ def as_error_object(error_jsonb: Any) -> dict[str, Any]:
     return error_jsonb if isinstance(error_jsonb, dict) else {}
 
 
+def rollup_batch_status(run_statuses: list[str]) -> str:
+    """Derive batch status from child ingestion_run statuses (incl. fusion)."""
+    if not run_statuses:
+        return BATCH_QUEUED
+    if any(s == RUN_RUNNING for s in run_statuses):
+        return BATCH_RUNNING
+    if any(s == RUN_QUEUED for s in run_statuses):
+        return BATCH_QUEUED
+    terminals = [s for s in run_statuses if s in _TERMINAL_RUN_STATUSES]
+    if not terminals:
+        return BATCH_QUEUED
+    if all(s == RUN_SUCCEEDED for s in terminals):
+        return BATCH_SUCCEEDED
+    if all(s == RUN_FAILED for s in terminals):
+        return BATCH_FAILED
+    return BATCH_PARTIALLY_SUCCEEDED
+
+
 def terminal_run_status_from_steps(
     steps: list[IngestionRunStep],
 ) -> tuple[str, dict | None]:
@@ -124,29 +139,13 @@ def terminal_run_status_from_steps(
     if not failed_stages:
         return RUN_SUCCEEDED, None
 
-    error: dict = {"failed_stages": failed_stages}
+    error: dict[str, Any] = {"failed_stages": failed_stages}
     if draft_failures:
         error["failed_stage"] = STAGE_CARD_DRAFT
         error["draft_failures"] = draft_failures
         error["drafts_produced"] = drafts_produced
     elif len(failed_stages) == 1:
         error["failed_stage"] = failed_stages[0]
+    # Message/causes enrichment happens in maybe_finalize via
+    # summarize_ingestion_run_error (avoids a constants ↔ summarizer import cycle).
     return RUN_PARTIALLY_SUCCEEDED, error
-
-
-def rollup_batch_status(run_statuses: list[str]) -> str:
-    """Derive batch status from child ingestion_run statuses (incl. fusion)."""
-    if not run_statuses:
-        return BATCH_QUEUED
-    if any(s == RUN_RUNNING for s in run_statuses):
-        return BATCH_RUNNING
-    if any(s == RUN_QUEUED for s in run_statuses):
-        return BATCH_QUEUED
-    terminals = [s for s in run_statuses if s in _TERMINAL_RUN_STATUSES]
-    if not terminals:
-        return BATCH_QUEUED
-    if all(s == RUN_SUCCEEDED for s in terminals):
-        return BATCH_SUCCEEDED
-    if all(s == RUN_FAILED for s in terminals):
-        return BATCH_FAILED
-    return BATCH_PARTIALLY_SUCCEEDED

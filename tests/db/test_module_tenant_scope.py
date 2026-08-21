@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
-
 import pytest
 from platform_service.db.repositories.module_repository import ModuleRepository
 
@@ -14,8 +12,8 @@ pytestmark = pytest.mark.requires_db
 
 @pytest.mark.asyncio
 async def test_list_modules_filters_by_tenant(db_session) -> None:
-    tenant_a = uuid4()
-    tenant_b = uuid4()
+    tenant_a = 1
+    tenant_b = 2
 
     mod_a = await _make_module(db_session, title_localized={"bn": "tenant-a"})
     mod_a.tenant_id = tenant_a
