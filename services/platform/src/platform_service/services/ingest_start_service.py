@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from mc_contracts.errors import ErrorCode
@@ -32,10 +33,12 @@ from platform_service.workers.ingest_worker import IngestJob
 @dataclass(frozen=True)
 class IngestStartParams:
     assessment_mode: str
-    uploaded_by: str
+    actor: str
     ingestion_instructions: str | None = None
     target_cards_per_module: int | None = None
     target_quizzes_per_module: int | None = None
+    tenant_id: int = 0
+    ingested_by_user_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -45,13 +48,14 @@ class IngestStartSourcePayload:
     title: str
     source_type: str
     stored_path: str
+    ingested_at: datetime
+    ingested_by_user_id: int | None = None
 
 
 @dataclass(frozen=True)
 class IngestStartResult:
     batch_id: uuid.UUID
     sources: list[IngestStartSourcePayload]
-    skipped_duplicates: list[DuplicateIngestConflict]
     jobs: list[IngestJob]
 
 
@@ -77,7 +81,6 @@ class IngestStartService:
 
         docs_by_id = await self._load_documents(source_document_ids)
         skipped: list[DuplicateIngestConflict] = []
-        targets: list[SourceDocument] = []
 
         for doc_id, override in zip(source_document_ids, override_flags, strict=True):
             doc = docs_by_id.get(doc_id)
@@ -87,30 +90,61 @@ class IngestStartService:
                     f"source_document {doc_id} not found",
                     status=404,
                 )
-            resolved = await self._resolve_target_document(doc, override_duplicate=override)
-            if isinstance(resolved, DuplicateIngestConflict):
-                skipped.append(resolved)
-                continue
-            targets.append(resolved)
+            # AUTH-on: selected tenant != 0 — treat cross-tenant docs as missing
+            # (avoid ID oracle). AUTH-off (tenant 0) keeps prior allow-any behavior.
+            if params.tenant_id != 0 and doc.tenant_id != params.tenant_id:
+                raise AppError(
+                    ErrorCode.SOURCE_NOT_FOUND.value,
+                    f"source_document {doc_id} not found",
+                    status=404,
+                )
+            if doc.status == "ingested" and not override:
+                skipped.append(
+                    DuplicateIngestConflict(
+                        filename=doc.original_filename or doc.title,
+                        title=doc.title,
+                        content_sha256=doc.content_sha256 or "",
+                        existing_source_documents=(doc,),
+                    )
+                )
 
-        if not targets:
-            raise AppError(
-                ErrorCode.DUPLICATE_CONTENT.value,
-                "One or more source documents match already-ingested content; set override to re-ingest.",
-                status=409,
-                extensions={
-                    "conflicts": [IngestUploadService.duplicate_conflict_payload(c) for c in skipped],
-                },
+        if skipped:
+            raise IngestUploadService.duplicate_content_error(
+                skipped,
+                message=(
+                    "One or more source documents match already-ingested content; set override to re-ingest."
+                ),
             )
 
+        targets: list[SourceDocument] = []
+        for doc_id, override in zip(source_document_ids, override_flags, strict=True):
+            doc = docs_by_id[doc_id]
+            resolved = await self._resolve_target_document(doc, override_duplicate=override)
+            if isinstance(resolved, DuplicateIngestConflict):
+                # Defensive: precheck above should have caught all ingested-without-override.
+                raise IngestUploadService.duplicate_content_error(
+                    [resolved],
+                    message=(
+                        "One or more source documents match already-ingested content; "
+                        "set override to re-ingest."
+                    ),
+                )
+            targets.append(resolved)
+
         for doc in targets:
-            await self._source_repo.update_status(doc.id, status="ingesting")
+            await self._source_repo.update_status(
+                doc.id,
+                status="ingesting",
+                ingested_by=params.ingested_by_user_id,
+            )
 
         batch = await self._run_state.create_batch(
             assessment_mode=params.assessment_mode,
             ingestion_instructions=params.ingestion_instructions,
             cards_per_module=params.target_cards_per_module,
             quizzes_per_module=params.target_quizzes_per_module,
+            ingested_by_user_id=params.ingested_by_user_id,
+            tenant_id=params.tenant_id,
         )
         source_payloads: list[IngestStartSourcePayload] = []
         jobs = []
@@ -119,6 +153,7 @@ class IngestStartService:
                 run = await self._run_state.create_queued_run(
                     source_document_id=doc.id,
                     ingest_batch_id=batch.id,
+                    ingested_by_user_id=params.ingested_by_user_id,
                 )
                 result = IngestedSourceResult(
                     source_document_id=doc.id,
@@ -141,6 +176,12 @@ class IngestStartService:
                         title=doc.title,
                         source_type=doc.source_type,
                         stored_path=doc.original_storage_path,
+                        ingested_at=doc.ingested_at,
+                        ingested_by_user_id=(
+                            params.ingested_by_user_id
+                            if params.ingested_by_user_id is not None
+                            else doc.ingested_by
+                        ),
                     )
                 )
                 await self._record_ingest_started(doc, params)
@@ -157,7 +198,6 @@ class IngestStartService:
         return IngestStartResult(
             batch_id=batch.id,
             sources=source_payloads,
-            skipped_duplicates=skipped,
             jobs=jobs,
         )
 
@@ -182,7 +222,7 @@ class IngestStartService:
                     content_sha256=doc.content_sha256 or "",
                     existing_source_documents=(doc,),
                 )
-            return await self._source_repo.clone_for_reingest(doc, uploaded_by=doc.uploaded_by)
+            return doc
 
         if doc.status == "failed":
             await self._source_repo.update_status(doc.id, status="ingesting")
@@ -220,7 +260,7 @@ class IngestStartService:
         await record_attribution_event(
             self._db,
             event_type="ingest_started",
-            actor=params.uploaded_by,
+            actor=params.actor,
             source_document_id=doc.id,
             payload=audit_payload,
         )

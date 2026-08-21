@@ -18,7 +18,7 @@ pytestmark = [requires_db]
 
 @pytest.mark.asyncio
 async def test_append_cards_mints_family_id(db_session) -> None:
-    family = ModuleFamily(module_code=f"test-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"test-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
 
@@ -29,6 +29,7 @@ async def test_append_cards_mints_family_id(db_session) -> None:
         domain="clinical",
         module_type="refresher",
         lifecycle_status="draft",
+        tenant_id=1,
     )
     db_session.add(module)
     await db_session.flush()
@@ -52,7 +53,7 @@ async def test_append_cards_mints_family_id(db_session) -> None:
 
 @pytest.mark.asyncio
 async def test_append_cards_reuses_family_on_edit(db_session) -> None:
-    family = ModuleFamily(module_code=f"test-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"test-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
 
@@ -63,6 +64,7 @@ async def test_append_cards_reuses_family_on_edit(db_session) -> None:
         domain="clinical",
         module_type="refresher",
         lifecycle_status="draft",
+        tenant_id=1,
     )
     db_session.add(module)
     await db_session.flush()
@@ -87,6 +89,7 @@ async def test_append_cards_reuses_family_on_edit(db_session) -> None:
         domain="clinical",
         module_type="refresher",
         lifecycle_status="draft",
+        tenant_id=1,
     )
     db_session.add(module2)
     await db_session.flush()
@@ -122,7 +125,7 @@ async def test_append_cards_reuses_family_on_edit(db_session) -> None:
 
 @pytest.mark.asyncio
 async def test_append_cards_bumps_from_highest_existing_version(db_session) -> None:
-    family = ModuleFamily(module_code=f"test-{uuid4().hex[:8]}")
+    family = ModuleFamily(module_code=f"test-{uuid4().hex[:8]}", tenant_id=1)
     db_session.add(family)
     await db_session.flush()
 
@@ -135,6 +138,7 @@ async def test_append_cards_bumps_from_highest_existing_version(db_session) -> N
             domain="clinical",
             module_type="refresher",
             lifecycle_status="draft",
+            tenant_id=1,
         )
         db_session.add(module)
         modules.append(module)

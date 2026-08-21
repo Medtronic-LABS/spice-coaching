@@ -17,12 +17,13 @@ Critical regressions covered:
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.content_block import ContentBlock
 from platform_service.db.models.ingest_batch import IngestBatch
@@ -40,23 +41,40 @@ from platform_service.services.run_state_service import (
     STEP_FAILED,
 )
 from platform_service.workers.stage_c_identify import StageCOrchestrator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
+
 
 # ─── Cleanup ──────────────────────────────────────────────────────────────
 
 
+@pytest.fixture(autouse=True)
+def _bind_ingest_tenant() -> Iterator[None]:
+    """Stage C requires ``using_selected_tenant`` (mirrors ingest_worker)."""
+    with using_selected_tenant(1):
+        yield
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "module_candidate_draft, content_block, source_page, source_document, ingestion_run_step, ingestion_run, ingest_batch, behavioural_gap, module, module_family",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module_candidate_draft, content_block, source_page, "
+            "source_document, ingestion_run_step, ingestion_run, ingest_batch, "
+            "behavioural_gap, module, module_family "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
+
+
+# ─── Seed helpers ─────────────────────────────────────────────────────────
 
 
 async def _seed_source_doc_with_outline(
@@ -76,6 +94,7 @@ async def _seed_source_doc_with_outline(
         original_storage_path="/tmp/x.pdf",
         outline_method="markdown_parser",
         outline_jsonb={"sections": sections or [{"heading": "Sec 1"}]},
+        tenant_id=1,
     )
     session.add(sd)
     await session.flush()
@@ -119,6 +138,7 @@ async def _seed_run(
         ingestion_instructions=ingestion_instructions,
         cards_per_module=cards_per_module,
         quizzes_per_module=quizzes_per_module,
+        tenant_id=1,
     )
     session.add(batch)
     await session.flush()
@@ -266,6 +286,7 @@ class TestQualityFlagsAreAdvisory:
         )
         # No flags → quality_flags_jsonb is NULL (vs {"flags": []}).
         assert rows[0].quality_flags_jsonb is None
+        assert rows[0].tenant_id == 1
 
 
 # ─── Ingestion instructions ────────────────────────────────────────────────
@@ -302,10 +323,13 @@ class TestIngestionInstructionsPassedToIdentifier:
         orch = StageCOrchestrator(db_session, identifier=ident)
         await orch.run(ingestion_run_id=run.id, source_document_ids=[sd.id])
 
-        result = await db_session.execute(
-            select(ModuleCandidateDraft).where(ModuleCandidateDraft.ingestion_run_id == run.id)
+        rows = (
+            await db_session.execute(
+                select(ModuleCandidateDraft).where(ModuleCandidateDraft.ingestion_run_id == run.id)
+            )
+            .scalars()
+            .all()
         )
-        rows = result.scalars().all()
         assert len(rows) == 1
         assert rows[0].ingestion_instruction_rationale == "Chapter 2 covers ANC referral workflows."
 
@@ -332,6 +356,7 @@ class TestNoGapContextLoaded:
             description="If Stage C loads this, the test fails — it should not.",
             domain="rmnch",
             severity_default="medium",
+            tenant_id=1,
         )
         db_session.add(gap)
         await db_session.commit()
@@ -526,6 +551,7 @@ class TestEnsureContentBlocks:
             original_storage_path="/tmp/x.pdf",
             outline_method="markdown_parser",
             outline_jsonb={"sections": [{"heading": "Sec"}]},
+            tenant_id=1,
         )
         db_session.add(sd)
         await db_session.flush()
@@ -579,6 +605,7 @@ class TestEnsureContentBlocks:
             original_storage_path="/tmp/x.pdf",
             outline_method="markdown_parser",
             outline_jsonb={"sections": [{"heading": "Sec"}]},
+            tenant_id=1,
         )
         db_session.add(sd)
         await db_session.flush()

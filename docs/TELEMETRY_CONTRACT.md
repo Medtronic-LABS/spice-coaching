@@ -188,7 +188,7 @@ Idempotency is enforced by the **`event_id` primary key** on `chw_learning_point
 | **`module_quiz_viewed`** | v3.3 module quiz surface opened | coaching_events |
 | **`module_quiz_attempted`** | v3.3 module quiz finished (carries `quiz_score_pct`) | coaching_events + `process_module_event_task` (completion + gap + **learning points**) |
 | **`module_requested`** | CHW requested access to a published module (`module_id`) and/or a free-text custom name (`payload_json.requested_module_name`); optional `payload_json.reason` | coaching_events + `process_training_request_event_task` (training request + assignment; **no** learning points / gap) |
-| **`video_progress_updated`** | CHW watch progress for an assigned video (`payload_json.source_document_id`, `last_position_ms`, `percent_watched` 0–100, optional `completed`) | coaching_events + `process_video_progress_event_task` (monotonic upsert of `chw_video_progress`; **no** learning points / gap). Appears on next `GET /sync/assigned-videos` |
+| **`video_progress_updated`** | CHW watch progress for an assigned video (`payload_json.source_document_id`, `last_position_ms`, `percent_watched` 0–100, optional `completed`) | coaching_events + `process_video_progress_event_task` (monotonic upsert of `chw_video_progress`; **no** learning points / gap). Appears on next `GET /sync/video-progress` |
 | **`document_viewed`** | User viewed a knowledge `source_document` (PDF / pptx / docx / audio / video / other). Required `payload_json.source_document_id`. Batch `chw_id` = viewer SPICE user id. Mint a **new** event `id` per view so repeats count. | coaching_events + `document_view_daily` MV. **No** Celery side-effects, **no** learning points / gap. |
 
 ### `digital` family — `DigitalEventType`
@@ -264,9 +264,9 @@ Postgres module completion (`chw_module_quiz_progress` / `chw_module_completion`
 
 CHW requests access to a training module. Provide either top-level `module_id` (published module) or `payload_json.requested_module_name` (free-text custom request), or both. Optional `payload_json.reason`.
 
-Ingest always writes the row to ClickHouse. When at least one identity field is present, it enqueues `process_training_request_event_task`, which creates `chw_training_request` and (for a valid published `module_id`) an individual `chw_module_assignment`. Invalid / duplicate requests are logged no-ops after ACK.
+Ingest always writes the row to ClickHouse. When at least one identity field is present, it enqueues `process_training_request_event_task`, which creates `chw_training_request` and (for a valid published `module_id`) a per-user `module_assignment`. Invalid / duplicate requests are logged no-ops after ACK.
 
-Accepted requests appear on the next `GET /sync/modules?user_id=...` under `requested_modules` (full history for that CHW, separate from `assigned_module_ids`). Custom-name-only requests are included even though they do not create an assignment.
+Accepted requests appear on the next `GET /sync/modules` under `requested_modules` (full history for that CHW, separate from `assigned_module_ids`). Custom-name-only requests are included even though they do not create an assignment.
 
 ```json
 {
@@ -305,7 +305,7 @@ Free-text-only example (no `module_id`):
 
 Device reports watch progress for an assigned video (buffered offline and flushed with other telemetry). Required `payload_json` keys: `source_document_id` (UUID of the video `source_document`), `last_position_ms` (≥ 0), `percent_watched` (0–100). Optional `completed` (default false).
 
-Ingest writes ClickHouse and enqueues `process_video_progress_event_task`, which monotonically upserts `chw_video_progress` (`percent_watched` / `last_position_ms` never regress; `completed` sticks once true). Progress appears on the next `GET /sync/assigned-videos`.
+Ingest writes ClickHouse and enqueues `process_video_progress_event_task`, which monotonically upserts `chw_video_progress` (`percent_watched` / `last_position_ms` never regress; `completed` sticks once true). Progress appears on the next `GET /sync/video-progress`.
 
 ```json
 {

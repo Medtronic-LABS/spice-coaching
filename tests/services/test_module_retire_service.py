@@ -10,6 +10,7 @@ from platform_service.services.module_retire_service import ModuleRetireService
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.db.conftest import _make_family, _make_module
+from tests.helpers.hierarchy_fixtures import AM_ID, PO_ID, seed_basic_hierarchy
 
 
 @pytest.mark.asyncio
@@ -19,17 +20,17 @@ class TestModuleRetireService:
         source = await _make_module(db_session, family=fam, title_localized={"bn": "source"}, version=1)
         secondary = await _make_module(
             db_session,
-            family=fam,
+            family=await _make_family(db_session),
             title_localized={"bn": "secondary"},
-            version=2,
+            version=1,
             lifecycle_status="review_pending",
             set_family_pointer=False,
         )
         primary = await _make_module(
             db_session,
-            family=fam,
+            family=await _make_family(db_session),
             title_localized={"bn": "primary"},
-            version=3,
+            version=1,
             lifecycle_status="review_pending",
             set_family_pointer=False,
         )
@@ -43,12 +44,13 @@ class TestModuleRetireService:
 
         assert out.id == primary.id
         assert out.lifecycle_status == "retired"
-        assert out.deprecated_at is not None
+        assert out.retired_at is not None
         await db_session.refresh(secondary)
         await db_session.refresh(source)
         assert secondary.lifecycle_status == "retired"
-        assert secondary.deprecated_at is not None
+        assert secondary.retired_at is not None
         assert source.lifecycle_status == "published"
+        assert primary.module_family_id != secondary.module_family_id
 
     async def test_retires_module_without_secondary(self, db_session: AsyncSession) -> None:
         m = await _make_module(db_session, title_localized={"bn": "solo"})
@@ -127,6 +129,64 @@ class TestModuleRetireService:
         assert out.lifecycle_status == "retired"
         await db_session.refresh(secondary)
         assert secondary.lifecycle_status == "retired"
+
+    async def test_retire_stamps_retired_by_on_primary_and_secondary(self, db_session: AsyncSession) -> None:
+        await seed_basic_hierarchy(db_session)
+        fam = await _make_family(db_session)
+        secondary = await _make_module(
+            db_session,
+            family=fam,
+            title_localized={"bn": "secondary"},
+            version=1,
+            lifecycle_status="review_pending",
+            set_family_pointer=False,
+        )
+        primary = await _make_module(
+            db_session,
+            family=fam,
+            title_localized={"bn": "primary"},
+            version=2,
+            lifecycle_status="review_pending",
+            set_family_pointer=False,
+        )
+        primary.merge_secondary_module_id = secondary.id
+        await db_session.flush()
+
+        out = await ModuleRetireService(db_session).retire(primary.id, retired_by_user_id=PO_ID)
+
+        assert out.retired_by == PO_ID
+        await db_session.refresh(secondary)
+        assert secondary.retired_by == PO_ID
+
+    async def test_already_retired_secondary_keeps_original_retired_by(
+        self, db_session: AsyncSession
+    ) -> None:
+        await seed_basic_hierarchy(db_session)
+        fam = await _make_family(db_session)
+        secondary = await _make_module(
+            db_session,
+            family=fam,
+            title_localized={"bn": "secondary"},
+            version=1,
+            lifecycle_status="retired",
+            set_family_pointer=False,
+        )
+        secondary.retired_by = AM_ID
+        primary = await _make_module(
+            db_session,
+            family=fam,
+            title_localized={"bn": "primary"},
+            version=2,
+            lifecycle_status="review_pending",
+            set_family_pointer=False,
+        )
+        primary.merge_secondary_module_id = secondary.id
+        await db_session.flush()
+
+        await ModuleRetireService(db_session).retire(primary.id, retired_by_user_id=PO_ID)
+
+        await db_session.refresh(secondary)
+        assert secondary.retired_by == AM_ID
 
     async def test_unknown_module_raises(self, db_session: AsyncSession) -> None:
         with pytest.raises(ModuleNotFoundError):

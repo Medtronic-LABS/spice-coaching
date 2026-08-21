@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from uuid import UUID
 
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.db.repositories.chat_faq_repository import ChatFaqRepository, ChatFaqRow
 from platform_service.deps import get_ai_client, get_clickhouse_client
@@ -33,28 +33,29 @@ async def aggregate_chat_faqs_job() -> dict[str, int]:
     async with SessionLocal() as session:
         repo = ChatFaqRepository(session)
         for batch in tenant_candidates:
-            tenant_id: UUID = batch.tenant_id
-            try:
-                clusters = await clusterer.cluster(batch.questions)
-                synthesized = await generator.synthesize(tenant_id, clusters)
-                rows = [
-                    ChatFaqRow(
-                        id=faq.id,
-                        question_localized=faq.question_localized,
-                        normalized_question=faq.normalized_question,
-                        occurrence_count=faq.occurrence_count,
-                        rank=faq.rank,
-                        last_seen_at=faq.last_seen_at,
-                    )
-                    for faq in synthesized
-                ]
-                await repo.replace_tenant_faqs(tenant_id, rows, computed_at=computed_at)
-                summary["tenants_updated"] += 1
-                summary["faqs_written"] += len(rows)
-            except Exception:
-                logger.exception("Chat FAQ worker failed for tenant %s", tenant_id)
-                await session.rollback()
-                continue
+            tenant_id: int = batch.tenant_id
+            with using_selected_tenant(tenant_id):
+                try:
+                    clusters = await clusterer.cluster(batch.questions)
+                    synthesized = await generator.synthesize(tenant_id, clusters)
+                    rows = [
+                        ChatFaqRow(
+                            id=faq.id,
+                            question_localized=faq.question_localized,
+                            normalized_question=faq.normalized_question,
+                            occurrence_count=faq.occurrence_count,
+                            rank=faq.rank,
+                            last_seen_at=faq.last_seen_at,
+                        )
+                        for faq in synthesized
+                    ]
+                    await repo.replace_tenant_faqs(tenant_id, rows, computed_at=computed_at)
+                    summary["tenants_updated"] += 1
+                    summary["faqs_written"] += len(rows)
+                except Exception:
+                    logger.exception("Chat FAQ worker failed for tenant %s", tenant_id)
+                    await session.rollback()
+                    continue
         await session.commit()
 
     logger.info(

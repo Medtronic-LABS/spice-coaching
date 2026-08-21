@@ -25,7 +25,6 @@ Local development uses permissive defaults (`APP_ENV=development`, `SPICE_AUTH_E
 | `AI_RUNTIME_TOKEN` | Must not be `dev-internal-token` |
 | `OBJECT_STORAGE_ACCESS_KEY` / `OBJECT_STORAGE_SECRET_KEY` | Must not be dev defaults (`minioadmin`) when set; empty keys allowed only with `OBJECT_STORAGE_BACKEND=s3` (IAM) |
 | `SPICE_AUTH_ENABLED` | Must be `true` |
-| `SPICE_TENANT_ID_MAP` | Required JSON or `id=uuid` map |
 | `CORS_ALLOW_ORIGINS` | Must not include `*` |
 
 ### AI runtime

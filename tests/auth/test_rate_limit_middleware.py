@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Iterator
 from unittest.mock import AsyncMock, MagicMock
 
@@ -63,3 +64,25 @@ async def test_rate_limit_blocks_after_threshold(rate_limit_client: AsyncClient)
     ).status_code == 200
     resp = await rate_limit_client.post(f"{API_ROOT}/coaching/rag-query", headers=headers)
     assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_emits_security_log(
+    rate_limit_client: AsyncClient,
+    caplog: pytest.LogCaptureFixture,
+    listen_logger,
+) -> None:
+    listen_logger("mc.security")
+    headers = {"Authorization": "Bearer test"}
+    with caplog.at_level(logging.WARNING, logger="mc.security"):
+        await rate_limit_client.post(f"{API_ROOT}/coaching/rag-query", headers=headers)
+        await rate_limit_client.post(f"{API_ROOT}/coaching/rag-query", headers=headers)
+        resp = await rate_limit_client.post(f"{API_ROOT}/coaching/rag-query", headers=headers)
+    assert resp.status_code == 429
+    records = [record for record in caplog.records if record.name == "mc.security"]
+    assert len(records) == 1
+    assert records[0].event == "rate_limit_exceeded"
+    assert records[0].bucket == "rag"
+    blob = f"{records[0].getMessage()} {records[0].__dict__}"
+    assert "Authorization" not in blob
+    assert "Bearer test" not in blob

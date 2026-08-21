@@ -35,23 +35,12 @@ class CandidateQuestion:
 
 @dataclass(frozen=True)
 class TenantQuestionCandidates:
-    tenant_id: UUID
+    tenant_id: int
     questions: list[CandidateQuestion]
 
 
-def stable_faq_id(*, tenant_id: UUID, normalized_question_en: str) -> UUID:
+def stable_faq_id(*, tenant_id: int, normalized_question_en: str) -> UUID:
     return uuid.uuid5(_FAQ_ID_NAMESPACE, f"{tenant_id}:{normalized_question_en}")
-
-
-def _to_uuid(value: Any) -> UUID | None:
-    if value is None:
-        return None
-    if isinstance(value, UUID):
-        return value
-    try:
-        return UUID(str(value))
-    except (TypeError, ValueError):
-        return None
 
 
 def _to_int(value: Any, default: int = 0) -> int:
@@ -146,11 +135,15 @@ class ChatFaqAggregator:
         *,
         min_question_length: int,
     ) -> list[TenantQuestionCandidates]:
-        by_tenant: dict[UUID, dict[str, tuple[str, int, datetime | None]]] = {}
+        by_tenant: dict[int, dict[str, tuple[str, int, datetime | None]]] = {}
 
         for row in raw_rows:
-            tenant_id = _to_uuid(row.get("tenant_id"))
-            if tenant_id is None:
+            raw_tenant = row.get("tenant_id")
+            if raw_tenant is None:
+                continue
+            try:
+                tenant_id = int(raw_tenant)
+            except (TypeError, ValueError):
                 continue
             question = str(row.get("question_text") or "")
             normalized = normalize_question(question)

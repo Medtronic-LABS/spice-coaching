@@ -1,5 +1,7 @@
 """Tests for upload provenance helpers."""
 
+from urllib.parse import quote
+
 from platform_service.services.upload_provenance import (
     META_FILENAME,
     META_SHA256,
@@ -35,3 +37,15 @@ def test_parse_upload_metadata_none_returns_pair_of_none() -> None:
 
 def test_parse_upload_metadata_missing_keys_returns_none() -> None:
     assert parse_upload_metadata({"unrelated": "value"}) == (None, None)
+
+
+def test_parse_upload_metadata_unquotes_percent_encoded_filename() -> None:
+    unicode_name = "উচ্চরক্তচাপ.pdf"
+    sha, name = parse_upload_metadata(
+        {
+            META_SHA256: "abc",
+            META_FILENAME: quote(unicode_name, safe=""),
+        }
+    )
+    assert sha == "abc"
+    assert name == unicode_name

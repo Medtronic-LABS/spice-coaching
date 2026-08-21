@@ -182,6 +182,7 @@ class SourceThumbnailService:
         source_document_id: UUID,
         image_bytes: bytes,
         content_type: str,
+        updated_by: int | None = None,
     ) -> str:
         """Upload a custom thumbnail image and persist its storage path."""
         suffix = thumbnail_suffix_for_content_type(content_type)
@@ -205,7 +206,11 @@ class SourceThumbnailService:
             tmp_path.unlink(missing_ok=True)
 
         storage_path = thumbnail_storage_path(self._settings, source_document_id, suffix=suffix)
-        await self._repo.update_thumbnail_storage_path(source_document_id, storage_path)
+        await self._repo.update_thumbnail_storage_path(
+            source_document_id,
+            storage_path,
+            updated_by=updated_by,
+        )
         await self._session.commit()
         return storage_path
 

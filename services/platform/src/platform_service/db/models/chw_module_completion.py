@@ -13,9 +13,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class CHWModuleCompletion(Base):
+class CHWModuleCompletion(TenantMixin, Base):
     __tablename__ = "chw_module_completion"
     __table_args__ = (PrimaryKeyConstraint("chw_id", "module_family_id", name="pk_chw_module_completion"),)
 
@@ -43,5 +44,3 @@ class CHWModuleCompletion(Base):
     # Next periodic refresh after a passed attempt (default +90 days, configurable).
     # Module re-enters morning rotation when this date is reached.
     reinforcement_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

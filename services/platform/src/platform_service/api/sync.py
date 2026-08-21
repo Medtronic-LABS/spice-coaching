@@ -2,44 +2,36 @@
 
 Canonical paths:
   GET /scenarios/sync?since_version=N → ScenarioSyncBundle
-  GET /config/sync                    → ConfigSyncBundle
-  POST /sync/source-documents/presigned-urls → SourceDocumentsPresignResponse
-  POST /sync/source-documents/presigned-thumbnails → SourceDocumentThumbnailsPresignResponse
-  POST /sync/modules/presigned-thumbnails → ModuleThumbnailsPresignResponse
-  GET  /sync/source-documents/published   → PublishedSourceDocumentsBundle
-  GET  /sync/assigned-videos?user_id=<int> → AssignedVideosBundle
+  GET /sync/config                    → ConfigSyncBundle
+  GET  /sync/source-documents?since=<ISO-8601> → SourceDocumentsSyncBundle
   GET  /sync/chat-faqs?since=<ISO-8601> → ChatFaqsSyncBundle
+  GET  /sync/badges                       → BadgesSyncBundle
+  GET  /sync/video-progress?since=<ISO-8601> → VideoProgressSyncBundle
+  POST /sync/presigned-urls               → StoragePathsPresignResponse (object names)
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from mc_contracts.sync import (
-    AssignedVideosBundle,
+    BadgesSyncBundle,
     ChatFaqsSyncBundle,
     ConfigSyncBundle,
     GapsSyncBundle,
     ModulesSyncBundle,
-    ModuleThumbnailsPresignRequest,
-    ModuleThumbnailsPresignResponse,
-    PublishedSourceDocumentsBundle,
-    SourceDocumentsPresignRequest,
-    SourceDocumentsPresignResponse,
-    SourceDocumentThumbnailsPresignRequest,
-    SourceDocumentThumbnailsPresignResponse,
+    SourceDocumentsSyncBundle,
+    StoragePathsPresignRequest,
+    StoragePathsPresignResponse,
     TriggersSyncBundle,
+    VideoProgressSyncBundle,
 )
 from mc_foundation.objectstore import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from platform_service.auth.spice_identity import (
-    require_chw_id_for_device_route,
-    resolve_chw_id_for_device_route,
-    resolve_tenant_id_for_device_route,
-)
+from platform_service.auth.spice_identity import resolve_sync_user_id
+from platform_service.auth.spice_user import get_selected_tenant_id
 from platform_service.config import Settings, get_settings
 from platform_service.deps import get_db, get_object_storage_client
 from platform_service.services.sync_service import SyncService
@@ -47,133 +39,50 @@ from platform_service.services.sync_service import SyncService
 router = APIRouter(prefix="/sync", tags=["sync"])
 
 
-def _effective_tenant_id(request: Request, requested_tenant_id: UUID | None) -> UUID | None:
-    resolved = resolve_tenant_id_for_device_route(request, requested_tenant_id)
-    if resolved is None:
-        return None
-    if resolved == UUID(int=0):
-        return None
-    return resolved
+def _effective_tenant_id(request: Request) -> int:
+    return get_selected_tenant_id(request)
 
 
-@router.post("/source-documents/presigned-urls", response_model=SourceDocumentsPresignResponse)
-async def sync_source_document_presigned_urls(
-    body: SourceDocumentsPresignRequest,
+@router.get("/source-documents", response_model=SourceDocumentsSyncBundle)
+async def sync_source_documents(
     request: Request,
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
-    ),
-    db: AsyncSession = Depends(get_db),
-    storage: ObjectStore = Depends(get_object_storage_client),
-) -> SourceDocumentsPresignResponse:
-    """Return presigned GET URLs for a batch of source documents (partial success)."""
-    effective_tenant = _effective_tenant_id(request, tenant_id)
-    return await SyncService(db).get_source_document_presigned_urls(
-        source_document_ids=body.source_document_ids,
-        storage=storage,
-        tenant_id=effective_tenant,
-    )
-
-
-@router.post(
-    "/source-documents/presigned-thumbnails",
-    response_model=SourceDocumentThumbnailsPresignResponse,
-)
-async def sync_source_document_thumbnail_presigned_urls(
-    body: SourceDocumentThumbnailsPresignRequest,
-    request: Request,
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
-    ),
-    db: AsyncSession = Depends(get_db),
-    storage: ObjectStore = Depends(get_object_storage_client),
-) -> SourceDocumentThumbnailsPresignResponse:
-    """Return presigned GET URLs for a batch of source document thumbnails (partial success)."""
-    effective_tenant = _effective_tenant_id(request, tenant_id)
-    return await SyncService(db).get_source_document_thumbnail_presigned_urls(
-        source_document_ids=body.source_document_ids,
-        storage=storage,
-        tenant_id=effective_tenant,
-    )
-
-
-@router.post("/modules/presigned-thumbnails", response_model=ModuleThumbnailsPresignResponse)
-async def sync_module_thumbnail_presigned_urls(
-    body: ModuleThumbnailsPresignRequest,
-    request: Request,
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
-    ),
-    db: AsyncSession = Depends(get_db),
-    storage: ObjectStore = Depends(get_object_storage_client),
-) -> ModuleThumbnailsPresignResponse:
-    """Return presigned GET URLs for a batch of module thumbnails (partial success)."""
-    effective_tenant = _effective_tenant_id(request, tenant_id)
-    return await SyncService(db).get_module_thumbnail_presigned_urls(
-        module_ids=body.module_ids,
-        storage=storage,
-        tenant_id=effective_tenant,
-    )
-
-
-@router.get("/source-documents/published", response_model=PublishedSourceDocumentsBundle)
-async def sync_published_source_documents(
-    domain: str | None = Query(None),
-    limit: int = Query(200, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db),
-    storage: ObjectStore = Depends(get_object_storage_client),
-    settings: Settings = Depends(get_settings),
-) -> PublishedSourceDocumentsBundle:
-    """Return presigned URLs for source documents with ``sync_published_visible=true``."""
-    return await SyncService(db).get_published_source_documents_bundle(
-        storage=storage,
-        domain=domain,
-        limit=limit,
-        offset=offset,
-        settings=settings,
-    )
-
-
-@router.get("/assigned-videos", response_model=AssignedVideosBundle)
-async def sync_assigned_videos(
-    request: Request,
-    user_id: int = Query(..., description="User id whose assigned videos to return."),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
+    since: datetime = Query(
+        ...,
+        description="ISO-8601 datetime; return module-linked documents updated after this timestamp",
     ),
     db: AsyncSession = Depends(get_db),
     storage: ObjectStore = Depends(get_object_storage_client),
     settings: Settings = Depends(get_settings),
-) -> AssignedVideosBundle:
-    """Return videos assigned to ``user_id`` (individual / po_sk / geo / group)."""
-    _ = _effective_tenant_id(request, tenant_id)
-    effective_user_id = require_chw_id_for_device_route(request, user_id)
-    spice_user = getattr(request.state, "spice_user", None)
-    organization_ids = getattr(spice_user, "organization_ids", None) if spice_user else None
+) -> SourceDocumentsSyncBundle:
+    """Return presigned URLs for module-linked and assigned source documents.
 
-    return await SyncService(db).get_assigned_videos_bundle(
+    ``source_documents`` covers docs linked to all currently published modules in the
+    tenant with ``updated_at > since`` (retired excluded). ``assigned_documents`` is
+    the authenticated user's full current ``document_assignment`` snapshot (ignores
+    ``since``), also excluding retired.
+    """
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=UTC)
+
+    effective_tenant = _effective_tenant_id(request)
+    effective_user_id = resolve_sync_user_id(request)
+
+    return await SyncService(db).get_source_documents_bundle(
+        since=since,
+        storage=storage,
+        tenant_id=effective_tenant,
         user_id=effective_user_id,
-        storage=storage,
-        organization_ids=organization_ids,
-        limit=limit,
-        offset=offset,
         settings=settings,
     )
 
 
 @router.get("/config", response_model=ConfigSyncBundle)
 async def sync_config(
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> ConfigSyncBundle:
     """Return current config threshold snapshot for offline device use."""
-    return await SyncService(db).get_config_bundle()
+    return await SyncService(db).get_config_bundle(tenant_id=_effective_tenant_id(request))
 
 
 @router.get("/modules", response_model=ModulesSyncBundle)
@@ -182,34 +91,27 @@ async def sync_modules(
     since: datetime = Query(
         ..., description="ISO-8601 datetime; return modules updated after this timestamp"
     ),
-    user_id: int | None = Query(
-        default=None,
-        description="When provided, include assigned_module_ids and requested_modules for this user.",
-    ),
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
-    ),
     db: AsyncSession = Depends(get_db),
+    storage: ObjectStore = Depends(get_object_storage_client),
+    settings: Settings = Depends(get_settings),
 ) -> ModulesSyncBundle:
     """Return published modules updated after `since` (plus their quiz payloads).
 
-    When ``user_id`` is provided, also returns ``assigned_module_ids`` and the
-    CHW's full ``requested_modules`` history (known module IDs and free-text names).
+    Also returns ``assigned_module_ids`` and the CHW's full ``requested_modules`` history
+    for the authenticated user. Module thumbnails are inline-presigned when available.
     """
     if since.tzinfo is None:
         since = since.replace(tzinfo=UTC)
 
-    effective_tenant = _effective_tenant_id(request, tenant_id)
-    effective_user_id = require_chw_id_for_device_route(request, user_id) if user_id is not None else None
-    spice_user = getattr(request.state, "spice_user", None)
-    organization_ids = spice_user.organization_ids if spice_user and effective_user_id else None
+    effective_tenant = _effective_tenant_id(request)
+    effective_user_id = resolve_sync_user_id(request)
 
     return await SyncService(db).get_modules_bundle(
         since=since,
         tenant_id=effective_tenant,
         user_id=effective_user_id,
-        organization_ids=organization_ids,
+        storage=storage,
+        settings=settings,
     )
 
 
@@ -220,16 +122,12 @@ async def sync_triggers(
         ...,
         description="ISO-8601 datetime; return triggers updated after this timestamp (and all bindings for them)",
     ),
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
-    ),
     db: AsyncSession = Depends(get_db),
 ) -> TriggersSyncBundle:
     """Return trigger definitions updated after `since` plus their module-family bindings."""
     if since.tzinfo is None:
         since = since.replace(tzinfo=UTC)
-    effective_tenant = _effective_tenant_id(request, tenant_id)
+    effective_tenant = _effective_tenant_id(request)
     return await SyncService(db).get_triggers_bundle(since=since, tenant_id=effective_tenant)
 
 
@@ -240,24 +138,13 @@ async def sync_gaps(
         default=None,
         description="ISO-8601 datetime; return gaps/state rows updated after this timestamp",
     ),
-    chw_id: int | None = Query(
-        default=None,
-        description=(
-            "Optional CHW id (integer). When provided, include per-CHW gap state, "
-            "module completion state, and partial module quiz progress (incomplete questions)."
-        ),
-    ),
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
-    ),
     db: AsyncSession = Depends(get_db),
 ) -> GapsSyncBundle:
-    """Return behavioural gaps plus optional per-CHW state and partial quiz progress for offline sync."""
+    """Return behavioural gaps plus per-CHW state and partial quiz progress for offline sync."""
     if since is not None and since.tzinfo is None:
         since = since.replace(tzinfo=UTC)
-    effective_chw_id = resolve_chw_id_for_device_route(request, chw_id)
-    effective_tenant = _effective_tenant_id(request, tenant_id)
+    effective_chw_id = resolve_sync_user_id(request)
+    effective_tenant = _effective_tenant_id(request)
     return await SyncService(db).get_gaps_bundle(
         since=since,
         chw_id=effective_chw_id,
@@ -269,14 +156,78 @@ async def sync_gaps(
 async def sync_chat_faqs(
     request: Request,
     since: datetime = Query(..., description="ISO-8601 datetime; return FAQs updated after this timestamp"),
-    tenant_id: UUID | None = Query(
-        default=None,
-        description="Optional tenant UUID override (admin principals only when auth is enabled).",
-    ),
     db: AsyncSession = Depends(get_db),
 ) -> ChatFaqsSyncBundle:
     """Return ranked frequent chat questions, optionally scoped to a tenant."""
     if since.tzinfo is None:
         since = since.replace(tzinfo=UTC)
-    effective_tenant = _effective_tenant_id(request, tenant_id)
+    effective_tenant = _effective_tenant_id(request)
     return await SyncService(db).get_chat_faqs_bundle(since=since, tenant_id=effective_tenant)
+
+
+@router.get("/badges", response_model=BadgesSyncBundle)
+async def sync_badges(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    storage: ObjectStore = Depends(get_object_storage_client),
+    settings: Settings = Depends(get_settings),
+) -> BadgesSyncBundle:
+    """Return available active tenant badges and earned badges for the authenticated CHW."""
+    effective_user_id = resolve_sync_user_id(request)
+    tenant_id = _effective_tenant_id(request)
+    return await SyncService(db).get_badges_bundle(
+        user_id=effective_user_id,
+        tenant_id=tenant_id,
+        storage=storage,
+        settings=settings,
+    )
+
+
+@router.get("/video-progress", response_model=VideoProgressSyncBundle)
+async def sync_video_progress(
+    request: Request,
+    since: datetime = Query(
+        ...,
+        description="ISO-8601 datetime; return assigned-video progress updated after this timestamp",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> VideoProgressSyncBundle:
+    """Return delta watch progress for videos still assigned to the authenticated CHW.
+
+    Only ``source_type=video`` documents with a current ``document_assignment`` and an
+    existing ``chw_video_progress`` row with ``updated_at > since`` are included.
+    Unwatched assigned videos (no progress row) are omitted. Writes remain on
+    ``POST /telemetry/events`` (``video_progress_updated``).
+    """
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=UTC)
+
+    effective_tenant = _effective_tenant_id(request)
+    effective_user_id = resolve_sync_user_id(request)
+
+    return await SyncService(db).get_video_progress_bundle(
+        since=since,
+        user_id=effective_user_id,
+        tenant_id=effective_tenant,
+    )
+
+
+@router.post("/presigned-urls", response_model=StoragePathsPresignResponse)
+async def sync_presigned_urls(
+    body: StoragePathsPresignRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    storage: ObjectStore = Depends(get_object_storage_client),
+    settings: Settings = Depends(get_settings),
+) -> StoragePathsPresignResponse:
+    """Return presigned GET URLs for a batch of object names (partial success).
+
+    Accepts object names only (same normalisation as ``GET /admin/files/presigned-url``).
+    Full ``bucket/key`` refs and filesystem paths are listed in ``missing_paths``.
+    """
+    resolve_sync_user_id(request)
+    return await SyncService(db).get_presigned_urls_for_storage_paths(
+        storage_paths=body.storage_paths,
+        storage=storage,
+        settings=settings,
+    )

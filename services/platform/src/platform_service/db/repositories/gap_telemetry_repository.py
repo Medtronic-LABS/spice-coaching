@@ -21,7 +21,7 @@ class GapTelemetryRepository:
         event_id: uuid.UUID,
         chw_id: int,
         event_type: str,
-        tenant_id: uuid.UUID | None,
+        tenant_id: int,
         now: datetime | None = None,
     ) -> bool:
         """Insert the event claim once; duplicates are a no-op."""

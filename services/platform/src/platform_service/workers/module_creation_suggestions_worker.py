@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.services.module_creation_suggestion_service import (
     ModuleCreationSuggestionService,
@@ -26,12 +27,13 @@ async def refresh_module_creation_suggestions_job() -> dict[str, int]:
         service = ModuleCreationSuggestionService(session)
         scopes = await service.list_scopes()
         for tenant_id in scopes:
-            count = await service.refresh_for_day(
-                tenant_id=tenant_id,
-                suggestion_date=suggestion_date,
-            )
-            scopes_updated += 1
-            suggestions_written += count
+            with using_selected_tenant(tenant_id):
+                count = await service.refresh_for_day(
+                    tenant_id=tenant_id,
+                    suggestion_date=suggestion_date,
+                )
+                scopes_updated += 1
+                suggestions_written += count
 
     logger.info(
         "Module creation suggestion refresh complete: scopes=%d suggestions=%d date=%s",

@@ -18,17 +18,25 @@ from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.repositories.chat_faq_repository import ChatFaqRepository, ChatFaqRow
 from platform_service.deps import get_db
 from platform_service.services.chat_faq_aggregator import stable_faq_id
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import platform_path, requires_db, truncate_tables
+from tests.conftest import platform_path, requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "chat_frequent_question, module_quiz_question, module, module_family")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE chat_frequent_question, module_quiz_question, module, module_family "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture
@@ -55,7 +63,7 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 class TestSyncChatFaqs:
     async def test_requires_since(self, client: AsyncClient) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         resp = await client.get(
             platform_path("/sync/chat-faqs"),
             params={"tenant_id": str(tenant_id)},
@@ -65,8 +73,8 @@ class TestSyncChatFaqs:
     async def test_returns_faqs_without_tenant_id(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
-        tenant_a = uuid4()
-        tenant_b = uuid4()
+        tenant_a = 1
+        tenant_b = 2
         computed_at = datetime.now(UTC)
         repo = ChatFaqRepository(db_session)
 
@@ -105,7 +113,7 @@ class TestSyncChatFaqs:
     async def test_returns_ranked_faqs_updated_since(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         computed_at = datetime.now(UTC)
         question_en = "How do I count respiratory rate?"
         question_bn = "শ্বাসপ্রশ্বাসের হার কিভাবে গণনা করব?"
@@ -142,7 +150,7 @@ class TestSyncChatFaqs:
         assert data["computed_at"] is not None
 
     async def test_empty_when_no_updates(self, client: AsyncClient, db_session: AsyncSession) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         computed_at = datetime.now(UTC)
         question_en = "child cough"
         faq_id = stable_faq_id(tenant_id=tenant_id, normalized_question_en=question_en)
@@ -176,7 +184,7 @@ class TestSyncChatFaqs:
         client: AsyncClient,
         db_session: AsyncSession,
     ) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         now = datetime.now(UTC)
 
         # Seed 6 published modules with descending published_at. One module is missing quiz questions
@@ -186,7 +194,7 @@ class TestSyncChatFaqs:
         quiz_question_bn_by_module_id: dict[str, str] = {}
 
         for i in range(6):
-            fam = ModuleFamily(module_code=f"family-{uuid4().hex[:8]}")
+            fam = ModuleFamily(module_code=f"family-{uuid4().hex[:8]}", tenant_id=1)
             db_session.add(fam)
             await db_session.flush()
 
@@ -216,7 +224,7 @@ class TestSyncChatFaqs:
                 clinically_reviewed_by=None,
                 lifecycle_status="published",
                 published_at=published_at,
-                deprecated_at=None,
+                retired_at=None,
                 supersedes_module_id=None,
             )
             db_session.add(module)
@@ -290,7 +298,7 @@ class TestSyncChatFaqs:
         quiz_question_ids: list[str] = []
 
         for tenant_idx, tenant_id in enumerate(tenant_ids):
-            fam = ModuleFamily(module_code=f"family-{uuid4().hex[:8]}")
+            fam = ModuleFamily(module_code=f"family-{uuid4().hex[:8]}", tenant_id=1)
             db_session.add(fam)
             await db_session.flush()
 
@@ -319,7 +327,7 @@ class TestSyncChatFaqs:
                 clinically_reviewed_by=None,
                 lifecycle_status="published",
                 published_at=now - timedelta(minutes=tenant_idx),
-                deprecated_at=None,
+                retired_at=None,
                 supersedes_module_id=None,
             )
             db_session.add(module)

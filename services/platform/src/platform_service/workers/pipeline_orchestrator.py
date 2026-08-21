@@ -82,7 +82,7 @@ class PipelineOrchestrator:
         # Tests can pass their own ai_client (or a fully-mocked stage)
         # to bypass.
         if ai_client is None:
-            ai_client = CachingAIRuntimeClient(session=session)
+            ai_client = CachingAIRuntimeClient()
         self._ai_client = ai_client
 
         # Stages — accept overrides for test injection. Outline assembly
@@ -108,15 +108,13 @@ class PipelineOrchestrator:
         self._draft_runner = DraftStageRunner(session, self._run_state, self._candidate_repo)
 
     def _clone_for_session(self, session: AsyncSession) -> PipelineOrchestrator:
-        """Build a stage-scoped orchestrator that shares the same httpx client."""
-        if isinstance(self._ai_client, CachingAIRuntimeClient):
-            ai_client: AIRuntimeClient | CachingAIRuntimeClient = CachingAIRuntimeClient(
-                session=session,
-                inner=self._ai_client.inner,
-            )
-        else:
-            ai_client = self._ai_client
-        return PipelineOrchestrator(session, ai_client=ai_client)
+        """Build a stage-scoped orchestrator that shares the same AI client.
+
+        ``CachingAIRuntimeClient`` is not bound to the stage session — cache
+        reads and writes open their own short-lived sessions — so the same
+        instance is reused across staged sessions.
+        """
+        return PipelineOrchestrator(session, ai_client=self._ai_client)
 
     @asynccontextmanager
     async def _stage_context(self, staged_sessions: bool) -> AsyncIterator[PipelineOrchestrator]:
@@ -142,7 +140,7 @@ class PipelineOrchestrator:
         source_path: str | Path,
         source_type: str,
         primary_language: str | None = None,
-        triggered_by: UUID | None = None,
+        ingested_by_user_id: int | None = None,
         resume: bool = True,
         staged_sessions: bool = False,
         run_id: UUID | None = None,
@@ -170,7 +168,7 @@ class PipelineOrchestrator:
             source_path=source_path,
             source_type=source_type,
             primary_language=resolved_primary_language,
-            triggered_by=triggered_by,
+            ingested_by_user_id=ingested_by_user_id,
             resume=resume,
             staged_sessions=staged_sessions,
             result_box=result_box,

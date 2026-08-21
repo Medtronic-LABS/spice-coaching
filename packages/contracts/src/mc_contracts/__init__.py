@@ -4,7 +4,9 @@ Allowed: Pydantic models, enums, constants.
 Not allowed: SQLAlchemy, repositories, business logic, provider clients.
 """
 
-from mc_contracts.module_attachments import (
+from mc_contracts.modules import (
+    CardMediaAnchor,
+    CardMediaItem,
     ModuleAttachmentFileRef,
     ModuleAttachmentKind,
     ModuleAttachmentRef,
@@ -13,6 +15,8 @@ from mc_contracts.module_attachments import (
 )
 
 __all__ = [
+    "CardMediaAnchor",
+    "CardMediaItem",
     "ModuleAttachmentFileRef",
     "ModuleAttachmentKind",
     "ModuleAttachmentRef",

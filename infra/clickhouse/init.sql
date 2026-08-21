@@ -1,4 +1,7 @@
-DROP TABLE IF EXISTS coaching_events;
+-- Accumulated ClickHouse schema for fresh installs and clickhouse-init.
+-- End-state of all ClickHouse DDL (MVs + event tables). Does not include
+-- one-time ops backfills. DROP coaching_events below resets that table on
+-- re-run against a populated volume (local docker only).
 
 CREATE TABLE IF NOT EXISTS coaching_events (
     id                      String,
@@ -9,7 +12,7 @@ CREATE TABLE IF NOT EXISTS coaching_events (
     patient_track_id        Nullable(String),
     patient_id_hash         Nullable(String),
     chw_id                  Int64,
-    tenant_id               UUID,
+    tenant_id               Int64,
     village_id              Nullable(String),
     upazila_id              Nullable(String),
     event_family            LowCardinality(String),
@@ -97,13 +100,14 @@ GROUP BY tenant_id, event_date;
 
 CREATE TABLE IF NOT EXISTS unattributed_module_demand_events (
     id                      String,
-    tenant_id               UUID,
+    tenant_id               Int64,
     chw_id                  Int64,
     event_date              Date,
     source                  LowCardinality(String),
     text                    String,
     normalized_text         String,
     timestamp_utc           DateTime64(3),
+    timestamp_local         DateTime64(3),
     inserted_at             DateTime64(3) DEFAULT now64()
 )
 ENGINE = ReplacingMergeTree(inserted_at)
@@ -144,6 +148,7 @@ AS SELECT
         )
     ) AS normalized_text,
     timestamp_utc,
+    timestamp_local,
     now64() AS inserted_at
 FROM coaching_events
 WHERE module_id IS NULL

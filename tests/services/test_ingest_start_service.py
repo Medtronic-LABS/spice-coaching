@@ -7,9 +7,11 @@ from uuid import uuid4
 import pytest
 from mc_foundation.problem import AppError
 from platform_service.db.models.ingest_batch import IngestBatch
+from platform_service.db.models.ingestion_run import IngestionRun
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.services.ingest_start_service import IngestStartParams, IngestStartService
 from platform_service.services.ingest_upload_service import IngestUploadService
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import requires_db
@@ -26,6 +28,7 @@ async def _seed_uploaded(db_session: AsyncSession, *, title: str = "Staged") -> 
         original_storage_path="bucket/ingest/staged.pdf",
         original_filename="staged.pdf",
         status="uploaded",
+        tenant_id=1,
     )
     db_session.add(doc)
     await db_session.flush()
@@ -42,16 +45,18 @@ async def _seed_ingested(db_session: AsyncSession) -> SourceDocument:
         original_filename="done.pdf",
         content_sha256="abc123",
         status="ingested",
+        tenant_id=1,
     )
     db_session.add(doc)
     await db_session.flush()
     return doc
 
 
-def _params() -> IngestStartParams:
+def _params(*, ingested_by_user_id: int | None = None) -> IngestStartParams:
     return IngestStartParams(
         assessment_mode="with_quiz",
-        uploaded_by="tester",
+        actor="tester",
+        ingested_by_user_id=ingested_by_user_id,
     )
 
 
@@ -63,15 +68,18 @@ async def test_start_uploaded_document_sets_ingesting(db_session: AsyncSession) 
 
     result = await service.start(
         source_document_ids=[staged.id],
-        params=_params(),
+        params=_params(ingested_by_user_id=42),
         override_flags=[False],
     )
 
     assert len(result.sources) == 1
     assert result.sources[0].source_document_id == staged.id
+    assert result.sources[0].ingested_by_user_id == 42
+    assert result.sources[0].ingested_at == staged.ingested_at
     await db_session.refresh(staged)
     assert staged.status == "ingesting"
     assert staged.content_domain == "digital"
+    assert staged.ingested_by == 42
 
     batch = await db_session.get(IngestBatch, result.batch_id)
     assert batch is not None
@@ -79,6 +87,44 @@ async def test_start_uploaded_document_sets_ingesting(db_session: AsyncSession) 
     assert batch.ingestion_instructions is None
     assert batch.cards_per_module is None
     assert batch.quizzes_per_module is None
+    assert batch.ingested_by == 42
+
+    runs = list(
+        (
+            await db_session.execute(
+                select(IngestionRun).where(IngestionRun.ingest_batch_id == result.batch_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(runs) == 1
+    assert runs[0].ingested_by == 42
+
+
+async def test_start_multi_document_stamps_ingested_by(db_session: AsyncSession) -> None:
+    first = await _seed_uploaded(db_session, title="First")
+    second = await _seed_uploaded(db_session, title="Second")
+    first_ingested_at = first.ingested_at
+    second_ingested_at = second.ingested_at
+    service = IngestStartService(db_session)
+
+    result = await service.start(
+        source_document_ids=[first.id, second.id],
+        params=_params(ingested_by_user_id=77),
+        override_flags=[False, False],
+    )
+
+    assert len(result.sources) == 2
+    await db_session.refresh(first)
+    await db_session.refresh(second)
+    assert first.status == "ingesting"
+    assert second.status == "ingesting"
+    assert first.ingested_by == 77
+    assert second.ingested_by == 77
+    assert first.ingested_at == first_ingested_at
+    assert second.ingested_at == second_ingested_at
+    assert {s.ingested_by_user_id for s in result.sources} == {77}
 
 
 async def test_start_missing_source_raises_not_found(db_session: AsyncSession) -> None:
@@ -113,41 +159,50 @@ async def test_start_ingested_without_override_raises(db_session: AsyncSession) 
     assert conflicts[0]["existing_source_documents"][0]["source_document_id"] == str(ingested.id)
 
 
-async def test_start_mixed_batch_skips_ingested_without_override(db_session: AsyncSession) -> None:
+async def test_start_mixed_batch_any_conflict_raises_without_mutations(db_session: AsyncSession) -> None:
     ingested = await _seed_ingested(db_session)
     staged = await _seed_uploaded(db_session, title="Fresh")
     service = IngestStartService(db_session)
 
-    result = await service.start(
-        source_document_ids=[ingested.id, staged.id],
-        params=_params(),
-        override_flags=[False, False],
-    )
+    with pytest.raises(AppError) as exc_info:
+        await service.start(
+            source_document_ids=[ingested.id, staged.id],
+            params=_params(),
+            override_flags=[False, False],
+        )
 
-    assert len(result.sources) == 1
-    assert result.sources[0].source_document_id == staged.id
-    assert len(result.skipped_duplicates) == 1
-    assert result.skipped_duplicates[0].content_sha256 == "abc123"
-    assert result.skipped_duplicates[0].existing_source_documents[0].id == ingested.id
+    assert exc_info.value.code == "duplicate_content"
+    assert exc_info.value.status == 409
+    conflicts = exc_info.value.extensions["conflicts"]
+    assert len(conflicts) == 1
+    assert conflicts[0]["content_sha256"] == "abc123"
+    assert conflicts[0]["existing_source_documents"][0]["source_document_id"] == str(ingested.id)
+    await db_session.refresh(staged)
+    assert staged.status == "uploaded"
 
 
-async def test_start_ingested_with_override_clones_row(db_session: AsyncSession) -> None:
+async def test_start_ingested_with_override_reuses_same_row(db_session: AsyncSession) -> None:
     ingested = await _seed_ingested(db_session)
     ingested.content_domain = "digital"
+    ingested.source_type = "video"
+    ingested.duration_ms = 12_345
     await db_session.flush()
     service = IngestStartService(db_session)
 
     result = await service.start(
         source_document_ids=[ingested.id],
-        params=_params(),
+        params=_params(ingested_by_user_id=88),
         override_flags=[True],
     )
 
     assert len(result.sources) == 1
-    assert result.sources[0].source_document_id != ingested.id
-    clone = await db_session.get(SourceDocument, result.sources[0].source_document_id)
-    assert clone is not None
-    assert clone.content_domain == "digital"
+    assert result.sources[0].source_document_id == ingested.id
+    assert result.sources[0].ingested_by_user_id == 88
+    await db_session.refresh(ingested)
+    assert ingested.content_domain == "digital"
+    assert ingested.duration_ms == 12_345
+    assert ingested.ingested_by == 88
+    assert ingested.status == "ingesting"
 
 
 async def test_resolve_override_flags_length_mismatch(db_session: AsyncSession) -> None:
@@ -157,3 +212,46 @@ async def test_resolve_override_flags_length_mismatch(db_session: AsyncSession) 
         IngestUploadService.resolve_override_duplicates_for_ids([True, False], [staged.id])
 
     assert "override_duplicates must have 1 entries" in str(exc_info.value)
+
+
+async def test_start_rejects_cross_tenant_when_selected_tenant_nonzero(
+    db_session: AsyncSession,
+) -> None:
+    staged = await _seed_uploaded(db_session)  # tenant_id=1
+    service = IngestStartService(db_session)
+    params = IngestStartParams(
+        assessment_mode="with_quiz",
+        actor="tester",
+        tenant_id=99,
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await service.start(
+            source_document_ids=[staged.id],
+            params=params,
+            override_flags=[False],
+        )
+
+    assert exc_info.value.code == "source_not_found"
+    assert exc_info.value.status == 404
+
+
+async def test_start_allows_any_doc_when_selected_tenant_is_zero(
+    db_session: AsyncSession,
+) -> None:
+    staged = await _seed_uploaded(db_session)  # tenant_id=1
+    service = IngestStartService(db_session)
+    params = IngestStartParams(
+        assessment_mode="with_quiz",
+        actor="tester",
+        tenant_id=0,
+    )
+
+    result = await service.start(
+        source_document_ids=[staged.id],
+        params=params,
+        override_flags=[False],
+    )
+
+    assert len(result.sources) == 1
+    assert result.sources[0].source_document_id == staged.id

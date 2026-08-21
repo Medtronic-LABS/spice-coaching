@@ -63,6 +63,7 @@ from platform_service.services.prompt_variables.quiz_generation_variables import
 from platform_service.services.quiz_explanation_sanitizer import (
     sanitize_explanation_localized,
 )
+from platform_service.workers.tenant_binding import with_module_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,7 @@ def _extract_localized_options(
     return extract_localized_options_from_raw(raw, settings=settings)
 
 
+@with_module_tenant
 async def generate_quiz_for_module(
     module_id: UUID,
     *,
@@ -153,8 +155,7 @@ async def generate_quiz_for_module(
     """Generate quiz questions for a published module. Returns count written.
 
     Idempotent on retry — existing rows for `module_id` are deleted before
-    writing the new batch. The dashboard surfaces "regenerate quiz" as a
-    user action that calls this same path.
+    writing the new batch.
     """
     written = 0
     try:
@@ -235,8 +236,7 @@ async def generate_quiz_for_module(
                     question_order=idx,
                     question_family_id=uuid.uuid4(),
                     question_version=1,
-                    case_setup_localized=_extract_localized_string(q, "case_setup", settings=settings)
-                    or None,
+                    case_setup_localized=None,
                     question_localized=question_localized,
                     question_type="single_select",
                     options_localized=_extract_localized_options(q, settings=settings),

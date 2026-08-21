@@ -8,23 +8,25 @@ on each new published version; older versions remain queryable.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Text, func
+from sqlalchemy import BigInteger, DateTime, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class ModuleFamily(Base):
+class ModuleFamily(TenantMixin, Base):
     __tablename__ = "module_family"
+    __table_args__ = (UniqueConstraint("tenant_id", "module_code", name="uq_module_family_tenant_code"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # Human-readable code, e.g. RMNCH-ANC-REFERRAL
-    module_code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    module_code: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Pointer to the live version. Nullable because a family is created before
     # its first version is published.
     current_published_module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

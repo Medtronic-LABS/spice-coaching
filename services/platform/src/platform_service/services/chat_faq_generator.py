@@ -101,7 +101,7 @@ def _parse_faq_items(
 
 def _fallback_faqs(
     *,
-    tenant_id: UUID,
+    tenant_id: int,
     clusters: list[QuestionCluster],
 ) -> list[SynthesizedChatFaq]:
     results: list[SynthesizedChatFaq] = []
@@ -136,7 +136,7 @@ class ChatFaqGenerator:
 
     async def synthesize(
         self,
-        tenant_id: UUID,
+        tenant_id: int,
         clusters: list[QuestionCluster],
     ) -> list[SynthesizedChatFaq]:
         if not clusters:

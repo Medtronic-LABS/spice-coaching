@@ -7,17 +7,19 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from mc_contracts.enums import ContentDomain
 from mc_contracts.localized import LocalizedString
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_family import ModuleFamily
+from platform_service.db.module_availability import LIFECYCLE_REVIEW_PENDING
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
-from platform_service.db.repositories.module_lifecycle_repository import ModuleLifecycleRepository
 from platform_service.db.repositories.module_repository_helpers import (
     THUMBNAIL_UNSET,
     ModuleNotFoundError,
@@ -42,10 +44,12 @@ class ModuleWriteRepository:
         estimated_minutes: int = 10,
         difficulty_level: str = "moderate",
         module_json: dict[str, Any] | None = None,
-        creator_id: UUID | None = None,
+        created_by_user_id: int | None = None,
         behavioural_gap_ids: list[UUID] | None = None,
         primary_gap_id: UUID | None = None,
         chatbot_faqs_only: bool = False,
+        content_domain: str = ContentDomain.CLINICAL.value,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> Module:
         if chatbot_faqs_only and behavioural_gap_ids:
             raise ValueError("chatbot_faqs_only modules cannot be linked to behavioural gaps")
@@ -56,13 +60,16 @@ class ModuleWriteRepository:
         attempt = 0
         while True:
             existing = await self._session.execute(
-                select(ModuleFamily).where(ModuleFamily.module_code == candidate_code)
+                select(ModuleFamily).where(
+                    ModuleFamily.module_code == candidate_code,
+                    ModuleFamily.tenant_id == tenant_id,
+                )
             )
             row = existing.scalar_one_or_none()
             if row is None:
                 family = ModuleFamily(
                     module_code=candidate_code,
-                    created_by=creator_id,
+                    tenant_id=tenant_id,
                 )
                 self._session.add(family)
                 await self._session.flush()
@@ -77,6 +84,7 @@ class ModuleWriteRepository:
             description_localized=description,
             domain=domain,
             sub_domain=sub_domain,
+            content_domain=content_domain,
             module_type=module_type,
             estimated_minutes=estimated_minutes,
             difficulty_level=difficulty_level,
@@ -85,6 +93,8 @@ class ModuleWriteRepository:
             clinically_reviewed=False,
             published_at=None,
             chatbot_faqs_only=chatbot_faqs_only,
+            tenant_id=tenant_id,
+            created_by=created_by_user_id,
         )
         self._session.add(new_module)
         await self._session.flush()
@@ -108,6 +118,7 @@ class ModuleWriteRepository:
                     severity_default="moderate",
                     detection_rule_jsonb={},
                     status="active",
+                    tenant_id=tenant_id,
                 )
                 self._session.add(gap)
                 await self._session.flush()
@@ -123,6 +134,21 @@ class ModuleWriteRepository:
             .limit(1)
         )
         return result.scalar_one()
+
+    async def latest_module_in_family(self, module_family_id: UUID) -> Module:
+        """Return the highest-version module row in the family."""
+        return await self._latest_module_in_family(module_family_id)
+
+    async def next_version_in_family(self, module_family_id: UUID) -> int:
+        """Return ``max(version) + 1`` for the family (or ``1`` if empty)."""
+        result = await self._session.execute(
+            select(Module.version)
+            .where(Module.module_family_id == module_family_id)
+            .order_by(Module.version.desc())
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        return (row or 0) + 1
 
     def _version_conflict(
         self,
@@ -166,8 +192,11 @@ class ModuleWriteRepository:
         module_json: dict[str, Any] | None = None,
         visibility_window: Any | None = None,
         thumbnail_storage_path: str | None | object = THUMBNAIL_UNSET,
-        editor_id: UUID | None = None,
+        created_by_user_id: int | None = None,
         chatbot_faqs_only: bool | None = None,
+        content_domain: str | None | object = THUMBNAIL_UNSET,
+        domain: str | None | object = THUMBNAIL_UNSET,
+        estimated_minutes: int | None | object = THUMBNAIL_UNSET,
     ) -> Module:
         current = await self.get_editable_module_tip(
             module_id,
@@ -180,6 +209,21 @@ class ModuleWriteRepository:
         else:
             next_thumbnail = thumbnail_storage_path
 
+        if content_domain is THUMBNAIL_UNSET:
+            next_content_domain = current.content_domain
+        else:
+            next_content_domain = content_domain
+
+        if domain is THUMBNAIL_UNSET or domain is None:
+            next_domain = current.domain
+        else:
+            next_domain = domain
+
+        if estimated_minutes is THUMBNAIL_UNSET or estimated_minutes is None:
+            next_estimated_minutes = current.estimated_minutes
+        else:
+            next_estimated_minutes = estimated_minutes
+
         next_title_localized = title if title is not None else current.title_localized
         next_description_localized = description if description is not None else current.description_localized
 
@@ -188,14 +232,16 @@ class ModuleWriteRepository:
             version=next_version,
             title_localized=next_title_localized,
             description_localized=next_description_localized,
-            domain=current.domain,
+            domain=next_domain,
             sub_domain=current.sub_domain,
+            content_domain=next_content_domain,
             module_type=current.module_type,
             tenant_id=current.tenant_id,
             primary_gap_id=current.primary_gap_id,
-            estimated_minutes=current.estimated_minutes,
+            estimated_minutes=next_estimated_minutes,
             difficulty_level=current.difficulty_level,
             source_document_ids=list(current.source_document_ids or []),
+            ingestion_run_id=current.ingestion_run_id,
             thumbnail_storage_path=next_thumbnail,
             urgent_publish=current.urgent_publish,
             chatbot_faqs_only=chatbot_faqs_only
@@ -212,6 +258,7 @@ class ModuleWriteRepository:
             lifecycle_status="draft",
             published_at=None,
             supersedes_module_id=current.id,
+            created_by=created_by_user_id,
         )
         self._session.add(new_module)
         try:
@@ -230,67 +277,34 @@ class ModuleWriteRepository:
         family = await self._session.get(ModuleFamily, current.module_family_id)
         if family is not None:
             family.current_published_module_id = new_module.id
+
+        # Dual-path review_pending rows keep merge_source_module_id on the tip
+        # that was matched at Stage D; when that tip is edited, retarget them
+        # to the new version so override-merge retires the current source.
+        await self._session.execute(
+            update(Module)
+            .where(
+                Module.merge_source_module_id == current.id,
+                Module.lifecycle_status == LIFECYCLE_REVIEW_PENDING,
+            )
+            .values(merge_source_module_id=new_module.id)
+        )
         await self._session.flush()
         return new_module
 
-    async def set_clinically_reviewed(
+    async def retire_module(
         self,
         module_id: UUID,
         *,
-        flag: bool,
-        reviewer_id: UUID | None = None,
+        retired_by_user_id: int | None = None,
     ) -> Module:
-        module = await self._session.get(Module, module_id)
-        if module is None or module.lifecycle_status == "retired":
-            raise ModuleNotFoundError(module_id)
-        module.clinically_reviewed = flag
-        module.clinically_reviewed_at = datetime.now(UTC) if flag else None
-        module.clinically_reviewed_by = reviewer_id if flag else None
-
-        if flag:
-            module.lifecycle_status = "published"
-            module.published_at = datetime.now(UTC)
-
-            family = await self._session.get(ModuleFamily, module.module_family_id)
-            if family is not None:
-                family.current_published_module_id = module.id
-                await ModuleLifecycleRepository(self._session).record_first_activation(
-                    module.id,
-                    actor_id=reviewer_id,
-                )
-
-            stmt = select(Module).where(
-                Module.module_family_id == module.module_family_id,
-                Module.id != module.id,
-                Module.lifecycle_status != "retired",
-            )
-            older_modules = (await self._session.execute(stmt)).scalars().all()
-            for old_mod in older_modules:
-                old_mod.lifecycle_status = "retired"
-                old_mod.deprecated_at = datetime.now(UTC)
-
-        await self._session.flush()
-        return module
-
-    async def set_visibility_window(
-        self,
-        module_id: UUID,
-        *,
-        window: Any | None,
-    ) -> Module:
-        module = await self._session.get(Module, module_id)
-        if module is None or module.lifecycle_status == "retired":
-            raise ModuleNotFoundError(module_id)
-        module.visibility_window = window
-        await self._session.flush()
-        return module
-
-    async def retire_module(self, module_id: UUID) -> Module:
         module = await self._session.get(Module, module_id)
         if module is None:
             raise ModuleNotFoundError(module_id)
-        module.lifecycle_status = "retired"
-        module.deprecated_at = datetime.now(UTC)
+        if module.lifecycle_status != "retired":
+            module.lifecycle_status = "retired"
+            module.retired_at = datetime.now(UTC)
+            module.retired_by = retired_by_user_id
         family = await self._session.get(ModuleFamily, module.module_family_id)
         if family is not None and family.current_published_module_id == module.id:
             stmt = (

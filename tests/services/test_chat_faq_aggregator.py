@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from platform_service.services.chat_faq_aggregator import (
@@ -28,7 +28,7 @@ class TestNormalizeQuestion:
 
 class TestStableFaqId:
     def test_is_deterministic(self) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         normalized = "child cough"
         first = stable_faq_id(tenant_id=tenant_id, normalized_question_en=normalized)
         second = stable_faq_id(tenant_id=tenant_id, normalized_question_en=normalized)
@@ -38,8 +38,8 @@ class TestStableFaqId:
 @pytest.mark.asyncio
 class TestChatFaqAggregator:
     async def test_groups_candidates_per_tenant(self) -> None:
-        tenant_a = uuid4()
-        tenant_b = uuid4()
+        tenant_a = 1
+        tenant_b = 2
         ch_mock = AsyncMock()
         ch_mock.query_rows.return_value = [
             {
@@ -71,7 +71,7 @@ class TestChatFaqAggregator:
         assert by_tenant[tenant_b] == ["blood pressure"]
 
     async def test_skips_short_questions(self) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         ch_mock = AsyncMock()
         ch_mock.query_rows.return_value = [
             {

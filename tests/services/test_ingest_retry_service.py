@@ -30,21 +30,26 @@ from platform_service.services.run_state_service import (
     STEP_SUCCEEDED,
     RunStateService,
 )
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(
-        db_session,
-        "attribution_event, module_candidate_draft, source_page, ingestion_run_step, ingestion_run, ingest_batch, source_document",
-    )
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE attribution_event, module_candidate_draft, source_page, "
+            "ingestion_run_step, ingestion_run, ingest_batch, source_document "
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 async def _seed_batch_run(
@@ -52,7 +57,7 @@ async def _seed_batch_run(
     *,
     run_status: str = RUN_FAILED,
 ) -> tuple[IngestBatch, SourceDocument, IngestionRun]:
-    batch = IngestBatch(status=BATCH_FAILED)
+    batch = IngestBatch(status=BATCH_FAILED, tenant_id=1)
     session.add(batch)
     await session.flush()
     doc = SourceDocument(
@@ -62,6 +67,7 @@ async def _seed_batch_run(
         content_domain="clinical",
         original_storage_path="bucket/ingest/retry.pdf",
         status="failed",
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()
@@ -168,6 +174,7 @@ class TestIngestRetryService:
             proposed_title="Cand",
             scope_summary="s",
             source_provenance_jsonb=[],
+            tenant_id=1,
         )
         db_session.add(cand)
         await db_session.flush()
@@ -240,12 +247,14 @@ class TestIngestRetryService:
             proposed_title="OK",
             scope_summary="s",
             source_provenance_jsonb=[],
+            tenant_id=1,
         )
         bad_cand = ModuleCandidateDraft(
             ingestion_run_id=run.id,
             proposed_title="Bad",
             scope_summary="s",
             source_provenance_jsonb=[],
+            tenant_id=1,
         )
         db_session.add_all([ok_cand, bad_cand])
         await db_session.flush()
@@ -358,7 +367,7 @@ class TestIngestRetryService:
 
     async def test_run_not_in_batch(self, db_session: AsyncSession) -> None:
         batch, _doc, run = await _seed_batch_run(db_session)
-        other = IngestBatch(status=BATCH_FAILED)
+        other = IngestBatch(status=BATCH_FAILED, tenant_id=1)
         db_session.add(other)
         await db_session.commit()
         with pytest.raises(AppError) as exc:
@@ -377,6 +386,7 @@ class TestIngestRetryService:
             scope_summary="s",
             source_provenance_jsonb=[],
             source_chunk_ids=["chunk-1"],
+            tenant_id=1,
         )
         drop = ModuleCandidateDraft(
             ingestion_run_id=run.id,
@@ -384,6 +394,7 @@ class TestIngestRetryService:
             scope_summary="s",
             source_provenance_jsonb=[],
             source_chunk_ids=["chunk-2"],
+            tenant_id=1,
         )
         db_session.add_all([keep, drop])
         await db_session.flush()
@@ -498,6 +509,7 @@ class TestIngestRetryService:
             scope_summary="s",
             source_provenance_jsonb=[],
             source_chunk_ids=["chunk-1"],
+            tenant_id=1,
         )
         db_session.add_all([parent, chunk, cand])
         await db_session.commit()

@@ -11,9 +11,10 @@ import logging
 from typing import Any
 from uuid import UUID
 
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.services.module_completion.telemetry_parsing import (
-    coerce_tenant_uuid,
+    coerce_tenant_id,
     parse_chw_id,
     parse_uuid,
 )
@@ -22,6 +23,7 @@ from platform_service.services.training_request_service import (
     InvalidModuleError,
     TrainingRequestService,
 )
+from platform_service.workers.tenant_binding import payload_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -96,41 +98,42 @@ async def process_training_request_event_job(payload: dict[str, Any]) -> None:
         return
 
     reason = _parse_reason(payload)
-    tenant_id = coerce_tenant_uuid(payload.get("tenant_id"))
+    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
 
-    async with SessionLocal() as session:
-        service = TrainingRequestService(session)
-        try:
-            result = await service.submit(
-                chw_id=chw_id,
-                module_id=module_id,
-                requested_module_name=requested_name,
-                reason=reason,
-                tenant_id=tenant_id,
-            )
-            await session.commit()
-            logger.info(
-                "training_request_event_worker created request_id=%s event_id=%s module_id=%s chw_id=%s",
-                result.request_id,
-                event_id,
-                result.module_id,
-                chw_id,
-            )
-        except InvalidModuleError:
-            await session.rollback()
-            logger.info(
-                "training_request_event_worker no-op invalid_module event_id=%s module_id=%s chw_id=%s",
-                event_id,
-                module_id,
-                chw_id,
-            )
-        except DuplicateTrainingRequestError:
-            await session.rollback()
-            logger.info(
-                "training_request_event_worker no-op duplicate event_id=%s "
-                "module_id=%s requested_module_name=%s chw_id=%s",
-                event_id,
-                module_id,
-                requested_name,
-                chw_id,
-            )
+    with using_selected_tenant(payload_tenant_id(payload)):
+        async with SessionLocal() as session:
+            service = TrainingRequestService(session)
+            try:
+                result = await service.submit(
+                    chw_id=chw_id,
+                    module_id=module_id,
+                    requested_module_name=requested_name,
+                    reason=reason,
+                    tenant_id=tenant_id,
+                )
+                await session.commit()
+                logger.info(
+                    "training_request_event_worker created request_id=%s event_id=%s module_id=%s chw_id=%s",
+                    result.request_id,
+                    event_id,
+                    result.module_id,
+                    chw_id,
+                )
+            except InvalidModuleError:
+                await session.rollback()
+                logger.info(
+                    "training_request_event_worker no-op invalid_module event_id=%s module_id=%s chw_id=%s",
+                    event_id,
+                    module_id,
+                    chw_id,
+                )
+            except DuplicateTrainingRequestError:
+                await session.rollback()
+                logger.info(
+                    "training_request_event_worker no-op duplicate event_id=%s "
+                    "module_id=%s requested_module_name=%s chw_id=%s",
+                    event_id,
+                    module_id,
+                    requested_name,
+                    chw_id,
+                )

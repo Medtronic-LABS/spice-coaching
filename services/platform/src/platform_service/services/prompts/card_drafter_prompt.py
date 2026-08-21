@@ -76,6 +76,8 @@ Specifically:
 
 {module_type_rules}
 
+{image_assignment_rules}
+
 OUTPUT SHAPE (strict JSON, no markdown fences, no commentary):
 {{
   "cards": [
@@ -88,6 +90,7 @@ OUTPUT SHAPE (strict JSON, no markdown fences, no commentary):
         ...
       ] (optional, for clinical thresholds; preserve digits verbatim, verbalize symbols),
       "figure_ref_block_id": "uuid string or null (cite a content_block of block_type=figure)",
+      "source_image_ids": ["img_N", ...] (optional; ids from the AVAILABLE IMAGES catalog — omit when no image fits),
       "source_block_ids": ["uuid string", ...] (every block that informed this card)
     }},
     ...

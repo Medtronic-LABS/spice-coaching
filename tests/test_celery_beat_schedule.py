@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from celery.schedules import crontab
+from celery.signals import setup_logging as celery_setup_logging
 from platform_service.celery_app import celery_app
 
 
@@ -26,3 +27,9 @@ def test_aggregate_chat_feedback_summary_runs_weekly_sunday_03_utc() -> None:
     assert schedule.hour == {3}
     assert schedule.minute == {0}
     assert schedule.day_of_week == {0}
+
+
+def test_worker_owns_logging_and_disables_stdout_redirect() -> None:
+    assert celery_app.conf.worker_hijack_root_logger is False
+    assert celery_app.conf.worker_redirect_stdouts is False
+    assert celery_setup_logging.receivers

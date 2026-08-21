@@ -19,9 +19,10 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class TriggerDefinition(Base):
+class TriggerDefinition(TenantMixin, Base):
     __tablename__ = "trigger_definition"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -37,7 +38,6 @@ class TriggerDefinition(Base):
     predicate_schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     # active | deprecated
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

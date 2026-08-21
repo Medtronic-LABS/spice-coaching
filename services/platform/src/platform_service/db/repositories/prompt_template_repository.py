@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.prompt_template import PromptTemplate
 
 
@@ -28,9 +29,11 @@ class PromptTemplateRepository:
         template_id: str,
         *,
         variant_key: str | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> PromptTemplate | None:
         stmt = select(PromptTemplate).where(
             PromptTemplate.template_id == template_id,
+            PromptTemplate.tenant_id == tenant_id,
             self._variant_filter(variant_key),
             PromptTemplate.status == "active",
         )
@@ -69,12 +72,11 @@ class PromptTemplateRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_catalog(self) -> list[PromptTemplate]:
-        stmt = (
-            select(PromptTemplate)
-            .where(PromptTemplate.status == "active")
-            .order_by(PromptTemplate.template_id, PromptTemplate.variant_key.nullsfirst())
-        )
+    async def list_catalog(self, *, tenant_id: int | None = None) -> list[PromptTemplate]:
+        stmt = select(PromptTemplate).where(PromptTemplate.status == "active")
+        if tenant_id is not None:
+            stmt = stmt.where(PromptTemplate.tenant_id == tenant_id)
+        stmt = stmt.order_by(PromptTemplate.template_id, PromptTemplate.variant_key.nullsfirst())
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
@@ -105,6 +107,7 @@ class PromptTemplateRepository:
         description: str | None = None,
         change_notes: str | None = None,
         status: str = "deprecated",
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> PromptTemplate:
         row = PromptTemplate(
             template_id=template_id,
@@ -118,6 +121,7 @@ class PromptTemplateRepository:
             description=description,
             change_notes=change_notes,
             status=status,
+            tenant_id=tenant_id,
         )
         self._session.add(row)
         await self._session.flush()

@@ -34,6 +34,7 @@ from mc_contracts.errors import ErrorCode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.auth.tenant_context import require_selected_tenant_id
 from platform_service.config import get_settings
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
@@ -47,6 +48,7 @@ from platform_service.services.corpus_partitioner import (
     dedup_and_flag_cross_chunk,
     estimate_corpus_tokens,
 )
+from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.ingestion_cardinality import load_batch_for_run, resolve_from_batch
 from platform_service.services.insufficient_source_filter import (
     FilterDecision,
@@ -293,11 +295,20 @@ class StageCOrchestrator:
             if candidates is None:
                 chunks_failed += 1
                 chunk_error = error or {"type": "ChunkIdentifyError", "message": "chunk failed"}
+                technical = chunk_error.get("message", "chunk failed")
+                user_message, built_error = build_step_failure(
+                    error_code=ErrorCode.IDENTIFY_FAILED.value,
+                    reason="identify_chunks_failed",
+                    technical_message=str(technical),
+                    error_type=str(chunk_error.get("type", "ChunkIdentifyError")),
+                    extra={k: v for k, v in chunk_error.items() if k not in {"type", "message", "detail"}}
+                    or None,
+                )
                 await self._run_state.fail_step(
                     step_id,
                     error_code=ErrorCode.IDENTIFY_FAILED.value,
-                    error_message=chunk_error.get("message", "chunk failed"),
-                    error=chunk_error,
+                    error_message=user_message,
+                    error=built_error,
                 )
                 continue
             chunks_succeeded += 1
@@ -366,6 +377,7 @@ class StageCOrchestrator:
                 rationale_summary=cand.get("rationale_summary"),
                 ingestion_instruction_rationale=cand.get("ingestion_instruction_rationale"),
                 source_chunk_ids=lineage or None,
+                tenant_id=require_selected_tenant_id(),
             )
 
         cross_chunk_review_count = sum(1 for c in raw_candidates if c.get("_cross_chunk_review"))

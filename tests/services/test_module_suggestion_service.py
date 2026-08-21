@@ -47,6 +47,7 @@ async def _make_gap(
         domain="rmnch",
         severity_default=severity_default,
         detection_rule_jsonb={},
+        tenant_id=1,
     )
     session.add(gap)
     await session.flush()
@@ -54,7 +55,7 @@ async def _make_gap(
 
 
 async def _make_family(session: AsyncSession) -> ModuleFamily:
-    fam = ModuleFamily(module_code=f"MSF-{uuid4().hex[:8]}")
+    fam = ModuleFamily(module_code=f"MSF-{uuid4().hex[:8]}", tenant_id=1)
     session.add(fam)
     await session.flush()
     return fam
@@ -64,7 +65,7 @@ async def _make_published_module(
     session: AsyncSession,
     *,
     family: ModuleFamily,
-    tenant_id: UUID | None,
+    tenant_id: int | None,
     primary_gap_id: UUID | None = None,
     created_at: datetime | None = None,
     set_family_pointer: bool = True,
@@ -96,7 +97,7 @@ async def _make_published_module(
 async def test_fallback_orders_by_primary_gap_severity_default(
     db_session: AsyncSession,
 ) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     base = datetime.now(UTC) - timedelta(days=10)
     gap_low = await _make_gap(db_session, severity_default="low")
@@ -128,7 +129,7 @@ async def test_fallback_orders_by_primary_gap_severity_default(
 
 
 async def test_fallback_when_no_gap_states(db_session: AsyncSession) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     base = datetime.now(UTC) - timedelta(days=10)
     modules: list[Module] = []
@@ -155,7 +156,7 @@ async def test_fallback_when_no_gap_states(db_session: AsyncSession) -> None:
 async def test_gap_path_orders_by_severity_then_picks_one_module_per_gap(
     db_session: AsyncSession,
 ) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     gap_low = await _make_gap(db_session, severity_default="low")
     gap_high = await _make_gap(db_session, severity_default="high")
@@ -203,7 +204,7 @@ async def test_gap_path_orders_by_severity_then_picks_one_module_per_gap(
 async def test_gap_path_orders_by_severity_default_when_severity_current_uniform(
     db_session: AsyncSession,
 ) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     gap_low = await _make_gap(db_session, severity_default="low")
     gap_high = await _make_gap(db_session, severity_default="high")
@@ -242,7 +243,7 @@ async def test_gap_path_orders_by_severity_default_when_severity_current_uniform
 async def test_fallback_when_gaps_exist_but_no_matching_modules(
     db_session: AsyncSession,
 ) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     gap = await _make_gap(db_session)
     db_session.add(
@@ -272,7 +273,7 @@ async def test_fallback_when_gaps_exist_but_no_matching_modules(
 
 
 async def test_excludes_module_wrong_tenant(db_session: AsyncSession) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     other_tenant = uuid4()
     chw_id = _test_chw_id()
     gap = await _make_gap(db_session)
@@ -313,7 +314,7 @@ async def test_excludes_module_wrong_tenant(db_session: AsyncSession) -> None:
 async def test_prefers_current_published_pointer_over_old_version(
     db_session: AsyncSession,
 ) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     gap = await _make_gap(db_session)
     db_session.add(
@@ -367,7 +368,7 @@ async def test_prefers_current_published_pointer_over_old_version(
 
 
 async def test_caps_at_five_modules(db_session: AsyncSession) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     gap_ids: list[UUID] = []
     for _ in range(6):
@@ -403,7 +404,7 @@ async def test_caps_at_five_modules(db_session: AsyncSession) -> None:
 async def test_module_with_multiple_gaps_matches_either_active_gap(
     db_session: AsyncSession,
 ) -> None:
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     gap_a = await _make_gap(db_session, severity_default="low")
     gap_b = await _make_gap(db_session, severity_default="high")
@@ -453,7 +454,7 @@ async def test_quiz_state_driven_suggestions(
     from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
     from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 
-    tenant_id = uuid4()
+    tenant_id = 1
     chw_id = _test_chw_id()
     fam = await _make_family(db_session)
     mod = await _make_published_module(

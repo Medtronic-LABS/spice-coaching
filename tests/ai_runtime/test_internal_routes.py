@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
@@ -52,6 +53,22 @@ class TestGenerateRoute:
         body = _sample_request().model_dump(mode="json")
         resp = await client.post("/internal/generate/quiz_drafting", json=body)
         assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_missing_token_emits_security_log(
+        self, client: AsyncClient, caplog: pytest.LogCaptureFixture, listen_logger
+    ) -> None:
+        listen_logger("mc.security")
+        body = _sample_request().model_dump(mode="json")
+        with caplog.at_level(logging.WARNING, logger="mc.security"):
+            resp = await client.post("/internal/generate/quiz_drafting", json=body)
+        assert resp.status_code == 401
+        records = [record for record in caplog.records if record.name == "mc.security"]
+        assert len(records) == 1
+        assert records[0].event == "internal_token_denied"
+        blob = f"{records[0].getMessage()} {records[0].__dict__}"
+        assert "X-Internal-Token" not in blob
+        assert get_settings().internal_token not in blob
 
     @pytest.mark.asyncio
     async def test_unknown_generation_type_returns_400(self, client: AsyncClient) -> None:

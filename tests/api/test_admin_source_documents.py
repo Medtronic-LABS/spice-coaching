@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from platform_service.db.models.document_assignment import DocumentAssignment
 from platform_service.db.models.ingestion_run import IngestionRun
 from platform_service.deps import get_object_storage_client
 from sqlalchemy import func, select
@@ -13,6 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.api.conftest import _seed_source_document
 from tests.conftest import platform_path, requires_db
+from tests.helpers.hierarchy_fixtures import (
+    AM_ID,
+    PO_ID,
+    PO_OTHER_ID,
+    SK_ID,
+    SK_OTHER_ID,
+    seed_basic_hierarchy,
+)
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -431,6 +440,25 @@ class TestSourceDocumentMetadata:
         assert row["description"] == "A short blurb"
         assert row["thumbnail_storage_path"] == "medtronics-storage/ingest/thumbnails/x.png"
         assert row["stored_path"] == doc.original_storage_path
+        assert row["duration_ms"] is None
+
+    async def test_list_includes_duration_ms_for_video(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        pdf = await _seed_source_document(db_session, title="pdf-doc")
+        pdf.status = "ingested"
+        video = await _seed_source_document(db_session, title="video-doc", original_filename="clip.mp4")
+        video.status = "ingested"
+        video.source_type = "video"
+        video.duration_ms = 90_000
+        await db_session.commit()
+
+        resp = await client.get(platform_path("/admin/source-documents?source_type=video"))
+        assert resp.status_code == 200
+        rows = resp.json()["source_documents"]
+        assert len(rows) == 1
+        assert rows[0]["title"] == "video-doc"
+        assert rows[0]["duration_ms"] == 90_000
 
     async def test_patch_title_and_description(self, client: AsyncClient, db_session: AsyncSession) -> None:
         doc = await _seed_source_document(db_session, title="old-title")
@@ -513,3 +541,356 @@ class TestSourceDocumentMetadata:
             files={"file": ("thumb.gif", b"GIF89a", "image/gif")},
         )
         assert resp.status_code == 422
+
+
+class TestUploadedDateFilteringAndSorting:
+    async def test_uploaded_date_in_summary(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        doc = await _seed_source_document(db_session, title="summary-test")
+        await db_session.commit()
+
+        resp = await client.get(platform_path("/admin/source-documents"))
+        assert resp.status_code == 200
+        row = next(r for r in resp.json()["source_documents"] if r["id"] == str(doc.id))
+        assert "uploaded_date" in row
+        assert row["uploaded_date"] is not None
+
+    async def test_uploaded_date_range_filter(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        base_time = datetime(2026, 6, 1, 12, 0, 0, tzinfo=UTC)
+        doc1 = await _seed_source_document(db_session, title="doc-june-1")
+        doc1.uploaded_date = base_time
+        doc2 = await _seed_source_document(db_session, title="doc-june-15")
+        doc2.uploaded_date = base_time + timedelta(days=14)
+        doc3 = await _seed_source_document(db_session, title="doc-july-1")
+        doc3.uploaded_date = base_time + timedelta(days=30)
+        await db_session.commit()
+
+        # Filter for June 10 to June 20
+        from_str = (base_time + timedelta(days=9)).isoformat()
+        to_str = (base_time + timedelta(days=19)).isoformat()
+        resp = await client.get(
+            platform_path(f"/admin/source-documents?uploaded_from={from_str}&uploaded_to={to_str}")
+        )
+        assert resp.status_code == 200
+        titles = {row["title"] for row in resp.json()["source_documents"]}
+        assert titles == {"doc-june-15"}
+
+    async def test_uploaded_date_range_invalid(self, client: AsyncClient) -> None:
+        from_str = datetime(2026, 6, 15, tzinfo=UTC).isoformat()
+        to_str = datetime(2026, 6, 1, tzinfo=UTC).isoformat()
+        resp = await client.get(
+            platform_path(f"/admin/source-documents?uploaded_from={from_str}&uploaded_to={to_str}")
+        )
+        assert resp.status_code == 422
+        assert "uploaded_from must be on or before uploaded_to" in resp.json()["detail"]
+
+    async def test_sort_by_uploaded_date(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        t0 = datetime(2026, 1, 1, 10, 0, 0, tzinfo=UTC)
+        d1 = await _seed_source_document(db_session, title="first")
+        d1.uploaded_date = t0
+        d2 = await _seed_source_document(db_session, title="second")
+        d2.uploaded_date = t0 + timedelta(days=1)
+        await db_session.commit()
+
+        resp_asc = await client.get(
+            platform_path("/admin/source-documents?sort_by=uploaded_date&sort_dir=asc")
+        )
+        assert resp_asc.status_code == 200
+        titles_asc = [
+            r["title"] for r in resp_asc.json()["source_documents"] if r["title"] in ("first", "second")
+        ]
+        assert titles_asc == ["first", "second"]
+
+        resp_desc = await client.get(
+            platform_path("/admin/source-documents?sort_by=uploaded_date&sort_dir=desc")
+        )
+        assert resp_desc.status_code == 200
+        titles_desc = [
+            r["title"] for r in resp_desc.json()["source_documents"] if r["title"] in ("first", "second")
+        ]
+        assert titles_desc == ["second", "first"]
+
+
+class TestListSourceDocumentsActorsAndAssigned:
+    async def test_list_includes_actor_and_assigned_fields(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        assigned_doc = await _seed_source_document(db_session, title="assigned-doc")
+        assigned_doc.status = "ingested"
+        assigned_doc.uploaded_by = hierarchy.am_id
+        assigned_doc.updated_by = hierarchy.sk_id
+        assigned_doc.ingested_by = hierarchy.po_id
+        unassigned_doc = await _seed_source_document(db_session, title="unassigned-doc")
+        unassigned_doc.status = "ingested"
+        unassigned_doc.uploaded_by = 999_999  # no matching users row
+        unassigned_doc.ingested_by = 888_888  # no matching users row
+        orphan_id_doc = await _seed_source_document(db_session, title="no-actors")
+        orphan_id_doc.status = "ingested"
+        db_session.add(
+            DocumentAssignment(
+                source_document_id=assigned_doc.id,
+                user_id=hierarchy.sk_id,
+                assigned_by=hierarchy.am_id,
+                tenant_id=1,
+            )
+        )
+        await db_session.commit()
+
+        resp = await client.get(platform_path("/admin/source-documents"))
+        assert resp.status_code == 200
+        by_title = {row["title"]: row for row in resp.json()["source_documents"]}
+
+        assigned_row = by_title["assigned-doc"]
+        assert assigned_row["assigned"] is True
+        assert assigned_row["uploaded_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+        assert assigned_row["updated_by"] == {"id": SK_ID, "name": "Test Shastiya Kormi"}
+        assert assigned_row["ingested_by"] == {"id": PO_ID, "name": "Test PO"}
+
+        unassigned_row = by_title["unassigned-doc"]
+        assert unassigned_row["assigned"] is False
+        assert unassigned_row["uploaded_by"] is None
+        assert unassigned_row["updated_by"] is None
+        assert unassigned_row["ingested_by"] is None
+
+        bare_row = by_title["no-actors"]
+        assert bare_row["assigned"] is False
+        assert bare_row["uploaded_by"] is None
+        assert bare_row["updated_by"] is None
+        assert bare_row["ingested_by"] is None
+
+    async def test_patch_metadata_sets_updated_by(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        doc = await _seed_source_document(db_session, title="patch-me")
+        doc.status = "ingested"
+        await db_session.commit()
+
+        patch = await client.patch(
+            platform_path(f"/admin/source-documents/{doc.id}"),
+            json={"title": "patched-title"},
+            headers={"x-mock-user-id": str(hierarchy.am_id)},
+        )
+        assert patch.status_code == 200
+        assert patch.json()["title"] == "patched-title"
+
+        listed = await client.get(platform_path("/admin/source-documents"))
+        assert listed.status_code == 200
+        row = next(r for r in listed.json()["source_documents"] if r["id"] == str(doc.id))
+        assert row["updated_by"] == {"id": AM_ID, "name": "Test Area Manager"}
+        assert row["assigned"] is False
+
+
+class TestListSourceDocumentsUploadedByAndAssignedFilters:
+    async def _seed_filter_docs(self, db_session: AsyncSession):
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        am_doc = await _seed_source_document(db_session, title="am-uploaded")
+        am_doc.status = "ingested"
+        am_doc.uploaded_by = hierarchy.am_id
+        po_doc = await _seed_source_document(db_session, title="po-uploaded")
+        po_doc.status = "ingested"
+        po_doc.uploaded_by = hierarchy.po_id
+        assigned_doc = await _seed_source_document(db_session, title="assigned-ingested")
+        assigned_doc.status = "ingested"
+        assigned_doc.uploaded_by = hierarchy.am_id
+        uploaded_assigned = await _seed_source_document(db_session, title="assigned-uploaded")
+        uploaded_assigned.status = "uploaded"
+        uploaded_assigned.uploaded_by = hierarchy.po_id
+        bare = await _seed_source_document(db_session, title="no-uploader")
+        bare.status = "ingested"
+        db_session.add(
+            DocumentAssignment(
+                source_document_id=assigned_doc.id,
+                user_id=hierarchy.sk_id,
+                assigned_by=hierarchy.am_id,
+                tenant_id=1,
+            )
+        )
+        db_session.add(
+            DocumentAssignment(
+                source_document_id=uploaded_assigned.id,
+                user_id=hierarchy.sk_id,
+                assigned_by=hierarchy.am_id,
+                tenant_id=1,
+            )
+        )
+        await db_session.commit()
+        return hierarchy
+
+    async def test_uploaded_by_single(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        await self._seed_filter_docs(db_session)
+
+        resp = await client.get(platform_path(f"/admin/source-documents?uploaded_by={AM_ID}"))
+        assert resp.status_code == 200
+        body = resp.json()
+        titles = {row["title"] for row in body["source_documents"]}
+        assert titles == {"am-uploaded", "assigned-ingested"}
+        assert body["total_source_documents"] == 2
+
+    async def test_uploaded_by_multi_csv_and_repeated(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        await self._seed_filter_docs(db_session)
+
+        csv_resp = await client.get(platform_path(f"/admin/source-documents?uploaded_by={AM_ID},{PO_ID}"))
+        assert csv_resp.status_code == 200
+        csv_titles = {row["title"] for row in csv_resp.json()["source_documents"]}
+        assert csv_titles == {
+            "am-uploaded",
+            "po-uploaded",
+            "assigned-ingested",
+            "assigned-uploaded",
+        }
+        assert csv_resp.json()["total_source_documents"] == 4
+
+        repeated = await client.get(
+            platform_path(f"/admin/source-documents?uploaded_by={AM_ID}&uploaded_by={PO_ID}")
+        )
+        assert repeated.status_code == 200
+        assert {row["title"] for row in repeated.json()["source_documents"]} == csv_titles
+
+    async def test_uploaded_by_unknown_returns_empty(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        await self._seed_filter_docs(db_session)
+
+        resp = await client.get(platform_path("/admin/source-documents?uploaded_by=999999"))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["source_documents"] == []
+        assert body["total_source_documents"] == 0
+
+    async def test_uploaded_by_invalid_returns_422(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        resp = await client.get(platform_path("/admin/source-documents?uploaded_by=abc"))
+        assert resp.status_code == 422
+
+    async def test_assigned_true(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        await self._seed_filter_docs(db_session)
+
+        resp = await client.get(platform_path("/admin/source-documents?assigned=true"))
+        assert resp.status_code == 200
+        body = resp.json()
+        titles = {row["title"] for row in body["source_documents"]}
+        assert titles == {"assigned-ingested", "assigned-uploaded"}
+        assert all(row["assigned"] is True for row in body["source_documents"])
+        assert body["total_source_documents"] == 2
+
+    async def test_assigned_false(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        await self._seed_filter_docs(db_session)
+
+        resp = await client.get(platform_path("/admin/source-documents?assigned=false"))
+        assert resp.status_code == 200
+        body = resp.json()
+        titles = {row["title"] for row in body["source_documents"]}
+        assert titles == {"am-uploaded", "po-uploaded", "no-uploader"}
+        assert all(row["assigned"] is False for row in body["source_documents"])
+        assert body["total_source_documents"] == 3
+
+    async def test_assigned_and_status_combine(self, client: AsyncClient, db_session: AsyncSession) -> None:
+        await self._seed_filter_docs(db_session)
+
+        resp = await client.get(platform_path("/admin/source-documents?assigned=true&status=ingested"))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert {row["title"] for row in body["source_documents"]} == {"assigned-ingested"}
+        assert body["total_source_documents"] == 1
+
+
+class TestListSourceDocumentsGeographyFilters:
+    async def _seed_geo_docs(self, db_session: AsyncSession):
+        hierarchy = await seed_basic_hierarchy(db_session, tenant_id=1)
+        sadar_doc = await _seed_source_document(db_session, title="Sadar document")
+        sadar_doc.status = "ingested"
+        aditmari_doc = await _seed_source_document(db_session, title="Aditmari document")
+        aditmari_doc.status = "ingested"
+        unassigned_doc = await _seed_source_document(db_session, title="Unassigned document")
+        unassigned_doc.status = "ingested"
+        db_session.add_all(
+            [
+                DocumentAssignment(
+                    source_document_id=sadar_doc.id,
+                    user_id=SK_ID,
+                    assigned_by=PO_ID,
+                    tenant_id=1,
+                ),
+                DocumentAssignment(
+                    source_document_id=aditmari_doc.id,
+                    user_id=SK_OTHER_ID,
+                    assigned_by=PO_OTHER_ID,
+                    tenant_id=1,
+                ),
+            ]
+        )
+        await db_session.commit()
+        return hierarchy
+
+    async def test_list_geography_assignment_filters(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await self._seed_geo_docs(db_session)
+
+        by_sadar = await client.get(
+            platform_path(f"/admin/source-documents?upazila_id={hierarchy.upazila_id}")
+        )
+        assert by_sadar.status_code == 200
+        sadar_body = by_sadar.json()
+        assert {row["title"] for row in sadar_body["source_documents"]} == {"Sadar document"}
+        assert sadar_body["total_source_documents"] == 1
+
+        by_both = await client.get(
+            platform_path(
+                f"/admin/source-documents?upazila_id={hierarchy.upazila_id}"
+                f"&upazila_id={hierarchy.upazila_other_id}"
+            )
+        )
+        assert by_both.status_code == 200
+        both_body = by_both.json()
+        assert {row["title"] for row in both_body["source_documents"]} == {
+            "Sadar document",
+            "Aditmari document",
+        }
+        assert both_body["total_source_documents"] == 2
+
+        by_and = await client.get(
+            platform_path(
+                f"/admin/source-documents?division_id={hierarchy.division_id}"
+                f"&district_id={hierarchy.district_id}&upazila_id={hierarchy.upazila_other_id}"
+            )
+        )
+        assert by_and.status_code == 200
+        and_body = by_and.json()
+        assert {row["title"] for row in and_body["source_documents"]} == {"Aditmari document"}
+        assert and_body["total_source_documents"] == 1
+
+        by_unknown = await client.get(platform_path("/admin/source-documents?division_id=999999"))
+        assert by_unknown.status_code == 200
+        unknown_body = by_unknown.json()
+        assert unknown_body["source_documents"] == []
+        assert unknown_body["total_source_documents"] == 0
+
+    async def test_list_invalid_geography_id_returns_422(self, client: AsyncClient) -> None:
+        resp = await client.get(platform_path("/admin/source-documents?division_id=abc"))
+        assert resp.status_code == 422
+
+    async def test_geography_and_assigned_combine(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        hierarchy = await self._seed_geo_docs(db_session)
+
+        assigned_true = await client.get(
+            platform_path(f"/admin/source-documents?upazila_id={hierarchy.upazila_id}&assigned=true")
+        )
+        assert assigned_true.status_code == 200
+        true_body = assigned_true.json()
+        assert {row["title"] for row in true_body["source_documents"]} == {"Sadar document"}
+        assert true_body["total_source_documents"] == 1
+
+        assigned_false = await client.get(
+            platform_path(f"/admin/source-documents?upazila_id={hierarchy.upazila_id}&assigned=false")
+        )
+        assert assigned_false.status_code == 200
+        false_body = assigned_false.json()
+        assert false_body["source_documents"] == []
+        assert false_body["total_source_documents"] == 0

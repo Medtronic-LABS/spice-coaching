@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.file_upload import FileUpload
 
 
@@ -21,7 +22,8 @@ class FileUploadRepository:
         content_sha256: str,
         content_type: str | None,
         size_bytes: int,
-        uploaded_by: str | None,
+        uploaded_by: int | None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> FileUpload:
         stmt = (
             insert(FileUpload)
@@ -34,6 +36,7 @@ class FileUploadRepository:
                 content_type=content_type,
                 size_bytes=size_bytes,
                 uploaded_by=uploaded_by,
+                tenant_id=tenant_id,
             )
             .on_conflict_do_update(
                 index_elements=["bucket_name", "object_key"],
@@ -44,6 +47,7 @@ class FileUploadRepository:
                     "content_type": content_type,
                     "size_bytes": size_bytes,
                     "uploaded_by": uploaded_by,
+                    "tenant_id": tenant_id,
                 },
             )
             .returning(FileUpload)

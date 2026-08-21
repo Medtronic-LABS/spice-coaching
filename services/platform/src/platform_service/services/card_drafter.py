@@ -2,7 +2,9 @@
 
 Per Pipeline v3.3 §7. Calls ai-runtime with GenerationType.CARD_DRAFTING and
 parses the response into draft card dicts ready for snippet resolution and
-persistence.
+persistence. When an image catalog is provided, the drafter passes available
+images to the LLM and resolves returned short ids into CardMediaItem JSON on
+each card.
 """
 
 from __future__ import annotations
@@ -23,6 +25,10 @@ from mc_contracts.internal_ai import (
 from platform_service.config import get_settings
 from platform_service.deps import get_ai_client
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
+from platform_service.services.card_image_assigner import (
+    ImageCatalogEntry,
+    resolve_card_image_ids,
+)
 from platform_service.services.card_normalisation import normalise_draft_card
 from platform_service.services.llm_response_resolver import resolve_parsed_dict
 from platform_service.services.prompt_registry import CARD_DRAFTER_TEMPLATE_ID
@@ -70,6 +76,7 @@ class CardDrafter:
         trace_context: TraceContext | None = None,
         card_min_count: int | None = None,
         card_max_count: int | None = None,
+        image_catalog: list[ImageCatalogEntry] | None = None,
     ) -> CardDrafterResult:
         """Run the card drafter for one candidate.
 
@@ -81,6 +88,7 @@ class CardDrafter:
         module_type = candidate.get("proposed_module_type", "refresher")
         resolved_card_min = card_min_count if card_min_count is not None else settings.card_min_count
         resolved_card_max = card_max_count if card_max_count is not None else settings.card_max_count
+        effective_catalog = image_catalog or []
 
         rendered = await PromptTemplateService().render(
             None,
@@ -94,6 +102,8 @@ class CardDrafter:
                 cited_blocks=cited_blocks,
                 deployment_primary_locale=settings.deployment_primary_locale,
                 deployment_region_context=settings.deployment_region_context,
+                image_catalog=effective_catalog,
+                max_images_per_card=max(1, int(settings.ingest_card_image_max_per_card)),
             ),
         )
 
@@ -133,6 +143,8 @@ class CardDrafter:
             raise CardDrafterError("LLM output missing 'cards' list")
 
         # Normalize + validate each card.
+        catalog_by_short_id = {e.short_id: e for e in effective_catalog}
+        max_images_per_card = max(1, int(settings.ingest_card_image_max_per_card))
         cards: list[dict[str, Any]] = []
         for raw_card in cards_raw:
             if not isinstance(raw_card, dict):
@@ -142,8 +154,20 @@ class CardDrafter:
                 module_type=module_type,
                 valid_block_ids=valid_block_ids,
             )
-            if normalised is not None:
-                cards.append(normalised)
+            if normalised is None:
+                continue
+            # Resolve LLM-supplied short image ids into CardMediaItem dicts.
+            if catalog_by_short_id:
+                media = resolve_card_image_ids(
+                    normalised,
+                    catalog_by_short_id=catalog_by_short_id,
+                    max_per_card=max_images_per_card,
+                )
+                if media:
+                    normalised["media"] = media
+            # Strip the short-id field so it never reaches persist.
+            normalised.pop("source_image_ids", None)
+            cards.append(normalised)
 
         # Cap at max — preserves the count guidance for the LLM but lets
         # us truncate long outputs gracefully.

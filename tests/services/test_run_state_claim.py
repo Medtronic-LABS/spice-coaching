@@ -24,6 +24,7 @@ async def _seed_source(session: AsyncSession) -> SourceDocument:
         source_type="pdf",
         original_storage_path="bucket/key.pdf",
         status="uploaded",
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()

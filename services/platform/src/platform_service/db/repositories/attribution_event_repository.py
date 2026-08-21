@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.attribution_event import AttributionEvent
 
 
@@ -20,6 +21,7 @@ class AttributionEventRepository:
         source_document_id: UUID | None = None,
         module_id: UUID | None = None,
         payload: dict[str, Any] | None = None,
+        tenant_id: int = DEFAULT_TENANT_ID,
     ) -> AttributionEvent:
         row = AttributionEvent(
             event_type=event_type,
@@ -27,6 +29,7 @@ class AttributionEventRepository:
             source_document_id=source_document_id,
             module_id=module_id,
             payload_jsonb=payload,
+            tenant_id=tenant_id,
         )
         self._session.add(row)
         # Scope the flush to the audit row only. Without ``objects=[row]``,

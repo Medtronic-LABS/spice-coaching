@@ -10,13 +10,15 @@ import logging
 from typing import Any
 from uuid import UUID
 
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.db.repositories.video_progress_repository import VideoProgressRepository
 from platform_service.services.module_completion.telemetry_parsing import (
-    coerce_tenant_uuid,
+    coerce_tenant_id,
     parse_chw_id,
     parse_uuid,
 )
+from platform_service.workers.tenant_binding import payload_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -123,24 +125,25 @@ async def process_video_progress_event_job(payload: dict[str, Any]) -> None:
         return
 
     completed = _parse_completed(payload)
-    tenant_id = coerce_tenant_uuid(payload.get("tenant_id"))
+    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
 
-    async with SessionLocal() as session:
-        row = await VideoProgressRepository(session).upsert(
-            chw_id=chw_id,
-            source_document_id=source_document_id,
-            last_position_ms=last_position_ms,
-            percent_watched=percent_watched,
-            completed=completed,
-            tenant_id=tenant_id,
-        )
-        await session.commit()
-        logger.info(
-            "video_progress_event_worker upserted event_id=%s chw_id=%s "
-            "source_document_id=%s percent_watched=%s completed=%s",
-            event_id,
-            chw_id,
-            source_document_id,
-            row.percent_watched,
-            row.completed,
-        )
+    with using_selected_tenant(payload_tenant_id(payload)):
+        async with SessionLocal() as session:
+            row = await VideoProgressRepository(session).upsert(
+                chw_id=chw_id,
+                source_document_id=source_document_id,
+                last_position_ms=last_position_ms,
+                percent_watched=percent_watched,
+                completed=completed,
+                tenant_id=tenant_id,
+            )
+            await session.commit()
+            logger.info(
+                "video_progress_event_worker upserted event_id=%s chw_id=%s "
+                "source_document_id=%s percent_watched=%s completed=%s",
+                event_id,
+                chw_id,
+                source_document_id,
+                row.percent_watched,
+                row.completed,
+            )

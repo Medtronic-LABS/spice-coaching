@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Enqueue embedding regeneration for all published modules.
 
-Mirrors POST /admin/modules/{id}/regenerate-embedding: each module is handed
-off to the ``platform.generate_module_embedding`` Celery task, which reads
-``module_json``, calls ai-runtime ``/embed``, and writes ``module.embedding``.
+Each module is handed off to the ``platform.generate_module_embedding`` Celery
+task, which reads ``module_json``, calls ai-runtime ``/embed``, and writes
+``module.embedding``.
 
 Prerequisites (same env as platform service):
 

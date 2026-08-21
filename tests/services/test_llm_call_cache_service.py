@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -123,7 +124,7 @@ def _make_response(request: InferenceRequest, *, raw: str = "out") -> InferenceR
 @pytest.mark.asyncio
 @requires_db
 async def test_put_then_get_round_trips(db_session: AsyncSession) -> None:
-    svc = LlmCallCacheService(db_session)
+    svc = LlmCallCacheService()
     h = f"hash-{uuid4().hex}"
     row = await svc.put(
         input_hash=h,
@@ -140,7 +141,7 @@ async def test_put_then_get_round_trips(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 @requires_db
 async def test_get_unknown_hash_returns_none(db_session: AsyncSession) -> None:
-    svc = LlmCallCacheService(db_session)
+    svc = LlmCallCacheService()
     assert await svc.get(f"missing-{uuid4().hex}") is None
 
 
@@ -155,7 +156,7 @@ async def test_caching_client_first_call_misses_then_caches(db_session: AsyncSes
     inner = AsyncMock()
     request = _make_request(prompt_text=f"unique-{uuid4().hex}")
     inner.generate.return_value = _make_response(request)
-    cli = CachingAIRuntimeClient(session=db_session, inner=inner)
+    cli = CachingAIRuntimeClient(inner=inner)
 
     resp1 = await cli.generate(request)
     assert resp1.raw_text == "out"
@@ -169,10 +170,35 @@ async def test_caching_client_first_call_misses_then_caches(db_session: AsyncSes
 
 @pytest.mark.asyncio
 @requires_db
+async def test_caching_client_isolates_tenants(db_session: AsyncSession) -> None:
+    """Same prompt hash under different ContextVar tenants must not share cache hits."""
+    from platform_service.auth.tenant_context import using_selected_tenant
+
+    inner = AsyncMock()
+    request = _make_request(prompt_text=f"tenant-iso-{uuid4().hex}")
+    inner.generate.side_effect = lambda req: _make_response(req, raw=f"t{inner.generate.call_count}")
+    cli = CachingAIRuntimeClient(inner=inner)
+
+    with using_selected_tenant(11):
+        resp_a = await cli.generate(request)
+    with using_selected_tenant(22):
+        resp_b = await cli.generate(request)
+
+    assert inner.generate.call_count == 2
+    assert resp_a.raw_text != resp_b.raw_text
+
+    with using_selected_tenant(11):
+        resp_a2 = await cli.generate(request)
+    assert resp_a2.raw_text == resp_a.raw_text
+    assert inner.generate.call_count == 2
+
+
+@pytest.mark.asyncio
+@requires_db
 async def test_caching_client_different_inputs_both_hit_inner(db_session: AsyncSession) -> None:
     inner = AsyncMock()
     inner.generate.side_effect = lambda req: _make_response(req, raw=req.prompt.resolved_human_message)
-    cli = CachingAIRuntimeClient(session=db_session, inner=inner)
+    cli = CachingAIRuntimeClient(inner=inner)
 
     r_a = _make_request(prompt_text=f"alpha-{uuid4().hex}")
     r_b = _make_request(prompt_text=f"beta-{uuid4().hex}")
@@ -201,7 +227,7 @@ async def test_caching_client_does_not_store_error_responses(db_session: AsyncSe
         latency_ms=1,
         error="quota exceeded",
     )
-    cli = CachingAIRuntimeClient(session=db_session, inner=inner)
+    cli = CachingAIRuntimeClient(inner=inner)
 
     resp = await cli.generate(request)
     assert resp.error == "quota exceeded"
@@ -223,10 +249,10 @@ async def test_caching_client_skips_hit_when_cached_row_has_error(
     request = _make_request(prompt_text=f"legacy-err-{uuid4().hex}")
     ok_response = _make_response(request, raw="recovered")
     inner.generate.return_value = ok_response
-    cli = CachingAIRuntimeClient(session=db_session, inner=inner)
+    cli = CachingAIRuntimeClient(inner=inner)
 
     input_hash = compute_input_hash(request)
-    svc = LlmCallCacheService(db_session)
+    svc = LlmCallCacheService()
     await svc.put(
         input_hash=input_hash,
         model="gemini-2.5-flash",
@@ -252,7 +278,7 @@ async def test_caching_client_skips_hit_when_cached_row_has_error(
 async def test_caching_client_embed_bypasses_cache(db_session: AsyncSession) -> None:
     inner = AsyncMock()
     inner.embed.return_value = [[0.1, 0.2]]
-    cli = CachingAIRuntimeClient(session=db_session, inner=inner)
+    cli = CachingAIRuntimeClient(inner=inner)
     out = await cli.embed(["a"])
     assert out == [[0.1, 0.2]]
     inner.embed.assert_called_once_with(["a"])
@@ -276,57 +302,80 @@ def test_hash_independent_of_image_label() -> None:
     assert compute_input_hash(r1) == compute_input_hash(r2)
 
 
-@pytest.mark.asyncio
-async def test_put_uses_own_session_not_orchestrators(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """LlmCallCacheService.put MUST write through SessionLocal (its own
-    short-lived session), not the orchestrator session it was constructed
-    with. This is what makes the cache survive rollbacks of the
-    orchestrator-side transaction (see the smoke-loop bug).
+class _SessionLocalCtx:
+    """Async context manager that yields a mocked SessionLocal session."""
 
-    Spy on a fake "orchestrator session" and ensure no add/commit/flush
-    methods are called on it; the writes go to the SessionLocal-derived
-    session instead.
-    """
-    orch_session = MagicMock(name="orchestrator_session")
-    orch_session.add = MagicMock()
-    orch_session.flush = AsyncMock()
-    orch_session.commit = AsyncMock()
-    orch_session.rollback = AsyncMock()
+    def __init__(self, session: MagicMock) -> None:
+        self._session = session
 
+    async def __aenter__(self) -> MagicMock:
+        return self._session
+
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> bool:
+        return False
+
+
+def _own_session_mock() -> MagicMock:
     own_session = MagicMock(name="own_session")
     own_session.add = MagicMock()
     own_session.commit = AsyncMock()
     own_session.rollback = AsyncMock()
     own_session.execute = AsyncMock()
+    own_session.expunge = MagicMock()
+    return own_session
 
-    class _Ctx:
-        async def __aenter__(self):
-            return own_session
 
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
+@pytest.mark.asyncio
+async def test_put_uses_own_session_not_orchestrators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LlmCallCacheService.put MUST write through SessionLocal (its own
+    short-lived session). This is what makes the cache survive rollbacks of
+    the orchestrator-side transaction (see the smoke-loop bug).
+    """
+    own_session = _own_session_mock()
     monkeypatch.setattr(
         "platform_service.services.llm_call_cache_service.SessionLocal",
-        lambda: _Ctx(),
+        lambda: _SessionLocalCtx(own_session),
     )
 
-    svc = LlmCallCacheService(orch_session)
+    svc = LlmCallCacheService()
     await svc.put(
         input_hash=f"hash-{uuid4().hex}",
         model="gemini-2.5-flash",
         response_jsonb={"raw_text": "x"},
     )
 
-    # Orchestrator session was never touched by the write path.
-    orch_session.add.assert_not_called()
-    orch_session.flush.assert_not_called()
-    orch_session.commit.assert_not_called()
-    # Own session received exactly one add + one commit.
     own_session.add.assert_called_once()
     own_session.commit.assert_awaited_once()
+    own_session.expunge.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_uses_own_session_not_orchestrators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LlmCallCacheService.get MUST read through SessionLocal so concurrent
+    Stage C identify chunks do not share the orchestrator AsyncSession.
+    """
+    cached_row = MagicMock(name="cached_row")
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = cached_row
+
+    own_session = _own_session_mock()
+    own_session.execute.return_value = result
+    monkeypatch.setattr(
+        "platform_service.services.llm_call_cache_service.SessionLocal",
+        lambda: _SessionLocalCtx(own_session),
+    )
+
+    svc = LlmCallCacheService()
+    fetched = await svc.get("hash-abc")
+
+    assert fetched is cached_row
+    own_session.execute.assert_awaited_once()
+    own_session.expunge.assert_called_once_with(cached_row)
+    own_session.commit.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -345,8 +394,7 @@ async def test_cache_row_survives_orchestrator_rollback(
     """
     unique_hash = f"survive-rollback-{uuid4().hex}"
 
-    # `db_session` plays the role of the orchestrator's session.
-    svc = LlmCallCacheService(db_session)
+    svc = LlmCallCacheService()
     await svc.put(
         input_hash=unique_hash,
         model="gemini-2.5-flash",
@@ -366,3 +414,27 @@ async def test_cache_row_survives_orchestrator_rollback(
     )
     assert row.model == "gemini-2.5-flash"
     assert row.response_jsonb == {"raw_text": "I should outlive a rollback"}
+
+
+@pytest.mark.asyncio
+@requires_db
+async def test_caching_client_concurrent_generate_does_not_share_session(
+    db_session: AsyncSession,
+) -> None:
+    """Stage C identify gathers concurrent generate() calls. Cache reads must
+    not share one AsyncSession or SQLAlchemy raises InvalidRequestError
+    (session is provisioning a new connection).
+    """
+    inner = AsyncMock()
+
+    async def slow_generate(req: InferenceRequest) -> InferenceResponse:
+        await asyncio.sleep(0.05)
+        return _make_response(req, raw=req.prompt.resolved_human_message)
+
+    inner.generate.side_effect = slow_generate
+    cli = CachingAIRuntimeClient(inner=inner)
+    reqs = [_make_request(prompt_text=f"c-{i}-{uuid4().hex}") for i in range(4)]
+    results = await asyncio.gather(*[cli.generate(r) for r in reqs])
+    assert len(results) == 4
+    assert inner.generate.call_count == 4
+    assert {r.raw_text for r in results} == {req.prompt.resolved_human_message for req in reqs}

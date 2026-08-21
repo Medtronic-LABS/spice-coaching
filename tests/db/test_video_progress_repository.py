@@ -23,6 +23,7 @@ async def _seed_video(session: AsyncSession) -> SourceDocument:
         original_storage_path=f"medtronics-storage/ingest/{uuid4()}.mp4",
         original_filename="clip.mp4",
         status="ingested",
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()

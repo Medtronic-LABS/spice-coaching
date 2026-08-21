@@ -8,6 +8,10 @@ from typing import Any
 from mc_foundation.locale import locale_display_name
 
 from platform_service.config import get_settings
+from platform_service.services.card_image_assigner import (
+    ImageCatalogEntry,
+    render_catalog_for_prompt,
+)
 from platform_service.services.prompts.card_drafter_prompt import (
     _CONTENT_UPDATE_RULES,
     _DIGITAL_PROFICIENCY_RULES,
@@ -73,6 +77,17 @@ def _module_type_rules_for(module_type: str, *, primary_locale: str) -> str:
     return _REFRESHER_RULES
 
 
+def _image_assignment_rules(max_images_per_card: int) -> str:
+    return (
+        f"IMAGES (only when an ## AVAILABLE IMAGES ## section appears below):\n"
+        f"- Attach relevant images to each card via "
+        f'`"source_image_ids": ["img_N", ...]` using ONLY ids from the catalog.\n'
+        f"- Maximum {max_images_per_card} image(s) per card. Omit the field when none are relevant.\n"
+        f"- The same image id may appear on more than one card.\n"
+        f"- Do NOT embed image markdown in body text."
+    )
+
+
 def build_card_drafter_variables(
     *,
     module_type: str,
@@ -82,6 +97,8 @@ def build_card_drafter_variables(
     cited_blocks: list[dict[str, Any]],
     deployment_primary_locale: str | None = None,
     deployment_region_context: str | None = None,
+    image_catalog: list[ImageCatalogEntry] | None = None,
+    max_images_per_card: int = 5,
 ) -> dict[str, str]:
     settings = get_settings()
     primary_locale = deployment_primary_locale or settings.deployment_primary_locale
@@ -154,4 +171,6 @@ def build_card_drafter_variables(
         "body_field_schema": _body_field_schema_for(module_type, primary_locale=primary_locale),
         "head_json": head_json,
         "cited_blocks_body": "\n".join(body_lines),
+        "available_images_body": render_catalog_for_prompt(image_catalog or []),
+        "image_assignment_rules": _image_assignment_rules(max_images_per_card),
     }

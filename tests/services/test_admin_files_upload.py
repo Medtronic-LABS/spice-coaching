@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from mc_foundation.problem import AppError
-from platform_service.api.admin_files import _stream_uploadfile_to_path_capped
+from platform_service.api.files import _stream_uploadfile_to_path_capped
 
 
 class _FakeUpload:

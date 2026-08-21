@@ -20,6 +20,7 @@ from platform_service.db.repositories.module_write_repository import ModuleWrite
 from platform_service.services.card_normalisation import card_row_to_dict
 from platform_service.services.card_search_metadata_generator import CardSearchMetadataGenerator
 from platform_service.services.post_publish_step import finish_post_publish_step
+from platform_service.workers.tenant_binding import with_module_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,7 @@ async def _complete_card_step(
     )
 
 
+@with_module_tenant
 async def generate_card_search_metadata_batch(
     module_id: UUID,
     *,

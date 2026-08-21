@@ -10,9 +10,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class CHWGapTelemetryEvent(Base):
+class CHWGapTelemetryEvent(TenantMixin, Base):
     """One row per telemetry event that mutates ``chw_behavioural_gap_state``.
 
     Primary key ``event_id`` prevents duplicate gap observations when Redis
@@ -25,4 +26,3 @@ class CHWGapTelemetryEvent(Base):
     chw_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

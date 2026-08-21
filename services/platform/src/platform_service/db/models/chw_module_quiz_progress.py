@@ -17,9 +17,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class CHWModuleQuizProgress(Base):
+class CHWModuleQuizProgress(TenantMixin, Base):
     __tablename__ = "chw_module_quiz_progress"
     __table_args__ = (
         PrimaryKeyConstraint(
@@ -48,4 +49,3 @@ class CHWModuleQuizProgress(Base):
         nullable=False,
         server_default=func.now(),
     )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

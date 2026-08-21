@@ -17,11 +17,7 @@ def _batch(
     cards: int | None = None,
     quizzes: int | None = None,
 ) -> IngestBatch:
-    return IngestBatch(
-        status="queued",
-        cards_per_module=cards,
-        quizzes_per_module=quizzes,
-    )
+    return IngestBatch(status="queued", cards_per_module=cards, quizzes_per_module=quizzes, tenant_id=1)
 
 
 class TestResolveFromBatch:

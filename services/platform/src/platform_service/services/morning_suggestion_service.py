@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from mc_contracts.morning import MorningCardsResponse, MorningModuleSuggestionItem
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +24,7 @@ class MorningSuggestionService:
         self,
         *,
         chw_id: int | None,
-        tenant_id: UUID,
+        tenant_id: int,
     ) -> MorningCardsResponse:
         if chw_id is None:
             mods = await self._modules.list_recent_published_one_per_family(tenant_id=tenant_id, limit=5)

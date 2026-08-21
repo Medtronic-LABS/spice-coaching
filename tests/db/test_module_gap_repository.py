@@ -24,10 +24,7 @@ pytestmark = [requires_db, pytest.mark.asyncio]
 async def _make_gap(session: AsyncSession) -> BehaviouralGap:
     code = f"gap_{uuid4().hex[:8]}"
     gap = BehaviouralGap(
-        gap_code=code,
-        description=code,
-        domain="rmnch",
-        detection_rule_jsonb={},
+        gap_code=code, description=code, domain="rmnch", detection_rule_jsonb={}, tenant_id=1
     )
     session.add(gap)
     await session.flush()
@@ -35,7 +32,7 @@ async def _make_gap(session: AsyncSession) -> BehaviouralGap:
 
 
 async def _make_module(session: AsyncSession) -> Module:
-    fam = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}")
+    fam = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}", tenant_id=1)
     session.add(fam)
     await session.flush()
     mod = Module(
@@ -46,6 +43,7 @@ async def _make_module(session: AsyncSession) -> Module:
         module_type="refresher",
         lifecycle_status="published",
         module_json={"cards": [{"title": {"bn": "c"}}]},
+        tenant_id=1,
     )
     session.add(mod)
     await session.flush()

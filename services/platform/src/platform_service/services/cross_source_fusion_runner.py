@@ -50,6 +50,7 @@ from platform_service.services.cross_source_fuser import CrossSourceFuser, Cross
 from platform_service.services.fusion_candidate_loader import load_fusion_candidates
 from platform_service.services.fusion_draft_orchestrator import FusionDraftOrchestrator
 from platform_service.services.fusion_retire_policy import FusionRetirePolicy
+from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.ingestion_cardinality import load_batch_for_run, resolve_from_batch
 from platform_service.services.run_state_service import (
     RUN_FAILED,
@@ -96,9 +97,7 @@ class CrossSourceFusionRunner:
         self._session = session
         self._fuser = fuser or CrossSourceFuser()
         self._stage_d = stage_d
-        self._draft_orchestrator = draft_orchestrator or (
-            FusionDraftOrchestrator(session, stage_d) if session is not None and stage_d is not None else None
-        )
+        self._draft_orchestrator = draft_orchestrator
         self._retire_policy = retire_policy
 
     @classmethod
@@ -158,11 +157,15 @@ class CrossSourceFusionRunner:
             logger.exception("Stage 2b fuser failed for fusion_run %s", fusion_run_id)
             async with SessionLocal() as session:
                 run_state = RunStateService(session)
+                user_message, error = build_step_failure(
+                    error_code=ErrorCode.FUSION_FAILED.value,
+                    exc=exc,
+                )
                 await run_state.fail_step(
                     fuse_step_id,
                     error_code=ErrorCode.FUSION_FAILED.value,
-                    error_message=str(exc)[:500],
-                    error={"type": type(exc).__name__, "message": str(exc)[:500]},
+                    error_message=user_message,
+                    error=error,
                 )
                 await run_state.complete_run(fusion_run_id, status=RUN_FAILED)
                 await session.commit()
@@ -200,11 +203,15 @@ class CrossSourceFusionRunner:
         except Exception as exc:
             logger.exception("Stage 2b fuser failed for fusion_run %s", fusion_run_id)
             run_state = RunStateService(session)
+            user_message, error = build_step_failure(
+                error_code=ErrorCode.FUSION_FAILED.value,
+                exc=exc,
+            )
             await run_state.fail_step(
                 fuse_step_id,
                 error_code=ErrorCode.FUSION_FAILED.value,
-                error_message=str(exc)[:500],
-                error={"type": type(exc).__name__, "message": str(exc)[:500]},
+                error_message=user_message,
+                error=error,
             )
             await run_state.complete_run(fusion_run_id, status=RUN_FAILED)
             await session.commit()
@@ -420,13 +427,6 @@ class CrossSourceFusionRunner:
         expected_sources: set[str],
     ) -> tuple[UUID | None, int, str | None, bool, dict[str, Any]]:
         """Run one LLM-bound fused draft in a fresh DB session."""
-        if self._session is not None and self._draft_orchestrator is not None:
-            return await self._draft_fused_candidate_bound(
-                fusion_run_id=fusion_run_id,
-                fc_id=fc_id,
-                group=group,
-                expected_sources=expected_sources,
-            )
         async with SessionLocal() as draft_session:
             run_state = RunStateService(draft_session)
             draft_orchestrator = FusionDraftOrchestrator(
@@ -461,66 +461,24 @@ class CrossSourceFusionRunner:
             if module_id is not None:
                 await run_state.complete_step(draft_step_id, output_summary=draft_summary)
             else:
-                await run_state.fail_step(
-                    draft_step_id,
+                technical = reason or "draft_failed"
+                user_message, error = build_step_failure(
                     error_code=ErrorCode.DRAFT_FAILED.value,
-                    error_message=reason or "draft_failed",
-                    error={
+                    reason="draft_failed",
+                    technical_message=technical,
+                    extra={
                         "candidate_id": str(fc_id),
                         "insufficient_reason": reason or "draft_failed",
                     },
                 )
+                await run_state.fail_step(
+                    draft_step_id,
+                    error_code=ErrorCode.DRAFT_FAILED.value,
+                    error_message=user_message,
+                    error=error,
+                )
             await draft_session.commit()
             return module_id, cards_count, reason, coverage_ok, draft_summary
-
-    async def _draft_fused_candidate_bound(
-        self,
-        *,
-        fusion_run_id: UUID,
-        fc_id: UUID,
-        group: FusionGroup,
-        expected_sources: set[str],
-    ) -> tuple[UUID | None, int, str | None, bool, dict[str, Any]]:
-        """Draft through injected collaborators when a session is bound."""
-        session = self._session
-        assert session is not None
-        draft_orchestrator = self._draft_orchestrator
-        assert draft_orchestrator is not None
-        run_state = RunStateService(session)
-        draft_step = await run_state.start_step(
-            run_id=fusion_run_id,
-            stage=STAGE_CARD_DRAFT,
-            input_summary={
-                "candidate_id": str(fc_id),
-                "fusion": True,
-                "merged_title": group.merged_title,
-            },
-        )
-        await session.commit()
-        module_id, cards_count, reason, coverage_ok = await draft_orchestrator.draft_with_coverage(
-            fc_id,
-            expected_sources,
-            step_id=draft_step.id,
-        )
-        draft_summary = {
-            "candidate_id": str(fc_id),
-            "module_id": str(module_id) if module_id else None,
-            "cards_count": cards_count,
-            "merged_title": group.merged_title,
-            "insufficient_reason": reason,
-            "cross_source_coverage_ok": coverage_ok,
-        }
-        if module_id is not None:
-            await run_state.complete_step(draft_step.id, output_summary=draft_summary)
-        else:
-            await run_state.fail_step(
-                draft_step.id,
-                error_code=ErrorCode.DRAFT_FAILED.value,
-                error_message=reason or "draft_failed",
-                error={"candidate_id": str(fc_id), "insufficient_reason": reason or "draft_failed"},
-            )
-        await session.commit()
-        return module_id, cards_count, reason, coverage_ok, draft_summary
 
     async def _load_candidates(
         self,

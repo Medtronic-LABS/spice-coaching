@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID
 
-from mc_contracts.module_attachments import (
+from mc_contracts.modules import (
     ModuleAttachmentFileRef,
     ModuleAttachmentYoutubeRef,
     ModuleMediaKind,

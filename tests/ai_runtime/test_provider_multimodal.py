@@ -202,6 +202,70 @@ class TestGoogleProviderMultimodal:
         assert "THIS_IS_SYSTEM" not in kwargs["contents"]
 
 
+# ── transcribe_media() ─────────────────────────────────────────────────
+
+
+class TestGoogleProviderTranscribe:
+    @pytest.mark.asyncio
+    async def test_transcribe_normalizes_audio_mpeg_to_mp3(self) -> None:
+        client = _make_mock_client(raw_text=" hello transcript ")
+        provider = GoogleProvider(client=client)
+
+        text = await provider.transcribe_media(
+            media_bytes=b"mp3-bytes",
+            mime_type="audio/mpeg",
+            model="gemini-2.5-flash",
+        )
+
+        assert text == "hello transcript"
+        kwargs = client.aio.models.generate_content.call_args.kwargs
+        assert kwargs["model"] == "gemini-2.5-flash"
+        contents = kwargs["contents"]
+        assert contents[0] == "Provide only the transcript text."
+        assert isinstance(contents[1], types.Part)
+        assert contents[1].inline_data is not None
+        assert contents[1].inline_data.mime_type == "audio/mp3"
+        assert contents[1].inline_data.data == b"mp3-bytes"
+        cfg = kwargs["config"]
+        assert isinstance(cfg, types.GenerateContentConfig)
+        assert cfg.response_mime_type == "text/plain"
+        assert cfg.temperature == 0.0
+
+    @pytest.mark.asyncio
+    async def test_transcribe_normalizes_x_wav_to_wav(self) -> None:
+        client = _make_mock_client(raw_text="wav transcript")
+        provider = GoogleProvider(client=client)
+
+        await provider.transcribe_media(
+            media_bytes=b"wav-bytes",
+            mime_type="audio/x-wav",
+            model="gemini-2.5-flash",
+        )
+
+        part = client.aio.models.generate_content.call_args.kwargs["contents"][1]
+        assert part.inline_data.mime_type == "audio/wav"
+
+    @pytest.mark.asyncio
+    async def test_transcribe_keeps_canonical_audio_mp3(self) -> None:
+        client = _make_mock_client(raw_text="ok")
+        provider = GoogleProvider(client=client)
+
+        await provider.transcribe_media(
+            media_bytes=b"mp3-bytes",
+            mime_type="audio/mp3",
+            model="gemini-2.5-flash",
+        )
+
+        part = client.aio.models.generate_content.call_args.kwargs["contents"][1]
+        assert part.inline_data.mime_type == "audio/mp3"
+
+    @pytest.mark.asyncio
+    async def test_transcribe_rejects_empty_payload(self) -> None:
+        provider = GoogleProvider(client=_make_mock_client())
+        with pytest.raises(ValueError, match="empty"):
+            await provider.transcribe_media(b"", "audio/mp3", model="gemini-2.5-flash")
+
+
 # ── embed() ─────────────────────────────────────────────────────────────
 
 

@@ -10,16 +10,18 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class PromptTemplate(Base):
+class PromptTemplate(TenantMixin, Base):
     __tablename__ = "prompt_template"
     __table_args__ = (
         UniqueConstraint(
+            "tenant_id",
             "template_id",
             "variant_key",
             "version",
-            name="uq_prompt_template_id_variant_version",
+            name="uq_prompt_template_tenant_id_variant_version",
         ),
     )
 

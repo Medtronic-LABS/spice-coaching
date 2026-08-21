@@ -8,12 +8,20 @@ The platform is **language-agnostic at the schema level**: content is stored as 
 |----------|---------|-------------|
 | `DEPLOYMENT_PRIMARY_LOCALE` | `bn` | CHW-facing locale (ISO 639-1 short code) |
 | `DEPLOYMENT_REGION_CONTEXT` | `rural Bangladesh` | Geographic/persona context injected into LLM prompts |
+| `DEPLOYMENT_ADDITIONAL_LOCALES` | *(empty)* | Comma-separated locale codes allowed for `POST /coaching/rag-query` `response_language` beyond primary (e.g. `en,hi`). Does not change synced content keys — modules/cards remain primary-locale keyed. Codes must be registered in `LOCALE_REGISTRY`. |
 
 Example Hindi deployment:
 
 ```bash
 DEPLOYMENT_PRIMARY_LOCALE=hi
 DEPLOYMENT_REGION_CONTEXT=rural India
+```
+
+Example Bangla-primary deployment with English RAG answers:
+
+```bash
+DEPLOYMENT_PRIMARY_LOCALE=bn
+DEPLOYMENT_ADDITIONAL_LOCALES=en
 ```
 
 ## Content model

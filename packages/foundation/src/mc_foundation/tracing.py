@@ -14,7 +14,7 @@ def new_request_id() -> str:
 
 
 def log_request_start(request_id: str, service: str, endpoint: str) -> None:
-    logger.info("request_start", extra={"request_id": request_id, "service": service, "endpoint": endpoint})
+    logger.debug("request_start", extra={"request_id": request_id, "service": service, "endpoint": endpoint})
 
 
 def log_request_end(
@@ -24,7 +24,7 @@ def log_request_end(
     status: int,
     latency_ms: int,
 ) -> None:
-    logger.info(
+    logger.debug(
         "request_end",
         extra={
             "request_id": request_id,

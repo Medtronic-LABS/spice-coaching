@@ -20,7 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from platform_service.clickhouse.client import ClickHouseClient
 from platform_service.config import Settings, get_settings
 from platform_service.db.models.module import Module
-from platform_service.db.models.module_creation_suggestion import ModuleCreationSuggestion
+from platform_service.db.models.module_creation_suggestion import (
+    ModuleCreationSuggestion,
+    ModuleCreationSuggestionEvidence,
+)
 from platform_service.db.repositories.module_creation_suggestion_repository import (
     EvidenceRow,
     ModuleCreationSuggestionRepository,
@@ -29,6 +32,11 @@ from platform_service.db.repositories.module_creation_suggestion_repository impo
 from platform_service.db.repositories.training_request_repository import TrainingRequestRepository
 from platform_service.deps import get_ai_client, get_clickhouse_client
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
+from platform_service.services.dashboard_hierarchy import (
+    OrgUser,
+    dashboard_user_summary,
+    org_user_index,
+)
 from platform_service.services.module_creation_suggestion_classifier import (
     ClassifiedSuggestion,
     DraftCatalogItem,
@@ -82,11 +90,9 @@ class ModuleCreationSuggestionService:
             settings=self._settings,
         )
 
-    async def list_scopes(self) -> list[UUID | None]:
-        """Scopes to process: global (None) plus each active tenant (training-request tenants)."""
-        scopes: list[UUID | None] = [None]
-        scopes.extend(await self._requests.distinct_tenant_ids())
-        # Also include tenants that had unattributed evidence yesterday.
+    async def list_scopes(self) -> list[int]:
+        """Scopes to process: each tenant with training requests or yesterday's evidence."""
+        scopes: list[int] = list(await self._requests.distinct_tenant_ids())
         yesterday = datetime.now(UTC).date() - timedelta(days=1)
         for tid in await self._aggregator.list_tenant_ids_for_day(event_date=yesterday):
             if tid not in scopes:
@@ -96,7 +102,7 @@ class ModuleCreationSuggestionService:
     async def refresh_for_day(
         self,
         *,
-        tenant_id: UUID | None,
+        tenant_id: int,
         suggestion_date: date | None = None,
     ) -> int:
         """Classify and replace suggestions for one scope + UTC day. Returns suggestion count."""
@@ -151,11 +157,12 @@ class ModuleCreationSuggestionService:
     async def list_suggestions(
         self,
         *,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
         from_date: date,
         to_date: date,
         limit: int = 20,
         offset: int = 0,
+        visible_chw_ids: frozenset[int] | None = None,
     ) -> ModuleCreationSuggestionListResponse:
         rows, total = await self._repo.list_in_range(
             tenant_id=tenant_id,
@@ -163,12 +170,13 @@ class ModuleCreationSuggestionService:
             to_date=to_date,
             limit=limit,
             offset=offset,
+            visible_chw_ids=visible_chw_ids,
         )
         total_pages = math.ceil(total / limit) if limit > 0 and total > 0 else 0
         return ModuleCreationSuggestionListResponse(
             from_date=from_date,
             to_date=to_date,
-            suggestions=[self._to_list_item(r) for r in rows],
+            suggestions=[self._to_list_item(r, visible_chw_ids=visible_chw_ids) for r in rows],
             total_suggestions=total,
             total_pages=total_pages,
             limit=limit,
@@ -179,15 +187,29 @@ class ModuleCreationSuggestionService:
         self,
         *,
         suggestion_id: UUID,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
+        visible_chw_ids: frozenset[int] | None = None,
     ) -> ModuleCreationSuggestionDetailResponse:
-        row = await self._repo.get_detail(suggestion_id=suggestion_id, tenant_id=tenant_id)
+        row = await self._repo.get_detail(
+            suggestion_id=suggestion_id,
+            tenant_id=tenant_id,
+            visible_chw_ids=visible_chw_ids,
+        )
         if row is None:
             raise LookupError(f"suggestion not found: {suggestion_id}")
+        scoped_evidence = self._filter_evidence(row.evidence, visible_chw_ids)
+        if visible_chw_ids is not None and not scoped_evidence:
+            raise LookupError(f"suggestion not found: {suggestion_id}")
+
+        users: dict[int, OrgUser] = await org_user_index(
+            self._session,
+            tenant_id=tenant_id,
+        )
+
         questions: list[ModuleCreationSuggestionEvidenceItem] = []
         requests: list[ModuleCreationSuggestionEvidenceItem] = []
         for ev in sorted(
-            row.evidence,
+            scoped_evidence,
             key=lambda e: (-e.occurrence_count, e.normalized_text),
         ):
             item = ModuleCreationSuggestionEvidenceItem(
@@ -195,23 +217,21 @@ class ModuleCreationSuggestionService:
                 text=ev.text,
                 occurrence_count=ev.occurrence_count,
                 last_seen_at=ev.last_seen_at,
-                sample_chw_id=ev.sample_chw_id,
+                prompted_by=dashboard_user_summary(ev.sample_chw_id, users),
             )
             if ev.source == _SOURCE_DIGITAL_HELP:
                 questions.append(item)
             elif ev.source == _SOURCE_MODULE_REQUESTED:
                 requests.append(item)
         return ModuleCreationSuggestionDetailResponse(
-            suggestion=self._to_list_item(row),
+            suggestion=self._to_list_item(row, visible_chw_ids=visible_chw_ids),
             questions=questions,
             requests=requests,
         )
 
-    async def _load_drafts(self, *, tenant_id: UUID | None) -> list[DraftCatalogItem]:
+    async def _load_drafts(self, *, tenant_id: int | None) -> list[DraftCatalogItem]:
         stmt = select(Module).where(Module.lifecycle_status == "draft")
-        if tenant_id is None:
-            stmt = stmt.where(Module.tenant_id.is_(None))
-        else:
+        if tenant_id is not None:
             stmt = stmt.where(Module.tenant_id == tenant_id)
         modules = list((await self._session.execute(stmt)).scalars().all())
         return [
@@ -304,7 +324,43 @@ class ModuleCreationSuggestionService:
         ]
 
     @staticmethod
-    def _to_list_item(row: ModuleCreationSuggestion) -> ModuleCreationSuggestionListItem:
+    def _filter_evidence(
+        evidence: list[ModuleCreationSuggestionEvidence],
+        visible_chw_ids: frozenset[int] | None,
+    ) -> list[ModuleCreationSuggestionEvidence]:
+        if visible_chw_ids is None:
+            return list(evidence)
+        return [ev for ev in evidence if ev.sample_chw_id is not None and ev.sample_chw_id in visible_chw_ids]
+
+    @classmethod
+    def _scoped_counts(
+        cls,
+        row: ModuleCreationSuggestion,
+        *,
+        visible_chw_ids: frozenset[int] | None,
+    ) -> tuple[int, int, int]:
+        if visible_chw_ids is None:
+            return row.question_count, row.request_count, row.evidence_count
+        q_count = 0
+        r_count = 0
+        for ev in cls._filter_evidence(row.evidence, visible_chw_ids):
+            if ev.source == _SOURCE_DIGITAL_HELP:
+                q_count += ev.occurrence_count
+            elif ev.source == _SOURCE_MODULE_REQUESTED:
+                r_count += ev.occurrence_count
+        return q_count, r_count, q_count + r_count
+
+    @classmethod
+    def _to_list_item(
+        cls,
+        row: ModuleCreationSuggestion,
+        *,
+        visible_chw_ids: frozenset[int] | None = None,
+    ) -> ModuleCreationSuggestionListItem:
+        question_count, request_count, evidence_count = cls._scoped_counts(
+            row,
+            visible_chw_ids=visible_chw_ids,
+        )
         return ModuleCreationSuggestionListItem(
             id=row.id,
             suggestion_date=row.suggestion_date,
@@ -313,9 +369,9 @@ class ModuleCreationSuggestionService:
             proposed_topic=row.proposed_topic,
             display_title=row.display_title,
             rationale=row.rationale,
-            question_count=row.question_count,
-            request_count=row.request_count,
-            evidence_count=row.evidence_count,
+            question_count=question_count,
+            request_count=request_count,
+            evidence_count=evidence_count,
             rank=row.rank,
             computed_at=row.computed_at,
         )

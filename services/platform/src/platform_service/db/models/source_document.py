@@ -10,14 +10,15 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Date, DateTime, Text, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class SourceDocument(Base):
+class SourceDocument(TenantMixin, Base):
     __tablename__ = "source_document"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -39,11 +40,15 @@ class SourceDocument(Base):
     original_storage_path: Mapped[str] = mapped_column(Text, nullable=False)
     # Object-storage path to ingest thumbnail PNG ({bucket}/ingest/thumbnails/{id}.png).
     thumbnail_storage_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Audio/video length in milliseconds; null for documents and when ffprobe fails.
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Optional audit / dedup (populated by ingest when bytes are available).
     content_sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
     original_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
-    uploaded_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Spice / hierarchy user id (see users.id); no hard FK — soft-join at list time.
+    uploaded_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Stage B output, populated after ingestion (markdown_parser | llm_fallback | failed).
     outline_method: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -53,15 +58,21 @@ class SourceDocument(Base):
     # { "vision_pct": 0.55, "text_pct": 0.45, "sample_pages_evaluated": [3, 17, ...], "decision_at": "..." }
     extraction_calibration_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
-    # When true, document may appear in GET /sync/source-documents/published.
+    # When true, knowledge-catalog docs (admin sync_published_visible filtering).
+    # Device sync inclusion is via published-module links / document_assignment
+    # (GET /sync/source-documents), not this flag.
     sync_published_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # uploaded | ingesting | ingested | failed | retired
     status: Mapped[str] = mapped_column(Text, nullable=False, default="ingesting")
+    uploaded_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    ingested_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Spice / hierarchy user id (see users.id); no hard FK — soft-join at list time.
+    ingested_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

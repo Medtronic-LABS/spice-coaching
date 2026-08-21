@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,7 +37,8 @@ class IngestionRun(Base):
     # queued | running | succeeded | failed | partially_succeeded
     status: Mapped[str] = mapped_column(Text, nullable=False, default="running")
     error_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    triggered_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Spice / hierarchy user id (see users.id); no hard FK — soft-join at list time.
+    ingested_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class IngestionRunStep(Base):
@@ -61,3 +62,30 @@ class IngestionRunStep(Base):
     error_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class IngestionRunGenerationCounts(Base):
+    """Frozen module/card/quiz tallies for one ingestion_run + source_document.
+
+    Written when the run reaches a terminal status (after post-publish). List and
+    detail APIs read these values; missing rows present as zeros (no backfill).
+    """
+
+    __tablename__ = "ingestion_run_generation_counts"
+
+    ingestion_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ingestion_run.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    source_document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_document.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    generated_module_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    generated_card_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    generated_quiz_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

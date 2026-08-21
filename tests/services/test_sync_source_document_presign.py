@@ -1,4 +1,4 @@
-"""SyncService.get_source_document_presigned_urls — batch presign for device sync."""
+"""SyncPresignService.get_source_document_presigned_urls — batch presign for device sync."""
 
 from __future__ import annotations
 
@@ -11,10 +11,11 @@ import pytest_asyncio
 from mc_foundation.objectstore import ObjectNotFoundError, PresignedObjectUrl
 from platform_service.config import Settings
 from platform_service.db.models.source_document import SourceDocument
-from platform_service.services.sync_service import SyncService
+from platform_service.services.sync.presign_service import SyncPresignService
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -25,8 +26,10 @@ _STORAGE_PATH = f"{_BUCKET}/{_OBJECT_KEY}"
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_source_documents(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "source_document")
     yield
+    await db_session.rollback()
+    await db_session.execute(text("TRUNCATE source_document RESTART IDENTITY CASCADE"))
+    await db_session.commit()
 
 
 async def _seed_doc(
@@ -42,6 +45,7 @@ async def _seed_doc(
         content_domain="clinical",
         original_storage_path=storage_path,
         original_filename=original_filename,
+        tenant_id=1,
     )
     session.add(doc)
     await session.flush()
@@ -69,7 +73,7 @@ async def test_presign_all_found(db_session: AsyncSession) -> None:
     storage = _mock_storage()
     settings = Settings()
 
-    resp = await SyncService(db_session).get_source_document_presigned_urls(
+    resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc_id],
         storage=storage,
         settings=settings,
@@ -78,7 +82,7 @@ async def test_presign_all_found(db_session: AsyncSession) -> None:
     assert resp.missing_ids == []
     assert len(resp.urls) == 1
     assert resp.urls[0].source_document_id == doc_id
-    assert resp.urls[0].storage_path == _STORAGE_PATH
+    assert resp.urls[0].storage_path == _OBJECT_KEY
     assert resp.urls[0].presigned_url == "https://minio.example/presigned"
     assert resp.urls[0].expires_seconds == settings.admin_file_presigned_max_seconds
     storage.presigned_get_url.assert_awaited_once_with(
@@ -95,7 +99,7 @@ async def test_presign_unknown_id_in_missing(db_session: AsyncSession) -> None:
     unknown_id = uuid4()
     storage = _mock_storage()
 
-    resp = await SyncService(db_session).get_source_document_presigned_urls(
+    resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc_id, unknown_id],
         storage=storage,
     )
@@ -111,7 +115,7 @@ async def test_presign_legacy_filesystem_path_in_missing(db_session: AsyncSessio
     doc_id = await _seed_doc(db_session, storage_path="/tmp/legacy.pdf")
     storage = _mock_storage()
 
-    resp = await SyncService(db_session).get_source_document_presigned_urls(
+    resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc_id],
         storage=storage,
     )
@@ -128,7 +132,7 @@ async def test_presign_missing_object_in_missing(db_session: AsyncSession) -> No
     storage = _mock_storage()
     storage.presigned_get_url = AsyncMock(side_effect=ObjectNotFoundError("missing"))
 
-    resp = await SyncService(db_session).get_source_document_presigned_urls(
+    resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc_id],
         storage=storage,
     )
@@ -142,7 +146,7 @@ async def test_presign_missing_object_in_missing(db_session: AsyncSession) -> No
 async def test_presign_empty_request(db_session: AsyncSession) -> None:
     storage = _mock_storage()
 
-    resp = await SyncService(db_session).get_source_document_presigned_urls(
+    resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[],
         storage=storage,
     )

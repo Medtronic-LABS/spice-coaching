@@ -27,7 +27,7 @@ class LearningPointsService:
         *,
         event_id: object | None,
         chw_id: int,
-        tenant_id: uuid.UUID | None,
+        tenant_id: int | None,
         event_type: str,
         quiz_score_pct: float | None = None,
         now: datetime | None = None,

@@ -17,9 +17,18 @@ _INLINE_CODE_RE = re.compile(r"`([^`]+)`")
 _HEADING_PREFIX_RE = re.compile(r"^\s*#{1,6}\s+")
 _BLOCKQUOTE_PREFIX_RE = re.compile(r"^\s*>\s?")
 _LIST_ITEM_PREFIX_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
+_UNICODE_BULLET_PREFIX_RE = re.compile(r"^\s*•\s+")
 _IMAGE_LINE_RE = re.compile(r"^\s*!\[(.*?)\]\((?:[^)]+)\)\s*$")
 _TABLE_PIPE_RE = re.compile(r"^\s*\|.*\|\s*$")
 _TABLE_SEPARATOR_RE = re.compile(r"^\s*\|?\s*[:\-| ]+\s*\|?\s*$")
+_SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.?!।])\s+")
+_DECIMAL_DOT_RE = re.compile(r"(?<=\d)\.(?=\d)")
+_ABBREVIATION_DOT_RE = re.compile(
+    r"\b(?:Dr|Mr|Mrs|Ms|e\.g|i\.e|vs|etc)\.",
+    re.IGNORECASE,
+)
+_MIN_SENTENCES_FOR_BULLETS = 3
+_DOT_PLACEHOLDER = "\0"
 
 
 def strip_json_fence(raw: str) -> str:
@@ -87,19 +96,24 @@ def strip_markdown_formatting(text: str) -> str:
 
         cleaned_lines.append(line)
 
-    # Strip list prefixes per line (but preserve line breaks), and convert
-    # table rows in place. A field can contain prose, a table, and code in
-    # one value, so table handling must not discard the non-table lines.
-    stripped: list[str] = []
-    for line in cleaned_lines:
-        if _TABLE_PIPE_RE.match(line):
+    # Convert markdown tables (pipes) into space-separated cells.
+    if any(_TABLE_PIPE_RE.match(line) for line in cleaned_lines):
+        rows: list[str] = []
+        for line in cleaned_lines:
+            if not _TABLE_PIPE_RE.match(line):
+                continue
             if _TABLE_SEPARATOR_RE.match(line):
                 continue
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
             cells = [strip_inline_markdown(c) for c in cells if c]
             if cells:
-                stripped.append("  ".join(cells))
-            continue
+                rows.append("  ".join(cells))
+        result = "\n".join(rows).strip()
+        return result
+
+    # Strip list prefixes per line (but preserve line breaks).
+    stripped: list[str] = []
+    for line in cleaned_lines:
         line = _LIST_ITEM_PREFIX_RE.sub("", line).strip()
         stripped.append(strip_inline_markdown(line) if line else "")
 
@@ -117,3 +131,57 @@ def strip_markdown_formatting(text: str) -> str:
         out_lines.append(line.strip())
 
     return "\n".join(out_lines).strip()
+
+
+def _is_already_structured(text: str) -> bool:
+    """True when the answer already has newlines or list markers."""
+    if "\n" in text:
+        return True
+    stripped = text.lstrip()
+    return bool(_UNICODE_BULLET_PREFIX_RE.match(stripped) or _LIST_ITEM_PREFIX_RE.match(stripped))
+
+
+def _protect_non_boundary_dots(text: str) -> str:
+    """Replace decimal and abbreviation periods so sentence split skips them."""
+
+    def _abbrev_sub(match: re.Match[str]) -> str:
+        return match.group(0).replace(".", _DOT_PLACEHOLDER)
+
+    protected = _ABBREVIATION_DOT_RE.sub(_abbrev_sub, text)
+    return _DECIMAL_DOT_RE.sub(_DOT_PLACEHOLDER, protected)
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split dense prose on . ? ! and Bangla danda, skipping decimals/abbreviations."""
+    protected = _protect_non_boundary_dots(text)
+    return [
+        part.replace(_DOT_PLACEHOLDER, ".").strip()
+        for part in _SENTENCE_BOUNDARY_RE.split(protected)
+        if part.strip()
+    ]
+
+
+def format_grounded_rag_answer(text: str) -> str:
+    """Format a grounded RAG answer as Unicode bullets when it is a dense paragraph.
+
+    Leaves short answers (fewer than 3 sentences), already-bulleted / newlined
+    answers, and empty strings unchanged. Splits on ``.``, ``?``, ``!``, and
+    Bangla danda ``।``, avoiding decimal and common Latin abbreviation splits.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return stripped
+    if _is_already_structured(stripped):
+        return stripped
+
+    chunks = _split_sentences(stripped)
+    if len(chunks) < _MIN_SENTENCES_FOR_BULLETS:
+        return stripped
+
+    lines: list[str] = []
+    for chunk in chunks:
+        if _UNICODE_BULLET_PREFIX_RE.match(chunk) or _LIST_ITEM_PREFIX_RE.match(chunk):
+            lines.append(chunk)
+        else:
+            lines.append(f"• {chunk}")
+    return "\n".join(lines)

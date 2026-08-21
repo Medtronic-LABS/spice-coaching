@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from platform_service.main import create_app
 
@@ -15,7 +14,6 @@ from tests.conftest import platform_path, requires_db
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
-@pytest_asyncio.fixture
 async def client() -> AsyncIterator[AsyncClient]:
     app = create_app()
     transport = ASGITransport(app=app)

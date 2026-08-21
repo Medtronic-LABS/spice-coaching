@@ -5,6 +5,7 @@ from __future__ import annotations
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock
+from urllib.parse import quote
 
 import pytest
 from botocore.exceptions import ClientError
@@ -41,6 +42,25 @@ async def test_upload_file_puts_object() -> None:
     assert stored.object_name.startswith("uploads/")
     assert stored.size_bytes == 5
     store._client.put_object.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_upload_file_ascii_sanitises_non_ascii_filename() -> None:
+    store = _store()
+    stored = await store.upload_file(
+        file_obj=BytesIO(b"%PDF"),
+        filename="উচ্চরক্তচাপ.pdf",
+        prefix="uploads",
+    )
+    key = store._client.put_object.call_args.kwargs["Key"]
+    assert key == stored.object_name
+    assert key.startswith("uploads/")
+    assert key.endswith(".pdf")
+    key.encode("ascii")
+    assert "উচ্চ" not in key
+    leaf = key.rsplit("/", 1)[-1]
+    assert "_" in leaf
+    assert leaf.endswith("_file.pdf")
 
 
 @pytest.mark.asyncio
@@ -96,3 +116,26 @@ async def test_put_object_from_local_file(tmp_path: Path) -> None:
     )
     assert stored.object_name == "ingest/doc.pdf"
     store._client.upload_file.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_put_object_from_local_file_ascii_sanitises_key_and_metadata(tmp_path: Path) -> None:
+    store = _store()
+    src = tmp_path / "doc.pdf"
+    src.write_bytes(b"%PDF")
+    unicode_name = "উচ্চরক্তচাপ.pdf"
+    stored = await store.put_object_from_local_file(
+        object_name=f"ingest/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee_{unicode_name}",
+        local_path=src,
+        content_type="application/pdf",
+        metadata={"content-sha256": "abc", "original-filename": unicode_name},
+    )
+    stored.object_name.encode("ascii")
+    # Unicode leaf collapses; uuid stem remains (trailing "_" stripped).
+    assert stored.object_name == "ingest/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.pdf"
+    call_kwargs = store._client.upload_file.call_args
+    assert call_kwargs.args[2] == stored.object_name
+    meta = call_kwargs.kwargs["ExtraArgs"]["Metadata"]
+    assert meta["content-sha256"] == "abc"
+    assert meta["original-filename"] == quote(unicode_name, safe="")
+    meta["original-filename"].encode("ascii")

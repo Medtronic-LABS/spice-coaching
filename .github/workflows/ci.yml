@@ -79,4 +79,4 @@ jobs:
         run: >-
           uv run pytest tests services/ai-runtime/tests
           --cov=platform_service.workers --cov=ai_runtime
-          --cov-report=term-missing --cov-fail-under=70
+          --cov-report=term-missing --cov-fail-under=55

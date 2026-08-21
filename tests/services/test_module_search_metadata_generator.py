@@ -178,6 +178,7 @@ class TestModuleSearchMetadataGenerator:
             domain="rmnch",
             module_type="refresher",
             module_json={"cards": [{"title": {"bn": "T"}, "body": {"bn": "body"}}]},
+            tenant_id=1,
         )
 
         result = await generator.generate(module)
@@ -215,6 +216,7 @@ class TestModuleSearchMetadataGenerator:
             domain="rmnch",
             module_type="refresher",
             module_json={"cards": []},
+            tenant_id=1,
         )
 
         result = await generator.generate(module)

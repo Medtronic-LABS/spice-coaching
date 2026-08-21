@@ -17,9 +17,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from platform_service.db.base import Base
+from platform_service.db.models.mixins import TenantMixin
 
 
-class CHWBehaviouralGapState(Base):
+class CHWBehaviouralGapState(TenantMixin, Base):
     __tablename__ = "chw_behavioural_gap_state"
     __table_args__ = (
         PrimaryKeyConstraint("chw_id", "behavioural_gap_id", name="pk_chw_behavioural_gap_state"),
@@ -31,7 +32,6 @@ class CHWBehaviouralGapState(Base):
         ForeignKey("behavioural_gap.id", ondelete="CASCADE"),
         nullable=False,
     )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     # low | moderate | high
     severity_current: Mapped[str] = mapped_column(Text, nullable=False, default="moderate")

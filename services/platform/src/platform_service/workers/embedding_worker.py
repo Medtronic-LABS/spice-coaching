@@ -1,15 +1,14 @@
 """Post-publish embedding worker.
 
-Per `docs/ARCHITECTURE_RESET.md`. Triggered on module publish (Stage 3
-enqueues a Celery task per `module_id`). Reads card text from ``module_card`` rows,
-calls ai-runtime `/embed`, and writes the vector via the configured
-``VectorStore`` (pgvector adapter persists to ``module.embedding`` today).
+Generates a per-module vector at admin publish time (via
+``module_publish_enrichment``) and can still be invoked from Celery for
+standalone retries. Reads card text from ``module_card`` rows, calls ai-runtime
+``/embed``, and writes the vector via the configured ``VectorStore`` (pgvector
+adapter persists to ``module.embedding`` today).
 
 The embedding is per-module (not per-card). It serves admin/web semantic
 search inside this repo; the Android repo's runtime grounding flow uses it
-via a standard fetch endpoint (added in step 11). Failure does not block
-the module — the module remains readable in the dashboard via title and
-full-text search until a later embedding run succeeds.
+via a standard fetch endpoint (added in step 11).
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ from platform_service.services.embedding_vector import assert_embedding_dimensio
 from platform_service.services.module_search_text import module_text_for_search
 from platform_service.services.post_publish_step import finish_post_publish_step
 from platform_service.vectorstore import MODULES_COLLECTION, get_vector_store
+from platform_service.workers.tenant_binding import with_module_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,7 @@ def _module_text_for_embedding(module: Module, cards: list[dict[str, Any]]) -> s
     return module_text_for_search(module, cards=cards)
 
 
+@with_module_tenant
 async def generate_embedding_for_module(module_id: UUID, *, step_id: UUID | None = None) -> bool:
     """Generate and persist a per-module embedding. Returns True on success.
 

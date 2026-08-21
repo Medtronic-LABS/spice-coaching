@@ -8,7 +8,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from platform_service.db.models.chw_module_assignment import CHWModuleAssignment
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
+from platform_service.db.models.module_assignment import ModuleAssignment
 from platform_service.db.repositories.module_assignment_repository import ModuleAssignmentRepository
 from platform_service.db.repositories.module_repository import ModuleRepository
 from platform_service.db.repositories.training_request_repository import TrainingRequestRepository
@@ -44,7 +45,7 @@ class TrainingRequestService:
         module_id: UUID | None,
         requested_module_name: str | None,
         reason: str | None,
-        tenant_id: UUID | None,
+        tenant_id: int | None,
     ) -> TrainingRequestSubmitResult:
         if module_id is not None:
             module = await self._modules.get_module(module_id)
@@ -55,13 +56,18 @@ class TrainingRequestService:
             if tenant_id is not None and module.tenant_id is not None and module.tenant_id != tenant_id:
                 raise InvalidModuleError
 
-            assigned_module_ids = await resolve_assigned_module_ids(self._session, user_id=chw_id)
+            assigned_module_ids = await resolve_assigned_module_ids(
+                self._session,
+                user_id=chw_id,
+                tenant_id=tenant_id if tenant_id is not None else DEFAULT_TENANT_ID,
+            )
             if module.id in assigned_module_ids:
                 raise DuplicateTrainingRequestError
 
             if await self._repo.has_for_module(chw_id=chw_id, module_id=module.id):
                 raise DuplicateTrainingRequestError
 
+            effective_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
             row = await self._repo.create(
                 chw_id=chw_id,
                 module_id=module.id,
@@ -69,7 +75,11 @@ class TrainingRequestService:
                 reason=reason,
                 tenant_id=tenant_id,
             )
-            await self._ensure_individual_assignment(chw_id=chw_id, module_id=module.id)
+            await self._ensure_individual_assignment(
+                chw_id=chw_id,
+                module_id=module.id,
+                tenant_id=effective_tenant,
+            )
 
             return TrainingRequestSubmitResult(
                 request_id=row.id,
@@ -97,16 +107,22 @@ class TrainingRequestService:
             submitted_at=row.submitted_at,
         )
 
-    async def _ensure_individual_assignment(self, *, chw_id: int, module_id: UUID) -> None:
+    async def _ensure_individual_assignment(
+        self,
+        *,
+        chw_id: int,
+        module_id: UUID,
+        tenant_id: int,
+    ) -> None:
         existing = await self._assignments.find_user_assignment(module_id, chw_id)
         if existing is not None:
             return
         self._assignments.add_assignment(
-            CHWModuleAssignment(
+            ModuleAssignment(
                 module_id=module_id,
-                assignment_type="individual",
                 user_id=chw_id,
                 assigned_by=chw_id,
+                tenant_id=tenant_id,
             )
         )
         await self._session.flush()

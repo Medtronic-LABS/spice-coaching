@@ -46,7 +46,7 @@ class QuizQuestionStateService:
         chw_id: int,
         quiz_id: UUID,
         module_id: UUID,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         now: datetime | None = None,
     ) -> CHWQuizQuestionState:
         """Record one quiz attempt observation (first/last attempt timestamps)."""
@@ -79,7 +79,7 @@ class QuizQuestionStateService:
         chw_id: int,
         quiz_id: UUID,
         module_id: UUID,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,
         now: datetime | None = None,
     ) -> CHWQuizQuestionState:
         """Record a failed quiz attempt and escalate when threshold crossed."""

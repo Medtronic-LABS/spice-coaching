@@ -52,7 +52,7 @@ class Stage1RecoveryFailedError(Stage1ExtractionError):
     def __init__(self, failed_page_numbers: list[int], tolerance: int) -> None:
         self.failed_page_numbers = failed_page_numbers
         self.tolerance = tolerance
-        super().__init__(
+        technical = (
             f"Stage 1 vision recovery left {len(failed_page_numbers)} pages "
             f"still vision_failed (tolerance={tolerance}): {failed_page_numbers}. "
             f"This usually means Vertex per-project quota was exhausted "
@@ -60,3 +60,5 @@ class Stage1RecoveryFailedError(Stage1ExtractionError):
             f"per-project RPM limit, or set stage_a_vision_failed_tolerance "
             f"higher if losing these pages is acceptable."
         )
+        super().__init__(technical)
+        self.technical_detail = technical

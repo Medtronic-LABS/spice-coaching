@@ -49,6 +49,8 @@ class ModuleCard(Base):
 
     search_metadata_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     attachments_jsonb: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    # Additive card media from ingest figure assignment (not manual attachments).
+    media_jsonb: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     field_flags_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

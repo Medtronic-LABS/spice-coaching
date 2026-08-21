@@ -9,7 +9,7 @@ MOB_SUITE = "mob"
 
 ADMIN_ROLE_NAMES = frozenset(
     {
-        "area manager",
+        "area_manager",
         "division manager",
         "head office",
         "super admin",

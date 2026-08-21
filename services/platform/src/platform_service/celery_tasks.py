@@ -202,18 +202,15 @@ def generate_module_search_metadata_task(
 def bind_assessment_triggers_task(
     module_id: str,
     step_id: str | None = None,
-    embedding_step_id: str | None = None,
 ) -> None:
-    """Post-publish assessment-due trigger binding. Chains embedding on completion."""
+    """Post-publish assessment-due trigger binding."""
     from platform_service.workers.trigger_binding_worker import bind_assessment_triggers_for_module
 
     parsed_step_id = UUID(step_id) if step_id else None
-    parsed_embedding_step_id = UUID(embedding_step_id) if embedding_step_id else None
     _run(
         bind_assessment_triggers_for_module(
             UUID(module_id),
             step_id=parsed_step_id,
-            embedding_step_id=parsed_embedding_step_id,
         )
     )
 
@@ -331,21 +328,6 @@ def aggregate_chat_faqs_task() -> None:
     from platform_service.workers.chat_faq_worker import aggregate_chat_faqs_job
 
     _run(aggregate_chat_faqs_job())
-
-
-@celery_app.task(
-    name="platform.refresh_module_demand_summary",
-    autoretry_for=(OperationalError, DBAPIError, *CELERY_TRANSIENT_ERRORS),
-    max_retries=2,
-    default_retry_delay=300,
-)
-def refresh_module_demand_summary_task() -> None:
-    """Daily refresh of the cached admin module-demand summary snapshot."""
-    from platform_service.workers.module_demand_summary_worker import (
-        refresh_module_demand_summaries_job,
-    )
-
-    _run(refresh_module_demand_summaries_job())
 
 
 @celery_app.task(

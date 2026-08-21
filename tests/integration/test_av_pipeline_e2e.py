@@ -25,7 +25,6 @@ from uuid import UUID, uuid4
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.content_block import ContentBlock
 from platform_service.db.models.module import Module
-from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.db.models.source_page import SourcePage
 from platform_service.services.module_identifier import ModuleIdentifier
@@ -64,8 +63,9 @@ def _make_av_chunks(n: int, *, duration_ms: int = 120_000, overlap_ms: int = 15_
             index=i,
             start_ms=i * step_ms,
             end_ms=i * step_ms + duration_ms,
-            payload_bytes=f"chunk-{i}-bytes".encode(),
-            mime_type="audio/mpeg",
+            # Payload must clear MIN_TRANSCRIBABLE_CHUNK_BYTES or extract skips Gemini.
+            payload_bytes=(f"chunk-{i}-".encode() * 512)[:4096],
+            mime_type="audio/mp3",
         )
         for i in range(n)
     ]
@@ -263,11 +263,10 @@ class TestAvHappyPath:
         )
         assert len(modules) >= 1
         m = modules[0]
-        cards = (
-            (await db_session.execute(select(ModuleCard).where(ModuleCard.module_id == m.id))).scalars().all()
-        )
+        assert m.module_json is not None
+        cards = m.module_json.get("cards", [])
         assert len(cards) >= 1
-        assert all(card.source_block_ids for card in cards), (
+        assert all(card.get("source_block_ids") for card in cards), (
             "Every drafted card must carry source_block_ids for attribution"
         )
         assert m.source_document_ids, (
@@ -287,8 +286,8 @@ class TestAvHappyPath:
                 index=0,
                 start_ms=0,
                 end_ms=45_000,  # 45-second clip
-                payload_bytes=b"chunk-0-bytes",
-                mime_type="audio/mpeg",
+                payload_bytes=b"c" * 4096,
+                mime_type="audio/mp3",
             )
         ]
         patch_count_pages(1)

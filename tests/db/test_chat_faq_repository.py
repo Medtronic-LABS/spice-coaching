@@ -4,28 +4,30 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from platform_service.db.repositories.chat_faq_repository import ChatFaqRepository, ChatFaqRow
 from platform_service.services.chat_faq_aggregator import stable_faq_id
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe(db_session: AsyncSession) -> AsyncIterator[None]:
-    await truncate_tables(db_session, "chat_frequent_question")
     yield
+    await db_session.rollback()
+    await db_session.execute(text("TRUNCATE chat_frequent_question RESTART IDENTITY CASCADE"))
+    await db_session.commit()
 
 
 class TestChatFaqRepository:
     async def test_replace_tenant_faqs_upserts_and_deletes_stale(self, db_session: AsyncSession) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         computed_at = datetime.now(UTC)
         repo = ChatFaqRepository(db_session)
         old_question_en = "old question text"
@@ -76,7 +78,7 @@ class TestChatFaqRepository:
         assert rows[0].question_localized["bn"] == "নতুন প্রশ্ন"
 
     async def test_list_updated_since_filters_by_timestamp(self, db_session: AsyncSession) -> None:
-        tenant_id = uuid4()
+        tenant_id = 1
         computed_at = datetime.now(UTC)
         repo = ChatFaqRepository(db_session)
         question_en = "child cough more than 14 days"
@@ -105,8 +107,8 @@ class TestChatFaqRepository:
     async def test_list_updated_since_without_tenant_returns_all_tenants(
         self, db_session: AsyncSession
     ) -> None:
-        tenant_a = uuid4()
-        tenant_b = uuid4()
+        tenant_a = 1
+        tenant_b = 2
         computed_at = datetime.now(UTC)
         repo = ChatFaqRepository(db_session)
 
@@ -142,8 +144,8 @@ class TestChatFaqRepository:
         }
 
     async def test_max_computed_at_without_tenant_returns_global_max(self, db_session: AsyncSession) -> None:
-        tenant_a = uuid4()
-        tenant_b = uuid4()
+        tenant_a = 1
+        tenant_b = 2
         earlier = datetime.now(UTC)
         later = earlier + timedelta(hours=1)
         repo = ChatFaqRepository(db_session)

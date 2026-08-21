@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Enqueue assessment-due trigger binding for published modules.
 
-Mirrors POST /admin/modules/{id}/bind-assessment-triggers: each module is
-handed off to the ``platform.bind_assessment_triggers`` Celery task, which
-classifies assessment topics and writes ``module_trigger_binding`` rows at the
-module level.
+Each selected module is handed off to the ``platform.bind_assessment_triggers``
+Celery task, which classifies assessment topics and writes
+``module_trigger_binding`` rows at the module level.
 
 Prerequisites (same env as platform service):
 

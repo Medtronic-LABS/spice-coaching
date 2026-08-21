@@ -25,6 +25,7 @@ _RUNTIME_CARD_KEYS = (
     "thresholds",
     "source_block_ids",
     "figure_ref_block_id",
+    "media",
 )
 
 _LOCALIZED_FIELD_MAP: tuple[tuple[str, str], ...] = (
@@ -35,11 +36,6 @@ _LOCALIZED_FIELD_MAP: tuple[tuple[str, str], ...] = (
     ("rationale_for_change", "rationale_for_change_localized"),
     ("next_action", "next_action_localized"),
 )
-
-
-def _strip_card_markdown(value: str) -> str:
-    """Normalize card copy to compact, renderable plain text."""
-    return "\n".join(line for line in strip_markdown_formatting(value).splitlines() if line)
 
 
 def _field_text(raw: dict[str, Any], field: str, *, primary_locale: str) -> str:
@@ -65,11 +61,11 @@ def normalise_draft_card(
         # Draft cards may contain localized strings; enforce plain text so
         # formatting-only values don't pass required-field checks.
         if isinstance(value, str):
-            return _strip_card_markdown(value)
+            return strip_markdown_formatting(value)
         if isinstance(value, dict):
             out: dict[str, Any] = {}
             for k, v in value.items():
-                out[k] = _strip_card_markdown(v) if isinstance(v, str) else v
+                out[k] = strip_markdown_formatting(v) if isinstance(v, str) else v
             return out
         return value
 
@@ -176,12 +172,12 @@ def card_dict_to_row_fields(card: dict[str, Any]) -> dict[str, Any]:
         # Localized fields are typically {locale: str|rich_text}; we only
         # strip markdown formatting from plain strings and leave rich-text JSON as-is.
         if isinstance(value, str):
-            return _strip_card_markdown(value)
+            return strip_markdown_formatting(value)
         if isinstance(value, dict):
             out: dict[str, Any] = {}
             for k, v in value.items():
                 if isinstance(v, str):
-                    out[k] = _strip_card_markdown(v)
+                    out[k] = strip_markdown_formatting(v)
                 else:
                     out[k] = v
             return out
@@ -207,6 +203,9 @@ def card_dict_to_row_fields(card: dict[str, Any]) -> dict[str, Any]:
     attachments = normalized.get("attachments")
     if attachments is not None:
         row_fields["attachments_jsonb"] = attachments
+    media = normalized.get("media")
+    if media is not None:
+        row_fields["media_jsonb"] = media
     field_flags = normalized.get("field_flags_jsonb") or normalized.get("field_flags")
     if field_flags is not None:
         row_fields["field_flags_jsonb"] = field_flags
@@ -241,6 +240,8 @@ def card_row_to_dict(row: Any) -> dict[str, Any]:
         payload["search_metadata"] = row.search_metadata_jsonb
     if row.attachments_jsonb is not None:
         payload["attachments"] = row.attachments_jsonb
+    if getattr(row, "media_jsonb", None) is not None:
+        payload["media"] = row.media_jsonb
     if row.field_flags_jsonb is not None:
         payload["field_flags_jsonb"] = row.field_flags_jsonb
     return payload

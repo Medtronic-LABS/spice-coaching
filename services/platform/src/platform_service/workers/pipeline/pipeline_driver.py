@@ -10,6 +10,7 @@ from uuid import UUID
 
 from mc_contracts.errors import ErrorCode
 
+from platform_service.services.ingest_run_error_summary import summarize_ingestion_run_error
 from platform_service.services.run_state_service import (
     RUN_FAILED,
     RUN_PARTIALLY_SUCCEEDED,
@@ -35,7 +36,7 @@ async def drive_pipeline(
     source_path: str | Path,
     source_type: str,
     primary_language: str,
-    triggered_by: UUID | None,
+    ingested_by_user_id: int | None,
     resume: bool,
     staged_sessions: bool,
     result_box: list[PipelineResult],
@@ -73,7 +74,7 @@ async def drive_pipeline(
         if run is None:
             run = await orch._run_state.start_run(
                 source_document_id=source_document_id,
-                triggered_by=triggered_by,
+                ingested_by_user_id=ingested_by_user_id,
             )
             await orch._session.commit()
 
@@ -113,13 +114,21 @@ async def drive_pipeline(
             if extract_error:
                 if extract_error.get("reason") is not None:
                     run_error["reason"] = extract_error["reason"]
-                if extract_error.get("message") is not None:
-                    run_error["message"] = extract_error["message"]
+                if extract_error.get("detail") is not None:
+                    run_error["detail"] = extract_error["detail"]
+                elif extract_error.get("message") is not None:
+                    run_error["detail"] = extract_error["message"]
             async with orchestrator._stage_context(staged_sessions) as orch:
+                steps = await orch._run_state.list_steps(resolved_run_id)
+                enriched = summarize_ingestion_run_error(
+                    run_error,
+                    steps=steps,
+                    status=RUN_FAILED,
+                )
                 await orch._run_state.complete_run(
                     resolved_run_id,
                     status=RUN_FAILED,
-                    error_jsonb=run_error,
+                    error_jsonb=enriched,
                 )
                 await orch._session.commit()
             result.final_status = RUN_FAILED
@@ -141,17 +150,28 @@ async def drive_pipeline(
             run_error: dict[str, object] = {
                 "code": ErrorCode.IDENTIFY_FAILED.value,
                 "failed_stage": STAGE_MODULE_IDENTIFY,
+                "failed_stages": [STAGE_MODULE_IDENTIFY],
             }
             if identify_error:
                 if identify_error.get("code") is not None:
                     run_error["code"] = identify_error["code"]
-                if identify_error.get("message") is not None:
-                    run_error["message"] = identify_error["message"]
+                if identify_error.get("reason") is not None:
+                    run_error["reason"] = identify_error["reason"]
+                if identify_error.get("detail") is not None:
+                    run_error["detail"] = identify_error["detail"]
+                elif identify_error.get("message") is not None:
+                    run_error["detail"] = identify_error["message"]
             async with orchestrator._stage_context(staged_sessions) as orch:
+                steps = await orch._run_state.list_steps(resolved_run_id)
+                enriched = summarize_ingestion_run_error(
+                    run_error,
+                    steps=steps,
+                    status=RUN_PARTIALLY_SUCCEEDED,
+                )
                 await orch._run_state.complete_run(
                     resolved_run_id,
                     status=RUN_PARTIALLY_SUCCEEDED,
-                    error_jsonb=run_error,
+                    error_jsonb=enriched,
                 )
                 await orch._session.commit()
             result.final_status = RUN_PARTIALLY_SUCCEEDED

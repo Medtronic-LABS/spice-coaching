@@ -22,15 +22,19 @@ from platform_service.services.module_gap_classifier import (
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db]
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_gaps(db_session: AsyncSession):
-    await truncate_tables(db_session, "module_card, module, module_family, behavioural_gap")
     yield
+    await db_session.rollback()
+    await db_session.execute(
+        text("TRUNCATE module_card, module, module_family, behavioural_gap RESTART IDENTITY CASCADE")
+    )
+    await db_session.commit()
 
 
 async def _seed_gap(
@@ -46,6 +50,7 @@ async def _seed_gap(
         domain=domain,
         detection_rule_jsonb={},
         status=status,
+        tenant_id=1,
     )
     session.add(gap)
     await session.flush()
@@ -53,7 +58,7 @@ async def _seed_gap(
 
 
 async def _seed_module(session: AsyncSession) -> Module:
-    fam = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}")
+    fam = ModuleFamily(module_code=f"fam-{uuid4().hex[:8]}", tenant_id=1)
     session.add(fam)
     await session.flush()
     module = Module(
@@ -64,6 +69,7 @@ async def _seed_module(session: AsyncSession) -> Module:
         domain="hypertension",
         module_type="refresher",
         lifecycle_status="draft",
+        tenant_id=1,
     )
     session.add(module)
     await session.flush()
@@ -105,6 +111,7 @@ class TestModulePayloadForClassification:
             title_localized={"bn": "t"},
             domain="rmnch",
             module_type="refresher",
+            tenant_id=1,
         )
         cards = [
             {
@@ -125,6 +132,7 @@ class TestModulePayloadForClassification:
             title_localized={"bn": "t"},
             domain="rmnch",
             module_type="refresher",
+            tenant_id=1,
         )
         payload = module_payload_for_classification(
             module,
