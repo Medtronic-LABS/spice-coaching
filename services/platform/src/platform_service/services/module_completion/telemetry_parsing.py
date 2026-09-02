@@ -98,6 +98,26 @@ def parse_quiz_id(payload: dict[str, Any]) -> UUID | None:
     return parse_uuid(payload.get("quiz_id"), field="quiz_id")
 
 
+def parse_card_id(payload: dict[str, Any]) -> UUID | None:
+    """For module_card_viewed, extract ``module_card.id`` from top-level or payload_json."""
+    card_id = payload.get("card_id")
+    if card_id is None:
+        nested = payload.get("payload_json")
+        if isinstance(nested, dict):
+            card_id = nested.get("card_id")
+    return parse_uuid(card_id, field="card_id")
+
+
+def parse_card_family_id(payload: dict[str, Any]) -> UUID | None:
+    """For module_card_viewed, extract ``card_family_id`` from top-level or payload_json."""
+    card_family_id = payload.get("card_family_id")
+    if card_family_id is None:
+        nested = payload.get("payload_json")
+        if isinstance(nested, dict):
+            card_family_id = nested.get("card_family_id")
+    return parse_uuid(card_family_id, field="card_family_id")
+
+
 def spice_outcome_is_incorrect(payload: dict[str, Any], payload_json: dict[str, Any]) -> bool:
     """True when coaching outcome is a hard miss (`Outcome.WRONG` / `INCORRECT`).
 

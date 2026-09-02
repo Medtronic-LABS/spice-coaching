@@ -373,3 +373,50 @@ async def test_assigned_sk_count_scoped_to_visible_sks(monkeypatch: pytest.Monke
     # Under AM_ID, visible SKs are {SK_A, SK_B}. SK_OTHER is excluded because it's not under AM_ID.
     assert resp.total_descendant_sk_count == 2
     assert resp.modules[0].assigned_sk_count == 1
+
+
+@pytest.mark.asyncio
+async def test_module_ids_and_sort_forwarded_to_repo(monkeypatch: pytest.MonkeyPatch) -> None:
+    family = uuid4()
+    mod = _module(family_id=family, published_at=datetime(2026, 1, 10, tzinfo=UTC))
+    filter_id = mod.id
+    _patch_org_index(monkeypatch, _standard_org())
+    count_mock, list_mock, _ = _stub_repos(monkeypatch, modules=[mod])
+
+    await PublishedModuleCompletionsService(MagicMock()).get_published_module_completions(
+        scope=_unrestricted_scope(),
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 31),
+        limit=20,
+        offset=0,
+        tenant_id=TENANT_ID,
+        module_ids=[filter_id],
+        sort_by="title",
+        sort_dir="asc",
+    )
+
+    assert count_mock.await_args.kwargs["module_ids"] == [filter_id]
+    assert list_mock.await_args.kwargs["module_ids"] == [filter_id]
+    assert list_mock.await_args.kwargs["sort_by"] == "title"
+    assert list_mock.await_args.kwargs["sort_dir"] == "asc"
+
+
+@pytest.mark.asyncio
+async def test_empty_module_ids_means_no_filter(monkeypatch: pytest.MonkeyPatch) -> None:
+    family = uuid4()
+    mod = _module(family_id=family, published_at=datetime(2026, 1, 10, tzinfo=UTC))
+    _patch_org_index(monkeypatch, _standard_org())
+    count_mock, list_mock, _ = _stub_repos(monkeypatch, modules=[mod])
+
+    await PublishedModuleCompletionsService(MagicMock()).get_published_module_completions(
+        scope=_unrestricted_scope(),
+        from_date=date(2026, 1, 1),
+        to_date=date(2026, 1, 31),
+        limit=20,
+        offset=0,
+        tenant_id=TENANT_ID,
+        module_ids=[],
+    )
+
+    assert count_mock.await_args.kwargs["module_ids"] is None
+    assert list_mock.await_args.kwargs["module_ids"] is None

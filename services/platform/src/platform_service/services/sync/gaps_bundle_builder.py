@@ -13,9 +13,12 @@ from mc_contracts.sync import (
     CHWQuizQuestionStateSyncPayload,
     GapsSyncBundle,
 )
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import get_settings
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
+from platform_service.db.models.module import Module
 from platform_service.db.repositories.behavioural_gap_repository import BehaviouralGapRepository
 from platform_service.db.repositories.chw_sync_repository import CHWSyncRepository
 from platform_service.db.repositories.module_completion_repository import ModuleCompletionRepository
@@ -148,37 +151,65 @@ class GapsBundleBuilder:
         chw_id: int,
         since: datetime | None,
     ) -> list[CHWModulePartialCompletionSyncPayload]:
-        """Modules with quiz progress rows and at least one unanswered question."""
+        """Modules with quiz or card progress rows and remaining unanswered questions or unviewed cards."""
         chw_sync_repo = CHWSyncRepository(self._session)
-        module_ids = await chw_sync_repo.list_module_ids_with_quiz_progress(
+        quiz_module_ids = await chw_sync_repo.list_module_ids_with_quiz_progress(
             chw_id=chw_id,
             since=since,
         )
-        if not module_ids:
+        card_module_ids = await chw_sync_repo.list_module_ids_with_card_progress(
+            chw_id=chw_id,
+            since=since,
+        )
+        all_module_ids = sorted(set(quiz_module_ids) | set(card_module_ids))
+        if not all_module_ids:
             return []
 
         tenant_by_module = await chw_sync_repo.tenant_id_by_module_for_chw(
             chw_id=chw_id,
-            module_ids=module_ids,
+            module_ids=all_module_ids,
         )
-        incomplete_rows = await chw_sync_repo.list_incomplete_quiz_rows(
-            chw_id=chw_id,
-            module_ids=module_ids,
-        )
-
-        incomplete_by_module: dict[UUID, list[UUID]] = {}
-        family_by_module: dict[UUID, UUID] = {}
-        for module_id, quiz_id, module_family_id in incomplete_rows:
-            incomplete_by_module.setdefault(module_id, []).append(quiz_id)
-            family_by_module[module_id] = module_family_id
-
-        return [
-            CHWModulePartialCompletionSyncPayload(
-                chw_id=chw_id,
-                module_id=module_id,
-                module_family_id=family_by_module[module_id],
-                incomplete_quiz_ids=quiz_ids,
-                tenant_id=tenant_by_module.get(module_id),
+        family_rows = (
+            await self._session.execute(
+                select(Module.id, Module.module_family_id).where(Module.id.in_(all_module_ids))
             )
-            for module_id, quiz_ids in sorted(incomplete_by_module.items())
-        ]
+        ).all()
+        family_by_module: dict[UUID, UUID] = {mid: fam_id for mid, fam_id in family_rows}
+
+        incomplete_quiz_rows = await chw_sync_repo.list_incomplete_quiz_rows(
+            chw_id=chw_id,
+            module_ids=all_module_ids,
+        )
+        incomplete_card_rows = await chw_sync_repo.list_incomplete_card_rows(
+            chw_id=chw_id,
+            module_ids=all_module_ids,
+        )
+
+        incomplete_quiz_by_module: dict[UUID, list[UUID]] = {}
+        for module_id, quiz_id, _ in incomplete_quiz_rows:
+            incomplete_quiz_by_module.setdefault(module_id, []).append(quiz_id)
+
+        incomplete_card_by_module: dict[UUID, list[UUID]] = {}
+        for module_id, card_id, _ in incomplete_card_rows:
+            incomplete_card_by_module.setdefault(module_id, []).append(card_id)
+
+        payloads: list[CHWModulePartialCompletionSyncPayload] = []
+        for module_id in all_module_ids:
+            quiz_ids = incomplete_quiz_by_module.get(module_id, [])
+            card_ids = incomplete_card_by_module.get(module_id, [])
+            if not quiz_ids and not card_ids:
+                continue
+            family_id = family_by_module.get(module_id)
+            if family_id is None:
+                continue
+            payloads.append(
+                CHWModulePartialCompletionSyncPayload(
+                    chw_id=chw_id,
+                    module_id=module_id,
+                    module_family_id=family_id,
+                    incomplete_quiz_ids=quiz_ids,
+                    incomplete_card_ids=card_ids,
+                    tenant_id=tenant_by_module.get(module_id, DEFAULT_TENANT_ID),
+                )
+            )
+        return payloads

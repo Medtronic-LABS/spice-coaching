@@ -7,7 +7,7 @@ extraction results.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -152,7 +152,7 @@ class SourceRepository:
             .where(
                 SourceDocument.content_sha256 == content_sha256,
                 SourceDocument.tenant_id == tenant_id,
-                SourceDocument.status.in_(("uploaded", "ingested")),
+                SourceDocument.status.in_(("uploaded", "ingested", "partially_succeeded")),
             )
             .order_by(SourceDocument.ingested_at.desc())
         )
@@ -289,6 +289,19 @@ class SourceRepository:
         )
         return list(result.scalars().all())
 
+    async def list_source_document_ids_matching_title(self, title_query: str) -> list[UUID]:
+        """Return source_document ids whose title matches ``title_query`` (case-insensitive)."""
+        needle = title_query.strip()
+        if not needle:
+            return []
+        pattern = f"%{_escape_ilike_pattern(needle)}%"
+        result = await self._session.execute(
+            select(SourceDocument.id).where(
+                SourceDocument.title.ilike(pattern, escape="\\"),
+            )
+        )
+        return list(result.scalars().all())
+
     async def list_by_ids_updated_since(
         self,
         document_ids: list[UUID],
@@ -363,6 +376,13 @@ class SourceRepository:
             return
         await self.update_status(document_id, "failed")
 
+    async def mark_source_document_partially_succeeded(self, document_id: UUID) -> None:
+        """Mark a source document partially_succeeded after terminal partial success (skip retired)."""
+        doc = await self.get_source_document(document_id)
+        if doc is None or doc.status == "retired":
+            return
+        await self.update_status(document_id, "partially_succeeded")
+
     async def update_status(
         self,
         document_id: UUID,
@@ -370,8 +390,9 @@ class SourceRepository:
         *,
         calibration: dict[str, Any] | None = None,
         ingested_by: int | None = None,
+        ingested_at: datetime | None = None,
     ) -> None:
-        """Update status and (optionally) calibration / ingest starter user id."""
+        """Update status and (optionally) calibration / ingest starter user id / ingested_at."""
         doc = await self.get_source_document(document_id)
         if doc is None:
             raise ValueError(f"source_document {document_id} not found")
@@ -380,6 +401,10 @@ class SourceRepository:
             doc.extraction_calibration_jsonb = calibration
         if ingested_by is not None:
             doc.ingested_by = ingested_by
+        if ingested_at is not None:
+            doc.ingested_at = ingested_at
+        elif status == "ingested":
+            doc.ingested_at = datetime.now(UTC)
         await self._session.flush()
 
     async def update_outline(

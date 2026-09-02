@@ -111,6 +111,45 @@ class ModuleCompletionRepository:
         await self._session.flush()
         return comp
 
+    async def record_card_only_completion(
+        self,
+        *,
+        chw_id: int,
+        module_family_id: UUID,
+        completed_module_id: UUID,
+        completed_at: datetime | None = None,
+        reinforcement_days: int = 90,
+        tenant_id: int = DEFAULT_TENANT_ID,
+    ) -> CHWModuleCompletion:
+        """Apply card-only module completion to the (chw, module_family) completion row.
+
+        Stamps latest_completed_module_id, completed_at, latest_attempt_passed=True,
+        and schedules reinforcement_due_at (+reinforcement_days).
+        """
+        ts = completed_at or _now()
+        comp = await self.get(chw_id=chw_id, module_family_id=module_family_id)
+        if comp is None:
+            comp = CHWModuleCompletion(
+                chw_id=chw_id,
+                module_family_id=module_family_id,
+                tenant_id=tenant_id,
+                attempts_since_last_pass=0,
+            )
+            self._session.add(comp)
+
+        comp.latest_attempt_module_id = completed_module_id
+        comp.latest_attempt_at = ts
+        comp.latest_attempt_passed = True
+        comp.latest_completed_module_id = completed_module_id
+        comp.completed_at = ts
+        comp.attempts_since_last_pass = 0
+        comp.reinforcement_due_at = ts + timedelta(days=reinforcement_days)
+        if comp.tenant_id is None:
+            comp.tenant_id = tenant_id
+
+        await self._session.flush()
+        return comp
+
     async def clear_completion_stamp(
         self,
         *,

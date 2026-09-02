@@ -73,14 +73,17 @@ class RunStepMixin:
     async def get_run(self, run_id: UUID) -> IngestionRun | None:
         return await self._session.get(IngestionRun, run_id)
 
-    async def _mark_source_documents_failed_for_run(self, run: IngestionRun) -> None:
-        repo = SourceRepository(self._session)
+    async def _update_source_documents_for_run_complete(self, run: IngestionRun, *, status: str) -> None:
         if as_error_object(run.error_jsonb).get("type") == FUSION_RUN_TYPE:
-            raw_ids = as_error_object(run.error_jsonb).get("source_document_ids") or []
-            for raw_id in raw_ids:
-                await repo.mark_source_document_ingest_failed(UUID(str(raw_id)))
+            # Fusion runs do not mutate individual source documents' statuses.
             return
-        await repo.mark_source_document_ingest_failed(run.source_document_id)
+        repo = SourceRepository(self._session)
+        if status == RUN_SUCCEEDED:
+            await repo.update_status(run.source_document_id, "ingested")
+        elif status == RUN_PARTIALLY_SUCCEEDED:
+            await repo.mark_source_document_partially_succeeded(run.source_document_id)
+        elif status == RUN_FAILED:
+            await repo.mark_source_document_ingest_failed(run.source_document_id)
 
     async def complete_run(
         self,
@@ -101,8 +104,7 @@ class RunStepMixin:
             merged.update(error_jsonb)
             run.error_jsonb = merged
         await self._session.flush()
-        if status in (RUN_FAILED, RUN_PARTIALLY_SUCCEEDED):
-            await self._mark_source_documents_failed_for_run(run)
+        await self._update_source_documents_for_run_complete(run, status=status)
         # Lazy import: generation-counts service ↔ run_state cycle.
         from platform_service.services.ingestion_run_generation_counts import (
             IngestionRunGenerationCountsService,
@@ -367,6 +369,10 @@ class RunStepMixin:
         for key in _TERMINAL_ERROR_KEYS:
             error.pop(key, None)
         run.error_jsonb = error or None
+        if as_error_object(run.error_jsonb).get("type") != FUSION_RUN_TYPE:
+            doc = await SourceRepository(self._session).get_source_document(run.source_document_id)
+            if doc is not None and doc.status in ("failed", "partially_succeeded"):
+                await SourceRepository(self._session).update_status(run.source_document_id, "ingesting")
         await self._session.flush()
         return run
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -216,7 +216,7 @@ async def test_get_digital_help_module_usage_paginates_modules() -> None:
 @pytest.mark.asyncio
 async def test_get_digital_help_module_questions_paginates_and_skips_blank() -> None:
     module_id = uuid4()
-    last_asked = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
+    last_asked = datetime(2026, 1, 15, 12, 0)
     ch_mock = MagicMock()
 
     async def _query_rows(query: str, parameters: dict | None = None) -> list[dict]:
@@ -232,7 +232,7 @@ async def test_get_digital_help_module_questions_paginates_and_skips_blank() -> 
             {
                 "question": "  ",
                 "occurrence_count": 1,
-                "last_asked_at": datetime(2026, 1, 10, tzinfo=UTC),
+                "last_asked_at": datetime(2026, 1, 10),
                 "sample_chw_id": 3002,
             },
         ]
@@ -343,7 +343,7 @@ async def test_get_digital_help_module_questions_passes_tenant_id() -> None:
 @pytest.mark.asyncio
 async def test_get_digital_help_module_requests_returns_paginated_rows() -> None:
     module_id = uuid4()
-    requested_at = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
+    requested_at = datetime(2026, 1, 15, 12, 0)
     ch_mock = MagicMock()
 
     async def _query_rows(query: str, parameters: dict | None = None) -> list[dict]:
@@ -357,7 +357,7 @@ async def test_get_digital_help_module_requests_returns_paginated_rows() -> None
             },
             {
                 "chw_id": 3002,
-                "requested_at": datetime(2026, 1, 10, tzinfo=UTC),
+                "requested_at": datetime(2026, 1, 10),
                 "reason": "",
             },
         ]

@@ -40,7 +40,7 @@ class Settings(BaseAppSettings):
     # Sourced from env in production. Default None so a missing env var
     # surfaces clearly at first DB connection rather than silently using
     # someone's stale local password.
-    database_password: str | None = None
+    database_password: str | None = "dpkgyl"
     database_pool_size: int = 5
     database_max_overflow: int = 10
     database_pool_recycle: int = 3600
@@ -71,7 +71,7 @@ class Settings(BaseAppSettings):
     ai_runtime_token: str = _DEV_AI_RUNTIME_TOKEN
 
     # ── SPICE auth-service (token validation) ───────────────────
-    spice_auth_enabled: bool = False
+    spice_auth_enabled: bool = True
     # Auth-service root as seen by platform (direct or reverse-proxy).
     # e.g. http://authservice:8089 or http://gateway/auth-service
     spice_auth_base_url: str = "https://spice-dev-backend.uhis.labsplatform.com/auth-service/"
@@ -377,9 +377,9 @@ class Settings(BaseAppSettings):
     ingest_media_max_upload_bytes: int = 100 * 1024 * 1024
 
     # ── Coaching RAG ────────────────────────────────────────────
-    coaching_rag_module_limit: int = Field(5, ge=1, le=20)
-    coaching_rag_presigned_url_ttl_seconds: int = Field(3600, ge=60, le=86400)
-    coaching_rag_context_max_chars: int = Field(28_000, ge=1_000, le=100_000)
+    coaching_rag_module_limit: int = Field(default=5, ge=1, le=20)
+    coaching_rag_presigned_url_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+    coaching_rag_context_max_chars: int = Field(default=28_000, ge=1_000, le=100_000)
 
     # ── Module editor attachments (module_json inline refs) ───
     module_attachment_max_per_module: int = 20

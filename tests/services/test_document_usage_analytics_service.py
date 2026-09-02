@@ -191,3 +191,94 @@ class TestDocumentUsageAnalyticsService:
         assert result.documents[0].last_viewed_at == viewed_local
         assert result.events[0].viewed_at == viewed_local
         assert viewed_local != datetime(2026, 4, 28, 12, 0, 0)
+
+    async def test_usage_title_query_narrows_documents_only(self) -> None:
+        doc_a = uuid4()
+        doc_b = uuid4()
+        viewed = datetime(2026, 4, 28, 12, 0, 0)
+        ch = MagicMock()
+        ch.query_rows = AsyncMock(
+            side_effect=[
+                # summary (unfiltered)
+                [{"total_views": 5, "unique_documents": 2, "unique_users": 3}],
+                # top (unfiltered)
+                [
+                    {"source_document_id": str(doc_a), "view_count": 3},
+                    {"source_document_id": str(doc_b), "view_count": 2},
+                ],
+                # document row count (title-filtered)
+                [{"total_document_rows": 1}],
+                # document page (title-filtered)
+                [
+                    {
+                        "source_document_id": str(doc_a),
+                        "total_views": 3,
+                        "unique_users": 2,
+                    }
+                ],
+                # last viewed
+                [
+                    {
+                        "source_document_id": str(doc_a),
+                        "last_chw_id": 395,
+                        "last_viewed_at": viewed,
+                    }
+                ],
+                # event count (unfiltered)
+                [{"total_events": 1}],
+                # events page (unfiltered)
+                [
+                    {
+                        "event_id": "evt-1",
+                        "source_document_id": str(doc_b),
+                        "chw_id": 401,
+                        "upazila_id": None,
+                        "viewed_at": viewed,
+                    }
+                ],
+            ]
+        )
+        service = DocumentUsageAnalyticsService(ch)
+        with patch.object(
+            service,
+            "_resolve_title_document_ids",
+            new=AsyncMock(return_value=frozenset([doc_a])),
+        ):
+            result = await service.get_usage(_filters(title_query="protocol"))
+
+        assert result.total_views == 5
+        assert result.unique_documents == 2
+        assert [item.document_id for item in result.top_documents] == [doc_a, doc_b]
+        assert result.total_document_rows == 1
+        assert [row.document_id for row in result.documents] == [doc_a]
+        assert result.total_events == 1
+        count_sql = ch.query_rows.await_args_list[2].args[0]
+        count_params = ch.query_rows.await_args_list[2].kwargs["parameters"]
+        assert "title_doc_ids" in count_sql
+        assert count_params["title_doc_ids"] == [str(doc_a)]
+        summary_params = ch.query_rows.await_args_list[0].kwargs["parameters"]
+        assert "title_doc_ids" not in summary_params
+
+    async def test_usage_title_query_no_matches_empties_documents(self) -> None:
+        doc_a = uuid4()
+        ch = MagicMock()
+        ch.query_rows = AsyncMock(
+            side_effect=[
+                [{"total_views": 3, "unique_documents": 1, "unique_users": 1}],
+                [{"source_document_id": str(doc_a), "view_count": 3}],
+                [{"total_events": 0}],
+                [],
+            ]
+        )
+        service = DocumentUsageAnalyticsService(ch)
+        with patch.object(
+            service,
+            "_resolve_title_document_ids",
+            new=AsyncMock(return_value=frozenset()),
+        ):
+            result = await service.get_usage(_filters(title_query="zzz-missing"))
+
+        assert result.total_views == 3
+        assert result.total_document_rows == 0
+        assert result.documents == []
+        assert len(ch.query_rows.await_args_list) == 4

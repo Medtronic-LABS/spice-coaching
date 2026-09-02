@@ -72,6 +72,11 @@ from platform_service.auth.spice_identity import (
 )
 from platform_service.auth.spice_user import get_selected_tenant_id, get_spice_user
 from platform_service.config import get_settings
+from platform_service.db.repositories.module_read_repository import (
+    DEFAULT_MODULE_SORT_BY,
+    DEFAULT_MODULE_SORT_DIR,
+    MODULE_SORT_DIRS,
+)
 from platform_service.deps import get_clickhouse_client, get_db
 from platform_service.services.dashboard_analytics_service import DashboardAnalyticsService
 from platform_service.services.dashboard_hierarchy import (
@@ -101,6 +106,8 @@ from platform_service.services.team_activity_service import (
     TEAM_ACTIVITY_SORT_KEYS,
     TeamActivityService,
 )
+
+PUBLISHED_MODULE_COMPLETIONS_SORT_KEYS = frozenset({"published_at", "title"})
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 logger = logging.getLogger(__name__)
@@ -327,6 +334,7 @@ async def _build_document_usage_filter(
     upazila_ids: list[int] | None,
     user_id: int | None,
     document_id: UUID | None,
+    title_query: str | None = None,
 ) -> DocumentUsageFilter:
     if from_date > to_date:
         raise AppError(
@@ -349,6 +357,7 @@ async def _build_document_usage_filter(
         upazila_ids=upazila_ids,
         user_id=user_id,
         document_id=document_id,
+        title_query=title_query,
         viewer_id=viewer_id,
         unrestricted_viewer=unrestricted,
     )
@@ -790,6 +799,18 @@ async def published_module_completions(
     to_date: date = Query(..., description="UTC end date (inclusive)."),
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    module_id: list[UUID] | None = Query(
+        default=None,
+        description="Optional module id filter; repeat for multi-select (OR).",
+    ),
+    sort_by: str = Query(
+        default=DEFAULT_MODULE_SORT_BY,
+        description="published_at | title",
+    ),
+    sort_dir: str = Query(
+        default=DEFAULT_MODULE_SORT_DIR,
+        description="asc | desc",
+    ),
     division_id: DivisionIdFilter = None,
     district_id: DistrictIdFilter = None,
     upazila_id: UpazilaIdFilter = None,
@@ -803,6 +824,19 @@ async def published_module_completions(
     ``published`` rows are listed.
     """
     _require_inclusive_date_range(from_date=from_date, to_date=to_date)
+
+    if sort_by not in PUBLISHED_MODULE_COMPLETIONS_SORT_KEYS:
+        raise AppError(
+            ErrorCode.INVALID_QUERY.value,
+            f"sort_by must be one of: {', '.join(sorted(PUBLISHED_MODULE_COMPLETIONS_SORT_KEYS))}",
+            status=422,
+        )
+    if sort_dir not in MODULE_SORT_DIRS:
+        raise AppError(
+            ErrorCode.INVALID_QUERY.value,
+            f"sort_dir must be one of: {', '.join(sorted(MODULE_SORT_DIRS))}",
+            status=422,
+        )
 
     tenant_id = get_selected_tenant_id(request)
     scope = await resolve_published_module_completions_scope(request, session, tenant_id=tenant_id)
@@ -826,6 +860,9 @@ async def published_module_completions(
         offset=offset,
         tenant_id=tenant_id,
         geo_chw_ids=geo_chw_ids,
+        module_ids=module_id,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
 
 
@@ -846,6 +883,14 @@ async def document_usage(
         ),
     ),
     document_id: UUID | None = Query(default=None),
+    q: str | None = Query(
+        default=None,
+        description=(
+            "Optional case-insensitive substring on document title. "
+            "Omit or whitespace → no title filter. Narrows documents[] and "
+            "total_document_rows only (KPIs, top_documents, and events are unchanged)."
+        ),
+    ),
     top_limit: int = Query(default=10, ge=1, le=50),
     documents_limit: int = Query(default=20, ge=1, le=100),
     documents_offset: int = Query(default=0, ge=0),
@@ -869,6 +914,7 @@ async def document_usage(
         upazila_ids=parsed_upazila_ids,
         user_id=user_id,
         document_id=document_id,
+        title_query=q.strip() if q and q.strip() else None,
     )
     try:
         return await DocumentUsageAnalyticsService(get_clickhouse_client(), session).get_usage(

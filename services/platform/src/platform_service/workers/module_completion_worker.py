@@ -54,16 +54,20 @@ from typing import Any
 from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.gap_telemetry_repository import GapTelemetryRepository
 from platform_service.services.module_completion import (
     BadgeAwardHandler,
+    CardProgressHandler,
     GapEscalationHandler,
     LearningPointsHandler,
     QuizEscalationHandler,
     QuizProgressHandler,
     coerce_tenant_id,
     module_quiz_outcome_kind,
+    parse_card_family_id,
+    parse_card_id,
     parse_chw_id,
     parse_quiz_id,
     parse_uuid,
@@ -92,18 +96,22 @@ async def _try_claim_module_event(session, payload: dict[str, Any]) -> bool:
     """Idempotent worker claim; duplicates return False (already processed)."""
     event_id = payload.get("event_id")
     chw_id = parse_chw_id(payload.get("chw_id"))
-    if not event_id or chw_id is None:
+    if chw_id is None:
         return False
+    if not event_id:
+        return True
     parsed = parse_uuid(event_id, field="event_id")
     if parsed is None:
-        return False
+        return True
     event_type = (payload.get("event_type") or "unknown").strip().lower()
+    t_id = coerce_tenant_id(payload.get("tenant_id"))
+    effective_tenant = t_id if t_id is not None else DEFAULT_TENANT_ID
     repo = GapTelemetryRepository(session)
     return await repo.try_claim_event(
         event_id=parsed,
         chw_id=chw_id,
         event_type=event_type,
-        tenant_id=coerce_tenant_id(payload.get("tenant_id")),
+        tenant_id=effective_tenant,
     )
 
 
@@ -117,10 +125,13 @@ async def process_module_event_job(payload: dict[str, Any]) -> None:
         event_id: str
         Module pipeline additionally: module_id (the specific Module row the
         SDK rendered — version is encoded in this id, so no separate version
-        field is needed), quiz_id (``module_quiz_question.id`` for the question
+        field is needed), card_family_id or card_id (for MODULE_CARD_VIEWED),
+        quiz_id (``module_quiz_question.id`` for the question
         being answered), quiz_score_pct (0.0–1.0 on
         MODULE_QUIZ_ATTEMPTED; gap fallback only); optional outcome (correct |
         wrong | incorrect) drives gap failed_attempts_count when set.
+        Per-card progress is recorded on MODULE_CARD_VIEWED; module completion
+        is stamped for quiz-less modules when every card has at least one view row.
         Per-question progress is recorded whenever ``quiz_id`` is present,
         regardless of ``outcome``. Learning points for MODULE_QUIZ_ATTEMPTED
         require outcome ``correct``.
@@ -146,8 +157,12 @@ async def process_module_event_job(payload: dict[str, Any]) -> None:
         return
 
     with using_selected_tenant(payload_tenant_id(payload)):
-        if event_type in ("module_delivered", "module_card_viewed"):
+        if event_type == "module_delivered":
             await _process_learning_points_only(payload, event_type=event_type)
+            return
+
+        if event_type == "module_card_viewed":
+            await _process_module_card(payload, event_type=event_type)
             return
 
         if event_type == "spice_action_observed":
@@ -164,6 +179,74 @@ async def process_module_event_job(payload: dict[str, Any]) -> None:
         await _process_module_quiz(payload, event_type=event_type)
 
 
+async def _process_module_card(payload: dict[str, Any], *, event_type: str) -> None:
+    chw_id = parse_chw_id(payload.get("chw_id"))
+    module_id = parse_uuid(payload.get("module_id"), field="module_id")
+    if chw_id is None or module_id is None:
+        logger.warning(
+            "module_completion_worker dropping event_id=%s: missing chw_id or module_id",
+            payload.get("event_id"),
+        )
+        return
+
+    t_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = t_id if t_id is not None else DEFAULT_TENANT_ID
+
+    async with SessionLocal() as session:
+        try:
+            if not await _try_claim_module_event(session, payload):
+                logger.info(
+                    "module_completion_worker duplicate event_id=%s event_type=%s",
+                    payload.get("event_id"),
+                    event_type,
+                )
+                return
+            module = await session.get(Module, module_id)
+            if module is None:
+                logger.error(
+                    "module_completion_worker: no module row for module_id=%s event_id=%s",
+                    module_id,
+                    payload.get("event_id"),
+                )
+                raise ModuleNotFoundForEventError(
+                    f"module_id={module_id} not found for event_id={payload.get('event_id')}"
+                )
+
+            card_id = parse_card_id(payload)
+            card_family_id = parse_card_family_id(payload)
+
+            newly_completed = await CardProgressHandler(session).record_card_viewed_and_maybe_complete(
+                chw_id=chw_id,
+                tenant_id=tenant_id,
+                module=module,
+                card_id=card_id,
+                card_family_id=card_family_id,
+            )
+            if newly_completed:
+                await BadgeAwardHandler(session).try_award_for_completed_module(
+                    chw_id=chw_id,
+                    tenant_id=tenant_id,
+                    module_id=module.id,
+                )
+
+            await LearningPointsHandler(session).try_award_from_payload(
+                event_id=payload.get("event_id"),
+                chw_id=chw_id,
+                tenant_id=tenant_id,
+                event_type=event_type,
+                payload=payload,
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.exception(
+                "module_completion_worker failed for event_id=%s event_type=%s",
+                payload.get("event_id"),
+                event_type,
+            )
+            raise
+
+
 async def _process_learning_points_only(payload: dict[str, Any], *, event_type: str) -> None:
     chw_id = parse_chw_id(payload.get("chw_id"))
     if chw_id is None:
@@ -172,7 +255,8 @@ async def _process_learning_points_only(payload: dict[str, Any], *, event_type: 
             payload.get("event_id"),
         )
         return
-    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
+    t_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = t_id if t_id is not None else DEFAULT_TENANT_ID
     async with SessionLocal() as session:
         try:
             if not await _try_claim_module_event(session, payload):
@@ -215,7 +299,8 @@ async def _process_spice_action(payload: dict[str, Any]) -> None:
             payload.get("event_id"),
         )
         return
-    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
+    t_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = t_id if t_id is not None else DEFAULT_TENANT_ID
     async with SessionLocal() as session:
         try:
             if not await _try_claim_module_event(session, payload):
@@ -261,7 +346,8 @@ async def _process_module_quiz(payload: dict[str, Any], *, event_type: str) -> N
         )
         return
 
-    tenant_id = coerce_tenant_id(payload.get("tenant_id"))
+    t_id = coerce_tenant_id(payload.get("tenant_id"))
+    tenant_id = t_id if t_id is not None else DEFAULT_TENANT_ID
 
     async with SessionLocal() as session:
         try:

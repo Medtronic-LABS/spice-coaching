@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.workers import module_completion_worker
@@ -22,12 +23,8 @@ def _test_chw_id() -> int:
 @pytest.fixture(autouse=True)
 def _gap_state_telemetry_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     """Existing worker tests target behavioural-gap telemetry mode."""
-    from platform_service.config import get_settings
-
-    monkeypatch.setenv("TELEMETRY_BEHAVIOURAL_GAP_STATE_ENABLED", "true")
-    get_settings.cache_clear()
     monkeypatch.setattr(
-        get_settings(),
+        module_completion_worker.get_settings(),
         "telemetry_behavioural_gap_state_enabled",
         True,
     )
@@ -41,21 +38,15 @@ def patch_session_local(db_session: AsyncSession):
     async def _factory():
         # Disable internal commit so the test's rollback fixture cleans up.
         original_commit = db_session.commit
-        original_rollback = db_session.rollback
 
         async def _commit_as_flush() -> None:
             await db_session.flush()
 
-        async def _rollback_noop() -> None:
-            return None
-
         db_session.commit = _commit_as_flush  # type: ignore[method-assign]
-        db_session.rollback = _rollback_noop  # type: ignore[method-assign]
         try:
             yield db_session
         finally:
             db_session.commit = original_commit  # type: ignore[method-assign]
-            db_session.rollback = original_rollback  # type: ignore[method-assign]
 
     with patch.object(module_completion_worker, "SessionLocal", _factory):
         yield
@@ -124,3 +115,25 @@ async def _add_quiz_questions(
         questions.append(q)
     await session.flush()
     return questions
+
+
+async def _add_module_cards(
+    session: AsyncSession,
+    *,
+    module: Module,
+    count: int,
+) -> list[ModuleCard]:
+    cards: list[ModuleCard] = []
+    for idx in range(count):
+        card = ModuleCard(
+            module_id=module.id,
+            card_order=idx + 1,
+            card_family_id=uuid4(),
+            card_version=1,
+            title_localized={"bn": f"card {idx + 1}"},
+            body_localized={"bn": f"body {idx + 1}"},
+        )
+        session.add(card)
+        cards.append(card)
+    await session.flush()
+    return cards

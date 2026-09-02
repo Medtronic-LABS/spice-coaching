@@ -44,6 +44,9 @@ class PublishedModuleCompletionsService:
         offset: int,
         tenant_id: int,
         geo_chw_ids: frozenset[int] | None = None,
+        module_ids: list[UUID] | None = None,
+        sort_by: str = "published_at",
+        sort_dir: str = "desc",
     ) -> PublishedModuleCompletionsResponse:
         by_id = await org_user_index(self._session, tenant_id=tenant_id)
         if scope.unrestricted:
@@ -64,6 +67,9 @@ class PublishedModuleCompletionsService:
         chw_ids = [sk.id for sk in visible_sks]
         from_ts, to_ts = _utc_range_bounds(from_date, to_date)
 
+        # Empty module_ids means no ID filter (all published-in-range).
+        id_filter = module_ids if module_ids else None
+
         module_repo = ModuleRepository(self._session)
         total_modules = await module_repo.count_modules(
             status="published",
@@ -71,6 +77,7 @@ class PublishedModuleCompletionsService:
             published_from=from_ts,
             published_to=to_ts,
             tenant_id=tenant_id,
+            module_ids=id_filter,
         )
         modules = await module_repo.list_modules(
             status="published",
@@ -78,8 +85,9 @@ class PublishedModuleCompletionsService:
             published_from=from_ts,
             published_to=to_ts,
             tenant_id=tenant_id,
-            sort_by="published_at",
-            sort_dir="desc",
+            module_ids=id_filter,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
             limit=limit,
             offset=offset,
         )

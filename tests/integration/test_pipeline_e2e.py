@@ -519,7 +519,7 @@ class TestStageCZeroCandidatesFailsIdentify:
         }
 
         sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
-        assert sd.status == "failed"
+        assert sd.status == "partially_succeeded"
 
 
 # ─── Scenario 4: Per-candidate Stage D failure ────────────────────────────
@@ -568,7 +568,7 @@ class TestStageDPerCandidateFailure:
         assert run.error_jsonb["drafts_produced"] == 2
 
         sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
-        assert sd.status == "failed"
+        assert sd.status == "partially_succeeded"
 
 
 # ─── Scenario 5: Resume after partial failure ─────────────────────────────

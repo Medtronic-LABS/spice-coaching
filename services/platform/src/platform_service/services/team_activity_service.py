@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -28,6 +28,12 @@ from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.repositories.module_assignment_repository import ModuleAssignmentRepository
 from platform_service.db.repositories.module_completion_repository import ModuleCompletionRepository
 from platform_service.db.repositories.module_repository import ModuleRepository
+from platform_service.services.dashboard_datetime import (
+    date_to_utc_midnight,
+    max_datetime,
+    to_local_datetime,
+    utc_range_bounds,
+)
 from platform_service.services.dashboard_hierarchy import (
     OrgUser,
     descendants_with_role,
@@ -100,29 +106,19 @@ def _to_uuid(value: Any) -> UUID | None:
 
 
 def _to_datetime(value: Any) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value
-    return None
+    return to_local_datetime(value)
 
 
 def _date_to_datetime_utc(value: Any) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return _to_datetime(value)
-    if isinstance(value, date):
-        return datetime.combine(value, time.min, tzinfo=UTC)
-    return None
+    return date_to_utc_midnight(value)
 
 
 def _utc_range_bounds(from_date: date, to_date: date) -> tuple[datetime, datetime]:
-    from_ts = datetime.combine(from_date, time.min, tzinfo=UTC)
-    to_ts = datetime.combine(to_date + timedelta(days=1), time.min, tzinfo=UTC) - timedelta(microseconds=1)
-    return from_ts, to_ts
+    return utc_range_bounds(from_date, to_date)
+
+
+def _max_datetime(*values: datetime | None) -> datetime | None:
+    return max_datetime(*values)
 
 
 def _count_refreshers(
@@ -163,13 +159,6 @@ def _count_refreshers(
                 bucket["completed"] += 1
 
     return out
-
-
-def _max_datetime(*values: datetime | None) -> datetime | None:
-    present = [v for v in values if v is not None]
-    if not present:
-        return None
-    return max(present)
 
 
 def _child_share_on_track(on_track_count: int, total: int) -> bool:

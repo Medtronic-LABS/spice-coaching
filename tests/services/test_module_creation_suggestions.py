@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from mc_contracts.enums import GenerationType
-from mc_contracts.internal_ai import InferenceResponse, TokenUsage
+from mc_contracts.internal_ai import InferenceResponse, PromptSpec, TokenUsage
 from platform_service.services.module_creation_suggestion_classifier import (
     SUGGESTION_KIND_MATCHED_DRAFT,
     SUGGESTION_KIND_PROPOSED_TOPIC,
@@ -19,6 +19,15 @@ from platform_service.services.unattributed_demand_aggregator import (
     DedupedEvidence,
     UnattributedDemandAggregator,
 )
+
+
+def _dummy_prompt_spec() -> PromptSpec:
+    return PromptSpec(
+        template_id="t1",
+        template_version=1,
+        resolved_system_prompt="sys",
+        resolved_human_message="user",
+    )
 
 
 def _inference_response(
@@ -50,7 +59,7 @@ def test_dedupe_merges_normalized_questions_and_requests() -> None:
             "source": "digital_help",
             "text": "  How to refer? ",
             "normalized_text": "how to refer?",
-            "timestamp_local": datetime(2026, 7, 29, 16, 0, tzinfo=UTC),
+            "timestamp_local": datetime(2026, 7, 29, 16, 0),
             "chw_id": 11,
         },
         {
@@ -58,7 +67,7 @@ def test_dedupe_merges_normalized_questions_and_requests() -> None:
             "source": "digital_help",
             "text": "how to refer?",
             "normalized_text": "how to refer?",
-            "timestamp_local": datetime(2026, 7, 29, 18, 0, tzinfo=UTC),
+            "timestamp_local": datetime(2026, 7, 29, 18, 0),
             "chw_id": 12,
         },
         {
@@ -66,7 +75,7 @@ def test_dedupe_merges_normalized_questions_and_requests() -> None:
             "source": "module_requested",
             "text": "Neonatal Care",
             "normalized_text": "neonatal care",
-            "timestamp_local": datetime(2026, 7, 29, 15, 0, tzinfo=UTC),
+            "timestamp_local": datetime(2026, 7, 29, 15, 0),
             "chw_id": 13,
         },
         {
@@ -74,7 +83,7 @@ def test_dedupe_merges_normalized_questions_and_requests() -> None:
             "source": "digital_help",
             "text": "   ",
             "normalized_text": "",
-            "timestamp_local": datetime(2026, 7, 29, 14, 0, tzinfo=UTC),
+            "timestamp_local": datetime(2026, 7, 29, 14, 0),
             "chw_id": 14,
         },
     ]
@@ -83,10 +92,10 @@ def test_dedupe_merges_normalized_questions_and_requests() -> None:
     assert questions[0].occurrence_count == 2
     assert questions[0].text == "how to refer?"
     assert questions[0].sample_chw_id == 12
-    assert questions[0].last_seen_at == datetime(2026, 7, 29, 18, 0, tzinfo=UTC)
+    assert questions[0].last_seen_at == datetime(2026, 7, 29, 18, 0)
     assert len(requests) == 1
     assert requests[0].normalized_text == "neonatal care"
-    assert requests[0].last_seen_at == datetime(2026, 7, 29, 15, 0, tzinfo=UTC)
+    assert requests[0].last_seen_at == datetime(2026, 7, 29, 15, 0)
 
 
 @pytest.mark.asyncio
@@ -143,7 +152,7 @@ async def test_classifier_keeps_valid_draft_and_proposed_drops_unknown() -> None
         ),
         patch(
             "platform_service.services.module_creation_suggestion_classifier.prompt_spec_from_rendered",
-            return_value=MagicMock(),
+            return_value=_dummy_prompt_spec(),
         ),
     ):
         classifier = ModuleCreationSuggestionClassifier(session, client=client, settings=settings)
@@ -198,7 +207,7 @@ async def test_classifier_raises_on_invalid_json() -> None:
         ),
         patch(
             "platform_service.services.module_creation_suggestion_classifier.prompt_spec_from_rendered",
-            return_value=MagicMock(),
+            return_value=_dummy_prompt_spec(),
         ),
     ):
         classifier = ModuleCreationSuggestionClassifier(session, client=client, settings=settings)
@@ -227,7 +236,7 @@ async def test_classifier_raises_on_ai_runtime_error() -> None:
         ),
         patch(
             "platform_service.services.module_creation_suggestion_classifier.prompt_spec_from_rendered",
-            return_value=MagicMock(),
+            return_value=_dummy_prompt_spec(),
         ),
     ):
         classifier = ModuleCreationSuggestionClassifier(session, client=client, settings=settings)

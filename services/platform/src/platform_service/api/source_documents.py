@@ -40,7 +40,9 @@ from platform_service.services.user_actor_ref import to_user_actor_ref
 
 router = APIRouter(prefix="/admin", tags=["admin-source-documents"])
 
-VALID_SOURCE_DOCUMENT_STATUSES = frozenset({"uploaded", "ingesting", "ingested", "failed", "retired"})
+VALID_SOURCE_DOCUMENT_STATUSES = frozenset(
+    {"uploaded", "ingesting", "ingested", "partially_succeeded", "failed", "retired"}
+)
 VALID_SOURCE_DOCUMENT_TYPES = frozenset(e.value for e in SourceDocumentType)
 _MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -111,3 +111,29 @@ class TestDashboardRoutes:
             params={"from": "2026-04-30", "to": "2026-04-01"},
         )
         assert resp.status_code == 422
+
+    async def test_document_usage_accepts_q_param(self, app: FastAPI, client: AsyncClient) -> None:
+        doc_id = uuid4()
+        ch_mock = app.dependency_overrides[get_clickhouse_client]()
+        ch_mock.query_rows = AsyncMock(
+            side_effect=[
+                [{"total_views": 7, "unique_documents": 1, "unique_users": 2}],
+                [{"source_document_id": str(doc_id), "view_count": 7}],
+                [{"total_events": 0}],
+                [],
+            ]
+        )
+        with patch(
+            "platform_service.services.document_usage_analytics_service."
+            "DocumentUsageAnalyticsService._resolve_title_document_ids",
+            new=AsyncMock(return_value=frozenset()),
+        ):
+            resp = await client.get(
+                platform_path("/dashboard/document-usage"),
+                params={"from": "2026-04-01", "to": "2026-04-30", "q": "missing-title"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_views"] == 7
+        assert data["total_document_rows"] == 0
+        assert data["documents"] == []

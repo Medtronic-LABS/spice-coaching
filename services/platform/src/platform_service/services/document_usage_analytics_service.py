@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.clickhouse.client import ClickHouseClient
 from platform_service.db.repositories.source_repository import SourceRepository
+from platform_service.services.dashboard_datetime import to_local_datetime
 from platform_service.services.dashboard_hierarchy import is_team_activity_descendant
 from platform_service.services.document_usage_hierarchy import (
     OrgUser,
@@ -42,6 +43,8 @@ class DocumentUsageFilter:
     upazila_ids: list[int] | None = None
     user_id: int | None = None
     document_id: UUID | None = None
+    # Optional title substring; narrows documents[] / total_document_rows only.
+    title_query: str | None = None
     viewer_id: int | None = None
     unrestricted_viewer: bool = False
 
@@ -67,11 +70,7 @@ def _to_uuid(value: Any) -> UUID | None:
 
 
 def _as_datetime(value: Any) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value
-    return None
+    return to_local_datetime(value)
 
 
 class DocumentUsageAnalyticsService:
@@ -175,6 +174,35 @@ class DocumentUsageAnalyticsService:
         docs = await SourceRepository(self._session).list_source_documents_by_ids(document_ids)
         return {doc.id: doc.title for doc in docs}
 
+    async def _resolve_title_document_ids(
+        self,
+        title_query: str | None,
+    ) -> frozenset[UUID] | None:
+        """Return matching source-document IDs for ``title_query``.
+
+        ``None`` means no title filter. An empty frozenset means the query matched
+        nothing (documents table should be empty).
+        """
+        if title_query is None or not title_query.strip():
+            return None
+        if self._session is None:
+            return frozenset()
+        ids = await SourceRepository(self._session).list_source_document_ids_matching_title(
+            title_query.strip()
+        )
+        return frozenset(ids)
+
+    @staticmethod
+    def _with_title_document_ids(
+        where_sql: str,
+        params: dict[str, Any],
+        title_doc_ids: frozenset[UUID],
+    ) -> tuple[str, dict[str, Any]]:
+        return (
+            f"{where_sql} AND source_document_id IN {{title_doc_ids:Array(String)}}",
+            {**params, "title_doc_ids": [str(doc_id) for doc_id in title_doc_ids]},
+        )
+
     def _empty_response(
         self,
         filters: DocumentUsageFilter,
@@ -224,6 +252,7 @@ class DocumentUsageAnalyticsService:
 
         where_sql, params = self._mv_where(filters, chw_ids)
         events_where, events_params = self._events_where(filters, chw_ids)
+        title_doc_ids = await self._resolve_title_document_ids(filters.title_query)
 
         summary_rows = await self._ch.query_rows(
             f"""
@@ -255,34 +284,41 @@ class DocumentUsageAnalyticsService:
             parameters={**params, "top_limit": int(top_limit)},
         )
 
-        count_rows = await self._ch.query_rows(
-            f"""
-            SELECT uniqExact(source_document_id) AS total_document_rows
-            FROM document_view_daily
-            WHERE {where_sql}
-            """,
-            parameters=params,
-        )
-        total_document_rows = _to_int((count_rows[0] if count_rows else {}).get("total_document_rows"))
+        if title_doc_ids is not None and len(title_doc_ids) == 0:
+            total_document_rows = 0
+            agg_rows: list[dict[str, Any]] = []
+        else:
+            docs_where_sql, docs_params = where_sql, params
+            if title_doc_ids is not None:
+                docs_where_sql, docs_params = self._with_title_document_ids(where_sql, params, title_doc_ids)
+            count_rows = await self._ch.query_rows(
+                f"""
+                SELECT uniqExact(source_document_id) AS total_document_rows
+                FROM document_view_daily
+                WHERE {docs_where_sql}
+                """,
+                parameters=docs_params,
+            )
+            total_document_rows = _to_int((count_rows[0] if count_rows else {}).get("total_document_rows"))
 
-        agg_rows = await self._ch.query_rows(
-            f"""
-            SELECT
-              source_document_id,
-              sum(view_count) AS total_views,
-              uniqExact(chw_id) AS unique_users
-            FROM document_view_daily
-            WHERE {where_sql}
-            GROUP BY source_document_id
-            ORDER BY total_views DESC
-            LIMIT {{documents_limit:UInt32}} OFFSET {{documents_offset:UInt32}}
-            """,
-            parameters={
-                **params,
-                "documents_limit": int(documents_limit),
-                "documents_offset": int(documents_offset),
-            },
-        )
+            agg_rows = await self._ch.query_rows(
+                f"""
+                SELECT
+                  source_document_id,
+                  sum(view_count) AS total_views,
+                  uniqExact(chw_id) AS unique_users
+                FROM document_view_daily
+                WHERE {docs_where_sql}
+                GROUP BY source_document_id
+                ORDER BY total_views DESC
+                LIMIT {{documents_limit:UInt32}} OFFSET {{documents_offset:UInt32}}
+                """,
+                parameters={
+                    **docs_params,
+                    "documents_limit": int(documents_limit),
+                    "documents_offset": int(documents_offset),
+                },
+            )
 
         page_ids: list[UUID] = []
         page_meta: list[tuple[UUID, int, int]] = []

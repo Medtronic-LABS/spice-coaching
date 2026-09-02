@@ -158,6 +158,12 @@ class RunStateService(RunClaimMixin, RunStepMixin):
         if run.status == RUN_PARTIALLY_SUCCEEDED:
             run.status = RUN_RUNNING
             run.completed_at = None
+            if not self.is_fusion_run(run):
+                from platform_service.db.repositories.source_repository import SourceRepository
+
+                doc = await SourceRepository(self._session).get_source_document(run.source_document_id)
+                if doc is not None and doc.status in ("failed", "partially_succeeded"):
+                    await SourceRepository(self._session).update_status(run.source_document_id, "ingesting")
             await self._session.flush()
             return run
         raise ValueError(f"ingestion_run {run_id} cannot be activated from status {run.status!r}")

@@ -127,7 +127,7 @@ async def run_document_path(
             method_counts=method_counts,
         )
 
-    await host._repo.update_status(source_document_id, status="ingested", calibration=calibration.to_jsonb())
+    await host._repo.update_status(source_document_id, status="ingesting", calibration=calibration.to_jsonb())
     await host._session.commit()
 
     recovered = await run_vision_recovery_pass(

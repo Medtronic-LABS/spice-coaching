@@ -99,7 +99,7 @@ async def run_media_transcript_path(
 
     await repo.update_status(
         source_document_id,
-        status="ingested",
+        status="ingesting",
         calibration=calibration.to_jsonb(),
     )
 

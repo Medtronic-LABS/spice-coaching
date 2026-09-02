@@ -1283,7 +1283,7 @@ async def test_member_questions_returns_paginated_rows(
             _org_user(395, "A", role=HierarchyRole.SHASTIYA_KORMI.value, parent_id=ORGANIZER_ID),
         ],
     )
-    last_asked = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
+    last_asked = datetime(2026, 1, 15, 12, 0)
 
     async def _query_rows(query: str, parameters: dict | None = None) -> list[dict]:
         if "total_questions" in query:
@@ -1297,7 +1297,7 @@ async def test_member_questions_returns_paginated_rows(
             {
                 "question": "child fever",
                 "occurrence_count": 1,
-                "last_asked_at": datetime(2026, 1, 10, 8, 0, tzinfo=UTC),
+                "last_asked_at": datetime(2026, 1, 10, 8, 0),
             },
         ]
 

@@ -6,8 +6,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from platform_service.db.models.chw_module_card_progress import CHWModuleCardProgress
+from platform_service.db.models.chw_module_completion import CHWModuleCompletion
 from platform_service.db.models.chw_module_quiz_progress import CHWModuleQuizProgress
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_family import ModuleFamily
 from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.repositories.module_completion_repository import (
@@ -115,6 +118,17 @@ async def test_partial_completion_empty_when_all_questions_answered(
     await _add_progress(db_session, chw_id=chw_id, module=module, quiz_id=q2.id)
 
     repo = ModuleCompletionRepository(db_session)
+    comp = await repo.get(chw_id=chw_id, module_family_id=module.module_family_id)
+    if comp is None:
+        db_session.add(
+            CHWModuleCompletion(
+                chw_id=chw_id,
+                module_family_id=module.module_family_id,
+                tenant_id=1,
+                attempts_since_last_pass=0,
+            )
+        )
+        await db_session.flush()
     await repo.mark_completed(
         chw_id=chw_id,
         module_family_id=module.module_family_id,
@@ -233,3 +247,47 @@ async def test_quiz_question_states_in_bundle_when_quiz_telemetry_mode(
     assert len(bundle.chw_quiz_question_states) == 1
     assert bundle.chw_quiz_question_states[0].quiz_id == q1.id
     assert bundle.chw_quiz_question_states[0].failed_attempts_count == 1
+
+
+@pytest.mark.asyncio
+@requires_db
+async def test_partial_completion_cards_in_bundle(db_session: AsyncSession) -> None:
+    chw_id = _test_chw_id()
+    module = await _make_module(db_session)
+
+    c1 = ModuleCard(
+        module_id=module.id,
+        card_order=1,
+        card_family_id=uuid4(),
+        card_version=1,
+        title_localized={"bn": "c1"},
+    )
+    c2 = ModuleCard(
+        module_id=module.id,
+        card_order=2,
+        card_family_id=uuid4(),
+        card_version=1,
+        title_localized={"bn": "c2"},
+    )
+    db_session.add_all([c1, c2])
+    await db_session.flush()
+
+    # CHW viewed card 1
+    db_session.add(
+        CHWModuleCardProgress(
+            chw_id=chw_id,
+            module_id=module.id,
+            card_id=c1.id,
+            tenant_id=1,
+        )
+    )
+    await db_session.flush()
+
+    bundle = await SyncService(db_session).get_gaps_bundle(since=None, chw_id=chw_id)
+
+    assert len(bundle.chw_module_partial_completions) == 1
+    partial = bundle.chw_module_partial_completions[0]
+    assert partial.chw_id == chw_id
+    assert partial.module_id == module.id
+    assert partial.incomplete_quiz_ids == []
+    assert partial.incomplete_card_ids == [c2.id]

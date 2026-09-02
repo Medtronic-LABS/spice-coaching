@@ -178,7 +178,7 @@ class StageAExtractor:
 
         await self._repo.update_status(
             source_document_id,
-            status="ingested",
+            status="ingesting",
             calibration=doc.extraction_calibration_jsonb,
         )
         await self._session.commit()

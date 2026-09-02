@@ -24,44 +24,18 @@ Loop / engine isolation:
 """
 
 import asyncio as _asyncio
+import logging
 import os
 import subprocess
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 
 import pytest
 import pytest_asyncio
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal, get_engine, reset_engine_caches
 from sqlalchemy import text as _text
-from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
-
-# Serialize TRUNCATE across test connections — concurrent AccessExclusiveLock
-# acquisition deadlocks when SessionLocal / wipe fixtures overlap.
-_WIPE_ADVISORY_LOCK_KEY = 874_201_337
-
-
-async def truncate_tables(session: AsyncSession, tables_csv: str, *, attempts: int = 8) -> None:
-    """TRUNCATE ``tables_csv`` under an advisory lock with deadlock retries."""
-    await session.rollback()
-    last_exc: Exception | None = None
-    for attempt in range(attempts):
-        try:
-            await session.execute(_text(f"SELECT pg_advisory_lock({_WIPE_ADVISORY_LOCK_KEY})"))
-            try:
-                await session.execute(_text(f"TRUNCATE {tables_csv} RESTART IDENTITY CASCADE"))
-                await session.commit()
-            finally:
-                await session.execute(_text(f"SELECT pg_advisory_unlock({_WIPE_ADVISORY_LOCK_KEY})"))
-                await session.commit()
-            return
-        except DBAPIError as exc:
-            last_exc = exc
-            await session.rollback()
-            await _asyncio.sleep(0.05 * (attempt + 1))
-    assert last_exc is not None
-    raise last_exc
 
 
 def _has_test_db() -> bool:
@@ -79,15 +53,22 @@ def platform_path(path: str) -> str:
     return get_settings().api_path(path)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _disable_spice_auth_for_tests() -> Iterator[None]:
-    """API tests assume open access unless they explicitly exercise auth."""
-    os.environ["SPICE_AUTH_ENABLED"] = "false"
-    try:
-        get_settings.cache_clear()
-    except Exception:
-        pass
-    yield
+@pytest.fixture
+def listen_logger(caplog: pytest.LogCaptureFixture) -> Iterator[Callable[[str], None]]:
+    """Attach caplog to a named logger that has propagate=False."""
+    attached: list[logging.Logger] = []
+
+    def _listen(name: str) -> None:
+        logger = logging.getLogger(name)
+        if caplog.handler not in logger.handlers:
+            logger.addHandler(caplog.handler)
+        logger.propagate = False
+        logger.setLevel(logging.DEBUG)
+        attached.append(logger)
+
+    yield _listen
+    for logger in attached:
+        logger.removeHandler(caplog.handler)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -102,8 +83,9 @@ def _align_database_url_with_test_url() -> Iterator[None]:
     if test_url:
         # Take precedence over any inherited DATABASE_URL.
         os.environ["DATABASE_URL"] = test_url
-        # Do not set DATABASE_PASSWORD here — CI unsets it and embeds credentials
-        # in DATABASE_URL_TEST; forcing a default reintroduces secret-env races.
+        # Default test DB password matches the docker container we
+        # document above. Honour an explicit override if set.
+        os.environ.setdefault("DATABASE_PASSWORD", "postgres")
         # Clear any previously-cached settings.
         try:
             get_settings.cache_clear()
@@ -149,11 +131,13 @@ def _migrate_test_db(_align_database_url_with_test_url: None) -> Iterator[None]:
         engine = _create_async_engine(url, echo=False)
         try:
             async with engine.begin() as conn:
-                # Get every table name in the public schema except alembic_version.
+                # Get every table name in the public schema except alembic_version
+                # and reference catalogs seeded by migrations (e.g. role).
                 rows = await conn.execute(
                     _text(
                         "SELECT tablename FROM pg_tables "
-                        "WHERE schemaname='public' AND tablename != 'alembic_version'"
+                        "WHERE schemaname='public' "
+                        "AND tablename NOT IN ('alembic_version', 'role')"
                     )
                 )
                 tables = [r[0] for r in rows.fetchall()]
@@ -199,7 +183,7 @@ async def db_session(test_db_url: str) -> AsyncIterator[AsyncSession]:
         reset_engine_caches()
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_prompt_templates(monkeypatch: pytest.MonkeyPatch):
     """Stub DB-backed prompt rendering for unit tests without seeded templates."""
     from uuid import uuid4

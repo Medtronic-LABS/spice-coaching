@@ -265,7 +265,8 @@ class CHWModulePartialCompletionSyncPayload(BaseModel):
     chw_id: int
     module_id: UUID
     module_family_id: UUID
-    incomplete_quiz_ids: list[UUID]
+    incomplete_quiz_ids: list[UUID] = Field(default_factory=list)
+    incomplete_card_ids: list[UUID] = Field(default_factory=list)
     tenant_id: int
 
 

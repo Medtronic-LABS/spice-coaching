@@ -258,11 +258,13 @@ class TestPatchStepInputSummary:
 
 
 class TestCompleteRunMarksSourceFailed:
-    async def test_partially_succeeded_marks_ingested_source_failed(self, db_session: AsyncSession) -> None:
+    async def test_partially_succeeded_marks_source_partially_succeeded(
+        self, db_session: AsyncSession
+    ) -> None:
         run_state, run = await _seed_run(db_session)
         sd = await db_session.get(SourceDocument, run.source_document_id)
         assert sd is not None
-        sd.status = "ingested"
+        sd.status = "ingesting"
         await db_session.commit()
 
         await run_state.complete_run(
@@ -272,7 +274,7 @@ class TestCompleteRunMarksSourceFailed:
         )
         await db_session.commit()
         await db_session.refresh(sd)
-        assert sd.status == "failed"
+        assert sd.status == "partially_succeeded"
 
     async def test_failed_marks_ingesting_source_failed(self, db_session: AsyncSession) -> None:
         run_state, run = await _seed_run(db_session)
@@ -286,11 +288,11 @@ class TestCompleteRunMarksSourceFailed:
         await db_session.refresh(sd)
         assert sd.status == "failed"
 
-    async def test_succeeded_does_not_mark_source_failed(self, db_session: AsyncSession) -> None:
+    async def test_succeeded_marks_ingesting_source_ingested(self, db_session: AsyncSession) -> None:
         run_state, run = await _seed_run(db_session)
         sd = await db_session.get(SourceDocument, run.source_document_id)
         assert sd is not None
-        sd.status = "ingested"
+        sd.status = "ingesting"
         await db_session.commit()
 
         await run_state.complete_run(run.id, status=RUN_SUCCEEDED)
@@ -310,7 +312,9 @@ class TestCompleteRunMarksSourceFailed:
         await db_session.refresh(sd)
         assert sd.status == "retired"
 
-    async def test_fusion_run_marks_all_source_documents_failed(self, db_session: AsyncSession) -> None:
+    async def test_fusion_run_failure_preserves_source_documents_status(
+        self, db_session: AsyncSession
+    ) -> None:
         sd_a = SourceDocument(
             title="a",
             source_type="pdf",
@@ -339,5 +343,5 @@ class TestCompleteRunMarksSourceFailed:
         await db_session.commit()
         await db_session.refresh(sd_a)
         await db_session.refresh(sd_b)
-        assert sd_a.status == "failed"
-        assert sd_b.status == "failed"
+        assert sd_a.status == "ingested"
+        assert sd_b.status == "ingested"

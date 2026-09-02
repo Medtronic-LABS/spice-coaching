@@ -63,8 +63,8 @@ class SourceDocument(TenantMixin, Base):
     # (GET /sync/source-documents), not this flag.
     sync_published_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    # uploaded | ingesting | ingested | failed | retired
-    status: Mapped[str] = mapped_column(Text, nullable=False, default="ingesting")
+    # uploaded | ingesting | ingested | partially_succeeded | failed | retired
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="uploaded")
     uploaded_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

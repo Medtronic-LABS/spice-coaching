@@ -9,9 +9,11 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.chw_behavioural_gap_state import CHWBehaviouralGapState
+from platform_service.db.models.chw_module_card_progress import CHWModuleCardProgress
 from platform_service.db.models.chw_module_quiz_progress import CHWModuleQuizProgress
 from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 
 
@@ -68,23 +70,35 @@ class CHWSyncRepository:
             stmt = stmt.where(CHWModuleQuizProgress.first_correct_at > since)
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def list_module_ids_with_card_progress(
+        self,
+        *,
+        chw_id: int,
+        since: datetime | None,
+    ) -> list[UUID]:
+        stmt = (
+            select(CHWModuleCardProgress.module_id).where(CHWModuleCardProgress.chw_id == chw_id).distinct()
+        )
+        if since is not None:
+            stmt = stmt.where(CHWModuleCardProgress.first_viewed_at > since)
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def tenant_id_by_module_for_chw(
         self,
         *,
         chw_id: int,
         module_ids: list[UUID],
-    ) -> dict[UUID, UUID]:
+    ) -> dict[UUID, int]:
         if not module_ids:
             return {}
         tenant_rows = (
             await self._session.execute(
-                select(CHWModuleQuizProgress.module_id, CHWModuleQuizProgress.tenant_id).where(
-                    CHWModuleQuizProgress.chw_id == chw_id,
-                    CHWModuleQuizProgress.module_id.in_(module_ids),
+                select(Module.id, Module.tenant_id).where(
+                    Module.id.in_(module_ids),
                 )
             )
         ).all()
-        tenant_by_module: dict[UUID, UUID] = {}
+        tenant_by_module: dict[UUID, int] = {}
         for module_id, tenant_id in tenant_rows:
             if tenant_id is not None and module_id not in tenant_by_module:
                 tenant_by_module[module_id] = tenant_id
@@ -124,3 +138,38 @@ class CHWSyncRepository:
             )
         ).all()
         return [(module_id, quiz_id, module_family_id) for module_id, quiz_id, module_family_id in rows]
+
+    async def list_incomplete_card_rows(
+        self,
+        *,
+        chw_id: int,
+        module_ids: list[UUID],
+    ) -> list[tuple[UUID, UUID, UUID]]:
+        """Return (module_id, card_id, module_family_id) for unviewed cards."""
+        if not module_ids:
+            return []
+        progress_exists = exists().where(
+            CHWModuleCardProgress.chw_id == chw_id,
+            CHWModuleCardProgress.module_id == ModuleCard.module_id,
+            CHWModuleCardProgress.card_id == ModuleCard.id,
+        )
+        rows = (
+            await self._session.execute(
+                select(
+                    ModuleCard.module_id,
+                    ModuleCard.id,
+                    Module.module_family_id,
+                )
+                .join(Module, Module.id == ModuleCard.module_id)
+                .where(
+                    ModuleCard.module_id.in_(module_ids),
+                    ~progress_exists,
+                )
+                .order_by(
+                    ModuleCard.module_id.asc(),
+                    ModuleCard.card_order.asc(),
+                    ModuleCard.id.asc(),
+                )
+            )
+        ).all()
+        return [(module_id, card_id, module_family_id) for module_id, card_id, module_family_id in rows]

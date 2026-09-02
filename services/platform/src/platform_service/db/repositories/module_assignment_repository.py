@@ -96,7 +96,7 @@ class ModuleAssignmentRepository:
                 ModuleAssignment.tenant_id == tenant_id,
             )
         )
-        return list((await self._session.execute(stmt)).all())
+        return list((await self._session.execute(stmt)).tuples().all())
 
     async def list_module_ids_assigned_in_range_for_chws(
         self,

@@ -503,7 +503,7 @@ class TestDocumentEmptyFails:
         assert result.pages_persisted == 1
         await db_session.rollback()
         sd = (await db_session.execute(select(SourceDocument).where(SourceDocument.id == sd_id))).scalar_one()
-        assert sd.status == "ingested"
+        assert sd.status == "ingesting"
 
 
 # ─── Zero-page document ───────────────────────────────────────────────────

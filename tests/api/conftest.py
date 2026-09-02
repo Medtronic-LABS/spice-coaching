@@ -29,9 +29,10 @@ from platform_service.services.module_card_service import (
     extract_cards_from_module_json,
     module_json_shell,
 )
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import requires_db, truncate_tables
+from tests.conftest import requires_db
 
 pytestmark = [requires_db, pytest.mark.asyncio]
 
@@ -40,38 +41,28 @@ _OBJECT_KEY = "source-documents/abc_manual.pdf"
 _STORAGE_PATH = f"{_BUCKET}/{_OBJECT_KEY}"
 _PRESIGNED_URL = "https://minio.example/presigned"
 
-_API_WIPE_TABLES = (
-    "module_lifecycle_event, module_behavioural_gap, module_card, module_quiz_question, "
-    "module_assignment, chw_module_completion, chw_training_request, "
-    "chw_behavioural_gap_state, chw_video_progress, "
-    "attribution_event, module_creation_suggestion, "
-    "module_trigger_binding, trigger_definition, chat_frequent_question, "
-    "module, module_family, behavioural_gap, module_candidate_draft, "
-    "ingestion_run_step, ingestion_run, ingest_batch, content_block, source_page, "
-    "document_assignment, source_document, source_image, llm_call_cache, file_upload, "
-    "chw_badge, badge_module, badge, "
-    '"users", district, upazila, user_upazila'
-)
-
-
-async def wipe_api_tables(db_session: AsyncSession) -> None:
-    """Truncate shared API test tables with deadlock retries."""
-    await truncate_tables(db_session, _API_WIPE_TABLES)
-
 
 # ─── Per-test cleanup ──────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _wipe_data_between_tests(db_session: AsyncSession) -> AsyncIterator[None]:
-    """Endpoints commit, so truncate before each test to avoid cross-test leakage.
-
-    Wipe only *before* the test. Post-teardown TRUNCATE races with other
-    connections (SessionLocal cache writers, fixture dispose) and deadlocks,
-    which then leave rows that poison the next test.
-    """
-    await wipe_api_tables(db_session)
+    """The endpoints commit, so committed state from a prior test would leak.
+    Truncate the tables this file touches before each test."""
     yield
+    # Fresh transaction for the truncate.
+    await db_session.rollback()
+    await db_session.execute(
+        text(
+            "TRUNCATE module_lifecycle_event, module_quiz_question, module, module_family, "
+            "module_trigger_binding, trigger_definition, "
+            "ingestion_run_step, ingestion_run, content_block, source_page, "
+            "document_assignment, source_document, "
+            '"users", district, upazila, user_upazila '
+            "RESTART IDENTITY CASCADE"
+        )
+    )
+    await db_session.commit()
 
 
 # ─── App + client fixtures ─────────────────────────────────────────────────
@@ -134,13 +125,13 @@ async def app(db_session: AsyncSession) -> AsyncIterator[FastAPI]:
     )
 
     @app_obj.middleware("http")
-    async def inject_test_request_context(request: Request, call_next):  # type: ignore[no-untyped-def]
+    async def inject_optional_spice_user(request: Request, call_next):  # type: ignore[no-untyped-def]
         mock_user_id = request.headers.get("x-mock-user-id")
         if mock_user_id:
             request.state.spice_user = SpiceUserContext.model_validate(
                 {"id": int(mock_user_id), "username": request.headers.get("X-Test-Username")}
             )
-        request.state.selected_tenant_id = int(request.headers.get("x-mock-tenant-id", "1"))
+            request.state.selected_tenant_id = int(request.headers.get("x-mock-tenant-id", "1"))
         return await call_next(request)
 
     api_router = APIRouter(prefix=get_settings().api_root_path_normalized)
@@ -220,9 +211,11 @@ async def _seed_module(
     quality_flags_jsonb: dict | None = None,
     search_metadata_jsonb: dict | None = None,
     source_document_ids: list[UUID] | None = None,
+    ingestion_run_id: UUID | None = None,
     primary_gap_id: UUID | None = None,
     chatbot_faqs_only: bool = False,
     content_domain: str | None = None,
+    estimated_minutes: int = 10,
     set_family_pointer: bool = True,
     created_at: datetime | None = None,
     published_at: datetime | None = None,
@@ -251,9 +244,11 @@ async def _seed_module(
         quality_flags_jsonb=quality_flags_jsonb,
         search_metadata_jsonb=search_metadata_jsonb,
         source_document_ids=source_document_ids,
+        ingestion_run_id=ingestion_run_id,
         primary_gap_id=primary_gap_id,
         chatbot_faqs_only=chatbot_faqs_only,
         content_domain=content_domain,
+        estimated_minutes=estimated_minutes,
         published_at=(
             published_at
             if published_at is not None

@@ -8,6 +8,7 @@ from platform_service.db.models.chw_badge import CHWBadge
 from platform_service.db.models.chw_behavioural_gap_state import CHWBehaviouralGapState
 from platform_service.db.models.chw_gap_telemetry_event import CHWGapTelemetryEvent
 from platform_service.db.models.chw_learning_point_event import CHWLearningPointEvent
+from platform_service.db.models.chw_module_card_progress import CHWModuleCardProgress
 from platform_service.db.models.chw_module_completion import CHWModuleCompletion
 from platform_service.db.models.chw_module_quiz_progress import CHWModuleQuizProgress
 from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
@@ -86,6 +87,7 @@ __all__ = [
     "CHWGapTelemetryEvent",
     "CHWLearningPointEvent",
     "CHWModuleCompletion",
+    "CHWModuleCardProgress",
     "CHWModuleQuizProgress",
     "ModuleAssignment",
     "CHWQuizQuestionState",

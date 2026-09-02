@@ -98,7 +98,7 @@ class IngestStartService:
                     f"source_document {doc_id} not found",
                     status=404,
                 )
-            if doc.status == "ingested" and not override:
+            if doc.status in ("ingested", "partially_succeeded") and not override:
                 skipped.append(
                     DuplicateIngestConflict(
                         filename=doc.original_filename or doc.title,
@@ -214,7 +214,7 @@ class IngestStartService:
         if doc.status == "uploaded":
             return doc
 
-        if doc.status == "ingested":
+        if doc.status in ("ingested", "partially_succeeded"):
             if not override_duplicate:
                 return DuplicateIngestConflict(
                     filename=doc.original_filename or doc.title,

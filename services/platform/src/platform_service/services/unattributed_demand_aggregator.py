@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
 from platform_service.clickhouse.client import ClickHouseClient
+from platform_service.services.dashboard_datetime import to_local_datetime
 from platform_service.services.question_text import normalize_question
 
 _SOURCE_DIGITAL_HELP = "digital_help"
@@ -46,13 +47,7 @@ def _to_int(value: Any, default: int = 0) -> int:
 
 
 def _to_datetime(value: Any) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value
-    return None
+    return to_local_datetime(value)
 
 
 class UnattributedDemandAggregator:

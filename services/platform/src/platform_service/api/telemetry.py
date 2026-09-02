@@ -265,6 +265,9 @@ async def ingest_events(
                         "event_id": event.id,
                         "event_type": event_type_value,
                         "module_id": str(event.module_id),
+                        "card_family_id": str(event.card_family_id)
+                        if event.card_family_id is not None
+                        else None,
                         "quiz_id": str(event.quiz_id) if event.quiz_id is not None else None,
                         "quiz_score_pct": event.quiz_score_pct,
                         "outcome": _as_ch_value(event.outcome),
@@ -287,23 +290,28 @@ async def ingest_events(
                         spice_job["request_id"] = request_id
                     module_jobs.append(spice_job)
             elif (
-                event_type_value == CoachingEventType.MODULE_QUIZ_ATTEMPTED.value
+                event_type_value
+                in (
+                    CoachingEventType.MODULE_QUIZ_ATTEMPTED.value,
+                    CoachingEventType.MODULE_CARD_VIEWED.value,
+                )
                 and event.module_id is not None
             ):
-                quiz_job: dict = {
+                pipeline_job: dict = {
                     "chw_id": chw_id,
                     "tenant_id": selected_tenant_id,
                     "event_id": event.id,
                     "event_type": event_type_value,
                     "module_id": str(event.module_id),
+                    "card_family_id": str(event.card_family_id) if event.card_family_id is not None else None,
                     "quiz_id": str(event.quiz_id) if event.quiz_id is not None else None,
                     "quiz_score_pct": event.quiz_score_pct,
                     "outcome": _as_ch_value(event.outcome),
                     "payload_json": event.payload_json or {},
                 }
                 if request_id:
-                    quiz_job["request_id"] = request_id
-                module_jobs.append(quiz_job)
+                    pipeline_job["request_id"] = request_id
+                module_jobs.append(pipeline_job)
         except Exception as exc:
             rejected.append(event.id)
             errors.append(f"event_id={event.id}: {exc}")

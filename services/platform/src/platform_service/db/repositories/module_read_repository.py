@@ -143,11 +143,14 @@ class ModuleReadRepository:
         tenant_id: int | None = None,
         created_by_ids: list[int] | None = None,
         assigned_to_user_ids: frozenset[int] | None = None,
+        module_ids: list[UUID] | None = None,
     ) -> Select[tuple[Module]]:
         """Shared filter tree for ``list_modules`` / ``count_modules`` (no order/limit)."""
         stmt = select(Module)
         if tenant_id is not None:
             stmt = stmt.where(tenant_scope_filter(Module.tenant_id, tenant_id))
+        if module_ids:
+            stmt = stmt.where(Module.id.in_(module_ids))
         if status is not None:
             stmt = stmt.where(Module.lifecycle_status == status)
         else:
@@ -279,6 +282,7 @@ class ModuleReadRepository:
         tenant_id: int | None = None,
         created_by_ids: list[int] | None = None,
         assigned_to_user_ids: frozenset[int] | None = None,
+        module_ids: list[UUID] | None = None,
         sort_by: str = DEFAULT_MODULE_SORT_BY,
         sort_dir: str = DEFAULT_MODULE_SORT_DIR,
         limit: int = 50,
@@ -306,6 +310,7 @@ class ModuleReadRepository:
             tenant_id=tenant_id,
             created_by_ids=created_by_ids,
             assigned_to_user_ids=assigned_to_user_ids,
+            module_ids=module_ids,
         )
         stmt = stmt.order_by(*_module_order_clauses(sort_by, sort_dir)).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
@@ -335,6 +340,7 @@ class ModuleReadRepository:
         tenant_id: int | None = None,
         created_by_ids: list[int] | None = None,
         assigned_to_user_ids: frozenset[int] | None = None,
+        module_ids: list[UUID] | None = None,
     ) -> int:
         """Count rows matching the same filters as ``list_modules`` (ignores limit/offset)."""
         base = self._modules_list_filtered_stmt(
@@ -359,6 +365,7 @@ class ModuleReadRepository:
             tenant_id=tenant_id,
             created_by_ids=created_by_ids,
             assigned_to_user_ids=assigned_to_user_ids,
+            module_ids=module_ids,
         )
         # maintain_column_froms keeps the latest_version_only JOIN when we
         # project down to Module.id for counting.

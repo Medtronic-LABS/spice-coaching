@@ -260,3 +260,74 @@ class TestPublishedModuleCompletionsRoute:
         assert geo_mock.await_args.kwargs["district_ids"] == [2]
         assert geo_mock.await_args.kwargs["upazila_ids"] == [3]
         assert app.state.service_mock.await_args.kwargs["geo_chw_ids"] == frozenset({395})
+
+    async def test_module_id_and_sort_params_passed_to_service(
+        self, client: AsyncClient, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        auth_off = get_settings().model_copy(update={"spice_auth_enabled": False})
+        monkeypatch.setattr("platform_service.auth.spice_identity.get_settings", lambda: auth_off)
+        module_a = uuid4()
+        module_b = uuid4()
+        resp = await client.get(
+            platform_path("/dashboard/published-module-completions"),
+            params=[
+                ("from_date", "2026-01-01"),
+                ("to_date", "2026-01-31"),
+                ("module_id", str(module_a)),
+                ("module_id", str(module_b)),
+                ("sort_by", "published_at"),
+                ("sort_dir", "asc"),
+            ],
+        )
+        assert resp.status_code == 200
+        kwargs = app.state.service_mock.await_args.kwargs
+        assert kwargs["module_ids"] == [module_a, module_b]
+        assert kwargs["sort_by"] == "published_at"
+        assert kwargs["sort_dir"] == "asc"
+
+    async def test_sort_defaults_when_omitted(
+        self, client: AsyncClient, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        auth_off = get_settings().model_copy(update={"spice_auth_enabled": False})
+        monkeypatch.setattr("platform_service.auth.spice_identity.get_settings", lambda: auth_off)
+        resp = await client.get(
+            platform_path("/dashboard/published-module-completions"),
+            params={"from_date": "2026-01-01", "to_date": "2026-01-31"},
+        )
+        assert resp.status_code == 200
+        kwargs = app.state.service_mock.await_args.kwargs
+        assert kwargs["module_ids"] is None
+        assert kwargs["sort_by"] == "published_at"
+        assert kwargs["sort_dir"] == "desc"
+
+    async def test_invalid_sort_by_returns_422(self, client: AsyncClient) -> None:
+        resp = await client.get(
+            platform_path("/dashboard/published-module-completions"),
+            params={
+                "from_date": "2026-01-01",
+                "to_date": "2026-01-31",
+                "sort_by": "created_at",
+            },
+            headers={
+                "X-Test-Role": "head office",
+                "X-Test-User-Id": str(ADMIN_ID),
+                "X-Test-Suite": "admin",
+            },
+        )
+        assert resp.status_code == 422
+
+    async def test_invalid_sort_dir_returns_422(self, client: AsyncClient) -> None:
+        resp = await client.get(
+            platform_path("/dashboard/published-module-completions"),
+            params={
+                "from_date": "2026-01-01",
+                "to_date": "2026-01-31",
+                "sort_dir": "sideways",
+            },
+            headers={
+                "X-Test-Role": "head office",
+                "X-Test-User-Id": str(ADMIN_ID),
+                "X-Test-Suite": "admin",
+            },
+        )
+        assert resp.status_code == 422

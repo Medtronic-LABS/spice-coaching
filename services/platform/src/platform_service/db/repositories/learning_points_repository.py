@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.chw_learning_point_event import CHWLearningPointEvent
 
 
@@ -30,7 +31,7 @@ class LearningPointsRepository:
         *,
         event_id: uuid.UUID,
         chw_id: int,
-        tenant_id: int,
+        tenant_id: int | None,
         delta: int,
         now: datetime | None = None,
     ) -> bool:
@@ -42,6 +43,7 @@ class LearningPointsRepository:
         if delta <= 0:
             return False
         when = now if now is not None else datetime.now(UTC)
+        effective_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
 
         stmt = (
             pg_insert(CHWLearningPointEvent)
@@ -50,7 +52,7 @@ class LearningPointsRepository:
                 chw_id=chw_id,
                 points=delta,
                 awarded_at=when,
-                tenant_id=tenant_id,
+                tenant_id=effective_tenant,
             )
             .on_conflict_do_nothing(index_elements=[CHWLearningPointEvent.event_id])
             .returning(CHWLearningPointEvent.event_id)

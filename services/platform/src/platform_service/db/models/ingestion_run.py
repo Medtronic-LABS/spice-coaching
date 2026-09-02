@@ -35,7 +35,7 @@ class IngestionRun(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # queued | running | succeeded | failed | partially_succeeded
-    status: Mapped[str] = mapped_column(Text, nullable=False, default="running")
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="queued")
     error_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # Spice / hierarchy user id (see users.id); no hard FK — soft-join at list time.
     ingested_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

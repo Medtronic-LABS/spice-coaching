@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.chw_module_completion import CHWModuleCompletion
 from platform_service.db.models.chw_module_quiz_progress import CHWModuleQuizProgress
 from platform_service.db.models.module import Module
@@ -40,6 +41,8 @@ class QuizProgressHandler:
         if not await self._validate_quiz_belongs_to_module(module=module, quiz_id=quiz_id):
             return False
 
+        effective_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
+
         quiz_ids, covered_before = await quiz_coverage_count(
             self._session, chw_id=chw_id, module_id=module.id
         )
@@ -51,7 +54,7 @@ class QuizProgressHandler:
                 chw_id=chw_id,
                 module_id=module.id,
                 quiz_id=quiz_id,
-                tenant_id=tenant_id,
+                tenant_id=effective_tenant,
             )
             .on_conflict_do_nothing(
                 index_elements=[
@@ -77,7 +80,7 @@ class QuizProgressHandler:
                 CHWModuleCompletion(
                     chw_id=chw_id,
                     module_family_id=module.module_family_id,
-                    tenant_id=tenant_id,
+                    tenant_id=effective_tenant,
                     attempts_since_last_pass=0,
                 )
             )

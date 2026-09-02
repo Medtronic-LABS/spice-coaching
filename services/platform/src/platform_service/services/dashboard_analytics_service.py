@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from platform_service.clickhouse.client import ClickHouseClient
 from platform_service.clickhouse.question_sql import QUESTION_EXTRACT_SQL, QUESTION_NORMALIZE_KEY_SQL
 from platform_service.db.repositories.module_repository import ModuleRepository
+from platform_service.services.dashboard_datetime import to_local_datetime
 from platform_service.services.dashboard_hierarchy import (
     OrgUser,
     dashboard_user_summary,
@@ -52,13 +53,7 @@ def _to_uuid(value: Any) -> UUID | None:
 
 
 def _to_datetime(value: Any) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value
-    return None
+    return to_local_datetime(value)
 
 
 class DashboardAnalyticsService:
@@ -423,8 +418,8 @@ class DashboardAnalyticsService:
             chw_id = _to_int(row.get("chw_id"), default=-1)
             if chw_id < 0:
                 continue
-            last_seen = row.get("last_seen")
-            results.append((chw_id, last_seen if isinstance(last_seen, datetime) else None))
+            last_seen = to_local_datetime(row.get("last_seen"))
+            results.append((chw_id, last_seen))
         return results
 
     async def _count_module_questions(
