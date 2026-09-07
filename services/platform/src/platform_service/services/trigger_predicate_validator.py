@@ -1,4 +1,4 @@
-"""W-8 — Validate trigger predicates against per-kind schemas.
+"""Validate trigger predicates against per-kind schemas.
 
 Two layers:
 
@@ -10,7 +10,7 @@ Two layers:
    `content_push` predicates, confirms the referenced row exists and is
    active. Async, hits the DB.
 
-Edge cases (Implementation Plan §10):
+Edge cases:
 - Missing required field → invalid (shape)
 - Wrong type → invalid (shape)
 - Predicate references non-existent behavioural_gap → invalid (references)
@@ -247,7 +247,7 @@ async def validate_predicate_references(
                 f"module_family {family_id} does not exist",
             )
     # workflow_event: nothing to validate against; spice_event_code is a free-form
-    # string until W-12 SPICE research produces a registry.
+    # string until a SPICE event-code registry exists.
 
 
 async def validate_predicate(

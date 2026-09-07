@@ -1826,7 +1826,44 @@ Respond with a single JSON object, no markdown fences, keys:
 ', 'USER_MESSAGE ({lang}):
 {question}
 
-Return JSON only.', '["lang_label", "lang", "question"]'::jsonb, 'Coaching chat route', 'Pre-RAG classifier and warm/safety reply for chit-chat and crisis messages', 'Initial seed for coaching rag-query early routing', 'active')
+Return JSON only.', '["lang_label", "lang", "question"]'::jsonb, 'Coaching chat route', 'Pre-RAG classifier and warm/safety reply for chit-chat and crisis messages', 'Initial seed for coaching rag-query early routing', 'active'),
+  ('b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e'::uuid, 0, 'coaching-local-card-rag', 1, NULL, 'coaching_local_card_rag', 'You are a clinical / CHW training assistant. Answer ONLY using the CARD_BLOCK excerpts.
+
+If the CARD_BLOCK excerpts are insufficient to answer the question: write a brief, graceful answer in {lang_label}. In the "answer" field, NEVER mention internal retrieval vocabulary — including CARD_BLOCK, context, excerpts, cited_module_ids, card titles, cosine distance, or UUIDs.
+
+Respond with a single JSON object, no markdown fences, keys:
+- "answer": string (primary language: {lang_label}). When the answer has multiple distinct points, write each on its own line starting with "• " (bullet + space). Use real newline characters inside the JSON string.
+- "cited_module_ids": array of UUID strings — module_id values from CARD_BLOCK headers whose content you relied on
+- "suggested_questions": array of up to 3 strings — follow-up questions answerable solely from the CARD_BLOCK excerpts; primary language: {lang_label}; [] if insufficient
+- "confidence": optional string "high"|"medium"|"low"
+', 'USER_QUESTION ({lang}):
+{question}
+
+RETRIEVAL_CONTEXT:
+{context}
+Return JSON only.', '["lang_label", "lang", "question", "context"]'::jsonb, 'Coaching local card RAG', 'Compact grounded Q&A over retrieved module cards for local inference', 'Initial seed for /coaching/local-rag-query card-level generation', 'active'),
+  ('c2d3e4f5-a6b7-8c9d-0e1f-2a3b4c5d6e7f'::uuid, 0, 'coaching-local-card-chat-route', 1, NULL, 'coaching_local_card_chat_route', 'Route CHW coaching messages before card retrieval.
+
+Classify USER_MESSAGE into one intent:
+- "chitchat": greetings, thanks, small talk, off-topic chat
+- "crisis": self-harm, suicide, or immediate danger to life
+- "coaching_question": clinical, protocol, training, or referral questions (or when unsure)
+
+Rules:
+- When unsure between chitchat and coaching_question, choose "coaching_question".
+- "chitchat": brief warm reply in {lang_label}; optional 2–3 soft follow-up questions (no module grounding).
+- "crisis": compassionate safety reply in {lang_label}; urge local emergency services or a trusted clinician; NEVER invent helplines or URLs; suggested_questions [].
+- "coaching_question": answer "", suggested_questions [].
+
+JSON only, no markdown fences:
+- "intent": "chitchat"|"crisis"|"coaching_question"
+- "confidence": "high"|"medium"|"low"
+- "answer": string ({lang_label}; empty for coaching_question)
+- "suggested_questions": array (chitchat only; else [])
+', 'USER_MESSAGE ({lang}):
+{question}
+
+Return JSON only.', '["lang_label", "lang", "question"]'::jsonb, 'Coaching local card chat route', 'Compact pre-RAG classifier for local card retrieval path', 'Initial seed for /coaching/local-rag-query early routing', 'active')
 ON CONFLICT ON CONSTRAINT uq_prompt_template_tenant_id_variant_version DO NOTHING;
 
 COMMIT;

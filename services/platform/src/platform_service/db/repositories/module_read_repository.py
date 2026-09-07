@@ -27,7 +27,12 @@ from platform_service.db.module_availability import (
 )
 from platform_service.db.tenant_scope import tenant_scope_filter
 from platform_service.localized import deployment_locales, primary_text
-from platform_service.vectorstore import MODULES_COLLECTION, get_vector_store
+from platform_service.vectorstore import (
+    CARDS_LOCAL_COLLECTION,
+    MODULES_COLLECTION,
+    MODULES_LOCAL_COLLECTION,
+    get_vector_store,
+)
 
 
 def _exclude_review_pending_merge_secondaries(stmt: Select[Any]) -> Select[Any]:
@@ -486,6 +491,32 @@ class ModuleReadRepository:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def list_card_embeddings_for_sync(
+        self,
+        since: datetime,
+        *,
+        tenant_id: int | None = None,
+    ) -> list[ModuleCard]:
+        """Return card rows with embeddings for published training modules updated after ``since``."""
+        stmt = (
+            select(ModuleCard)
+            .join(Module, ModuleCard.module_id == Module.id)
+            .where(
+                Module.lifecycle_status == LIFECYCLE_PUBLISHED,
+                Module.updated_at > since,
+                ModuleCard.local_embedding.is_not(None),
+                is_training_module_family(),
+            )
+            .order_by(
+                Module.updated_at.asc(),
+                ModuleCard.card_order.asc(),
+                ModuleCard.id.asc(),
+            )
+        )
+        if tenant_id is not None:
+            stmt = stmt.where(tenant_scope_filter(Module.tenant_id, tenant_id))
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def list_families_created_since(
         self,
         since: datetime,
@@ -602,6 +633,7 @@ class ModuleReadRepository:
         limit: int = 10,
         assignable_only: bool = False,
         tenant_id: int | None = None,
+        use_local: bool = False,
     ) -> list[tuple[Module, float]]:
         """Semantic search via the configured ``VectorStore``, then hydrate modules."""
         filters: dict[str, object] = {"lifecycle_status": "published"}
@@ -610,9 +642,10 @@ class ModuleReadRepository:
         if tenant_id is not None:
             filters["tenant_id"] = tenant_id
 
+        collection = MODULES_LOCAL_COLLECTION if use_local else MODULES_COLLECTION
         store = get_vector_store(self._session)
         matches = await store.search(
-            MODULES_COLLECTION,
+            collection,
             query_vector,
             top_k=limit,
             filters=filters,
@@ -628,6 +661,45 @@ class ModuleReadRepository:
             (modules_by_id[module_id], distance_by_id[module_id])
             for module_id in ordered_ids
             if module_id in modules_by_id
+        ]
+
+    async def search_cards_by_local_embedding(
+        self,
+        *,
+        query_vector: list[float],
+        limit: int = 10,
+        assignable_only: bool = False,
+        tenant_id: int | None = None,
+    ) -> list[tuple[ModuleCard, float]]:
+        """Semantic card search via ``module_card.local_embedding``, then hydrate cards."""
+        filters: dict[str, object] = {"lifecycle_status": "published"}
+        if assignable_only:
+            filters["assignable_only"] = True
+        if tenant_id is not None:
+            filters["tenant_id"] = tenant_id
+
+        store = get_vector_store(self._session)
+        matches = await store.search(
+            CARDS_LOCAL_COLLECTION,
+            query_vector,
+            top_k=limit,
+            filters=filters,
+        )
+        if not matches:
+            return []
+
+        ordered_ids = [UUID(match["id"]) for match in matches]
+        distance_by_id = {UUID(match["id"]): float(match["distance"]) for match in matches}
+        rows = (
+            (await self._session.execute(select(ModuleCard).where(ModuleCard.id.in_(ordered_ids))))
+            .scalars()
+            .all()
+        )
+        cards_by_id = {card.id: card for card in rows}
+        return [
+            (cards_by_id[card_id], distance_by_id[card_id])
+            for card_id in ordered_ids
+            if card_id in cards_by_id
         ]
 
     async def list_published_modules_for_gap_ids(

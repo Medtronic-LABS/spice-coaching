@@ -9,8 +9,10 @@ import pytest
 from platform_service.config import get_settings
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.chw_behavioural_gap_state import CHWBehaviouralGapState
+from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_family import ModuleFamily
+from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.repositories.module_gap_repository import ModuleGapRepository
 from platform_service.services.module_suggestion_service import ModuleSuggestionService
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -451,9 +453,6 @@ async def test_quiz_state_driven_suggestions(
         "telemetry_behavioural_gap_state_enabled",
         False,
     )
-    from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
-    from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
-
     tenant_id = 1
     chw_id = _test_chw_id()
     fam = await _make_family(db_session)

@@ -18,7 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
 from platform_service.services.llm_response_resolver import resolve_parsed_dict
-from platform_service.services.prompt_registry import COACHING_CHAT_ROUTE_TEMPLATE_ID
+from platform_service.services.prompt_registry import (
+    COACHING_CHAT_ROUTE_TEMPLATE_ID,
+    COACHING_LOCAL_CARD_CHAT_ROUTE_TEMPLATE_ID,
+)
 from platform_service.services.prompt_template_service import PromptTemplateService, prompt_spec_from_rendered
 from platform_service.services.prompt_variables.coaching_chat_route_variables import (
     build_coaching_chat_route_variables,
@@ -135,24 +138,37 @@ class CoachingChatRouter:
         self._session = session
         self._ai = ai
 
-    async def route(self, *, question: str, lang: str) -> CoachingChatRouteResult | None:
+    async def route(
+        self,
+        *,
+        question: str,
+        lang: str,
+        use_local: bool = False,
+        card_local: bool = False,
+    ) -> CoachingChatRouteResult | None:
         """Classify and optionally draft a reply. None means fall through to RAG."""
+        if card_local:
+            template_id = COACHING_LOCAL_CARD_CHAT_ROUTE_TEMPLATE_ID
+            generation_type = GenerationType.COACHING_LOCAL_CARD_CHAT_ROUTE
+        else:
+            template_id = COACHING_CHAT_ROUTE_TEMPLATE_ID
+            generation_type = GenerationType.COACHING_CHAT_ROUTE
         rendered = await PromptTemplateService().render(
             self._session,
-            template_id=COACHING_CHAT_ROUTE_TEMPLATE_ID,
+            template_id=template_id,
             variant_key=None,
             variables=build_coaching_chat_route_variables(question=question, lang=lang),
         )
         request = InferenceRequest(
             request_id=str(uuid.uuid4()),
-            generation_type=GenerationType.COACHING_CHAT_ROUTE,
+            generation_type=generation_type,
             prompt=prompt_spec_from_rendered(rendered),
             constraints=GenerationConstraints(language=lang, output_format="json"),
             trace_context=TraceContext(),
             context={"question": question},
         )
         try:
-            response = await self._ai.generate(request)
+            response = await self._ai.generate(request, use_local=use_local)
         except Exception:
             logger.exception("coaching chat route: ai-runtime generate failed")
             return None

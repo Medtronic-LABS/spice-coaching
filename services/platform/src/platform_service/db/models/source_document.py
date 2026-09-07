@@ -1,8 +1,7 @@
-"""v3.3 source_document — canonical raw input artefact for the content pipeline.
+"""source_document — canonical raw input artefact for the content pipeline.
 
-Per Data Model v3.3 §3.1. Replaces the v1 `documents` table semantically (the old
-`Document` model remains during the deprecation window). Carries content_domain,
-calibration result for Stage A, and outline_method tag for Stage B. Ingest-time
+See `docs/content-administration/ingest-pipeline.md`. Carries content_domain,
+calibration result for extract, and outline_method tag. Ingest-time
 config (assessment_mode, instructions, cardinality) lives on ingest_batch.
 """
 
@@ -54,7 +53,7 @@ class SourceDocument(TenantMixin, Base):
     outline_method: Mapped[str | None] = mapped_column(Text, nullable=True)
     outline_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
-    # Stage A calibration result per Pipeline v3.3 §4.4:
+    # Stage A calibration result see `docs/content-administration/ingest-pipeline.md`:
     # { "vision_pct": 0.55, "text_pct": 0.45, "sample_pages_evaluated": [3, 17, ...], "decision_at": "..." }
     extraction_calibration_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 

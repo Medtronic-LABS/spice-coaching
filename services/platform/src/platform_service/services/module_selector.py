@@ -1,11 +1,11 @@
-"""W-8 — Module selector.
+"""Module selector.
 
 Given a CHW and a set of triggers that have currently fired, return the
 modules to surface — sorted by priority and filtered to skip:
 - Modules the CHW completed within their periodic_refresh window
 - Modules under suppressed/deprecated triggers
 
-Edge cases (Implementation Plan §10):
+Edge cases:
 3. Multiple modules bound to same gap → priority_weight selects winner
 4. Module bound to gap but already completed within periodic_refresh → next-priority
 5. All modules for a gap completed → gap suppressed (returns empty for that trigger)

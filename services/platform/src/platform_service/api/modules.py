@@ -1,6 +1,6 @@
 """Admin dashboard module endpoints.
 
-Per `docs/ARCHITECTURE_RESET.md`. Ingestion run list/detail lives in
+See `docs/content-administration/ingest-pipeline.md`. Ingestion run list/detail lives in
 ``ingestion_runs``.
 """
 

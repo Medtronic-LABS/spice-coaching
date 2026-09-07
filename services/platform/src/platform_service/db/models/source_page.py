@@ -1,6 +1,6 @@
-"""v3.3 source_page — one extracted page of a SourceDocument.
+"""source_page — one extracted page of a SourceDocument.
 
-Per Data Model v3.3 §3.2. Single canonical markdown_content (sourced from text
+See `docs/concepts/modules-cards-families.md` Single canonical markdown_content (sourced from text
 extraction or vision LLM, recorded in extraction_method). text_extraction_alt
 populated only on divergence between text and vision paths. page_image_path
 nullable: vision-path always populated; text-path lazy-rendered on reviewer

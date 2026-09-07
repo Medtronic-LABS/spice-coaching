@@ -1,7 +1,7 @@
-"""v3.3 llm_call_cache — cached LLM responses for cheap retry.
+"""llm_call_cache — cached LLM responses for cheap retry.
 
-Per Data Model v3.3 §4.3. Keys responses by hash of (prompt + input + model).
-Used by pipeline orchestrator (W-7) to recover from transient failures and to
+See `docs/concepts/modules-cards-families.md` Keys responses by hash of (prompt + input + model).
+Used by pipeline orchestrator to recover from transient failures and to
 keep deterministic re-runs cheap during development.
 """
 

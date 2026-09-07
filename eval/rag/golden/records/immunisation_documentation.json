@@ -1,0 +1,330 @@
+[
+  {
+    "id": "Q023",
+    "question_en": "The EPI card does not have IPV-2 information, but the mother says the child was vaccinated. What should I do in this situation?",
+    "expected_answer_en": "Do not rely solely on verbal information. Re-verify the EPI card and confirm with the respective Health Assistant. Do not guess information until confirmed.",
+    "question_bn": "EPI কার্ডে IPV-2-এর তথ্য লেখা নেই, কিন্তু মা বলছেন শিশুকে টিকা দেওয়া হয়েছে। এ অবস্থায় আমি কী করব?",
+    "expected_answer_bn": "শুধুমাত্র মৌখিক তথ্যের ওপর ভিত্তি করবেন না। EPI কার্ড পুনরায় যাচাই করুন এবং সংশ্লিষ্ট হেলথ অ্যাসিস্ট্যান্টের সাথে নিশ্চিত করুন। নিশ্চিত না হওয়া পর্যন্ত তথ্য অনুমান করবেন না।",
+    "source_card_id": [
+      "c5a75002-e4b6-46e3-ad4a-3fc55d3b3921",
+      "44051a6f-21c2-434f-996e-4c5fbc5992d6"
+    ],
+    "query_type": "Scenario-based",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+    ]
+  },
+  {
+    "id": "Q024",
+    "question_en": "The child missed IPV-2. Does the child need to restart all doses, or just get the missed dose?",
+    "expected_answer_en": "There is no need to restart the entire schedule. Just give the missed IPV-2 dose as soon as possible. Consult the Health Assistant for final decisions.",
+    "question_bn": "শিশুটিকে IPV-2 মিস করেছে। এখন কি তাকে প্রথম থেকে আবার সব ডোজ দিতে হবে, নাকি শুধু মিসড ডোজটাই দিলে হবে?",
+    "expected_answer_bn": "পুরো শিডিউল পুনরায় শুরু করার প্রয়োজন নেই। শুধুমাত্র মিসড IPV-2 ডোজটি যত দ্রুত সম্ভব দিতে হবে। চূড়ান্ত সিদ্ধান্তের জন্য হেলথ অ্যাসিস্ট্যান্টের পরামর্শ নিন।",
+    "source_card_id": [
+      "44051a6f-21c2-434f-996e-4c5fbc5992d6",
+      "c5a75002-e4b6-46e3-ad4a-3fc55d3b3921"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Immunization Catch-up Rule",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+    ]
+  },
+  {
+    "id": "Q025",
+    "question_en": "It was discovered from the EPI card that a child missed a scheduled vaccine. As an SK, how will you enlist the child as a 'missed vaccination child'?",
+    "expected_answer_en": "Include the child's information in the 'missed vaccination child' list/form according to the prescribed method and provide this information to the respective Health Assistant, also informing them verbally if necessary.",
+    "question_bn": "একজন শিশুর নির্ধারিত সময়ের একটি টিকা দেওয়া হয়নি বলে EPI কার্ড দেখে জানা গেল। একজন SK হিসেবে আপনি কীভাবে শিশুটিকে missed vaccination child হিসেবে তালিকাভুক্ত করবেন?",
+    "expected_answer_bn": "নির্ধারিত পদ্ধতি অনুযায়ী 'missed vaccination child'-এর তালিকা/ফর্মে শিশুর তথ্য অন্তর্ভুক্ত করুন এবং সংশ্লিষ্ট হেলথ অ্যাসিস্ট্যান্টকে তথ্যটি দিন, প্রয়োজনে মৌখিকভাবেও জানান।",
+    "source_card_id": [
+      "c5a75002-e4b6-46e3-ad4a-3fc55d3b3921"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Tracking & Reporting Defaulters",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+    ]
+  },
+  {
+    "question_en": "What content is documented on the 'Tested for card' in the documentation module?",
+    "expected_answer_en": "The card body contains the text 'Card body Test'.",
+    "question_bn": "ডকুমেন্টেশন মডিউলের 'Tested for card'-এ কী তথ্য লেখা আছে?",
+    "expected_answer_bn": "কার্ডের বডিতে 'Card body Test' লেখা আছে।",
+    "module_id": [
+      "84ace972-b78f-4caa-a504-510bb8b61984"
+    ],
+    "source_card_id": [
+      "ae6a4e38-7c01-4ea8-949d-2f873a75d1db"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "None",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q329"
+  },
+  {
+    "question_en": "I am reviewing documentation cards and see a second card titled 'Tested card two'. What is it for?",
+    "expected_answer_en": "The second card is for new cards related to documentation, with body text 'New Cads for documentation'.",
+    "question_bn": "ডকুমেন্টেশন কার্ড পর্যালোচনা করতে গিয়ে 'Tested card two' শিরোনামের দ্বিতীয় কার্ডটি দেখছি। এটি কিসের জন্য?",
+    "expected_answer_bn": "দ্বিতীয় কার্ডটি ডকুমেন্টেশনের জন্য নতুন কার্ড সম্পর্কিত, যার বডিতে 'New Cads for documentation' লেখা আছে।",
+    "module_id": [
+      "84ace972-b78f-4caa-a504-510bb8b61984"
+    ],
+    "source_card_id": [
+      "6fe4b38f-17e1-4aca-8435-54b00d06a2c2"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q330"
+  },
+  {
+    "question_en": "How should I use the two documentation test cards when verifying card content?",
+    "expected_answer_en": "Check the first card for 'Card body Test' content and the second card for new documentation cards labelled 'New Cads for documentation'.",
+    "question_bn": "কার্ডের তথ্য যাচাই করার সময় দুটি ডকুমেন্টেশন টেস্ট কার্ড কীভাবে ব্যবহার করব?",
+    "expected_answer_bn": "প্রথম কার্ডে 'Card body Test' তথ্য এবং দ্বিতীয় কার্ডে 'New Cads for documentation' লেখা নতুন কার্ডের তথ্য যাচাই করুন।",
+    "module_id": [
+      "84ace972-b78f-4caa-a504-510bb8b61984"
+    ],
+    "source_card_id": [
+      "ae6a4e38-7c01-4ea8-949d-2f873a75d1db",
+      "6fe4b38f-17e1-4aca-8435-54b00d06a2c2"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q331"
+  },
+  {
+    "question_en": "A field worker finds incomplete information on a documentation test card. Should they proceed without verifying against the card content?",
+    "expected_answer_en": "No. Verify the card content against the documented text — either 'Card body Test' on the first card or 'New Cads for documentation' on the second — before proceeding.",
+    "question_bn": "একজন স্বাস্থ্যকর্মী ডকুমেন্টেশন টেস্ট কার্ডে অসম্পূর্ণ তথ্য পেয়েছেন। কার্ডের বিষয়বস্তু যাচাই না করেই কি এগিয়ে যাওয়া উচিত?",
+    "expected_answer_bn": "না। এগোনোর আগে কার্ডের বিষয়বস্তু যাচাই করুন — প্রথম কার্ডে 'Card body Test' অথবা দ্বিতীয় কার্ডে 'New Cads for documentation' লেখা আছে কিনা নিশ্চিত করুন।",
+    "module_id": [
+      "84ace972-b78f-4caa-a504-510bb8b61984"
+    ],
+    "source_card_id": [
+      "ae6a4e38-7c01-4ea8-949d-2f873a75d1db",
+      "6fe4b38f-17e1-4aca-8435-54b00d06a2c2"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q332"
+  },
+  {
+    "question_en": "Why is it important to fill the mother, newborn, and child health information card correctly?",
+    "expected_answer_en": "Correct completion of this card reveals important information, enabling quick action on minor problems or complications during pregnancy. The card must be filled with great care, patience, and attention.",
+    "question_bn": "মা, নবজাতক ও শিশুস্বাস্থ্য তথ্য কার্ড সঠিকভাবে পূরণ করা কেন গুরুত্বপূর্ণ?",
+    "expected_answer_bn": "এই কার্ড সঠিকভাবে পূরণ করলে অনেক গুরুত্বপূর্ণ তথ্য জানা যায়, যার ফলে গর্ভবতীর ছোটখাট সমস্যা বা জটিলতায় দ্রুত ব্যবস্থা নেওয়া সম্ভব। কার্ড অত্যন্ত যত্ন, ধৈর্য ও মনোযোগ সহকারে পূরণ করা প্রয়োজন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "30249dcf-fc1a-4255-a91e-6dbc2cfbb552"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q333"
+  },
+  {
+    "question_en": "How do I calculate and record the expected date of delivery on the health card?",
+    "expected_answer_en": "Record the last menstrual period date in Bengali or English month after talking with the pregnant woman. Add 9 months and 7 days to the last menstrual period start date and write the resulting date as the expected delivery date.",
+    "question_bn": "স্বাস্থ্য কার্ডে প্রসবের সম্ভাব্য তারিখ কীভাবে হিসাব করে লিখব?",
+    "expected_answer_bn": "গর্ভবতী মহিলার সাথে কথা বলে শেষ মাসিক শুরুর তারিখ বাংলা অথবা ইংরেজি মাস অনুসারে লিখুন। শেষ মাসিক শুরুর তারিখের সাথে ৯ মাস ৭ দিন যোগ করে যে তারিখ পাওয়া যাবে তা প্রসবের সম্ভাব্য তারিখ হিসেবে লিখুন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "f66c1d46-ee81-4e9b-8abd-1c3e0b2b9767"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q334"
+  },
+  {
+    "question_en": "During ANC, I need to record the visit date, pregnancy month, weight, height, temperature, blood pressure, and fundal height. Which card fields cover all of these?",
+    "expected_answer_en": "Record the ANC visit date, pregnancy month in numbers, weight in kg, height in cm (at first ANC), body temperature in Fahrenheit, blood pressure (e.g. 120 over 80 mmHg), and fundal height in cm using a measuring tape — all on the pregnant woman's visit and physical measurement section of the card.",
+    "question_bn": "এএনসি-তে ভিজিটের তারিখ, গর্ভের মাস, ওজন, উচ্চতা, তাপমাত্রা, রক্তচাপ ও জরায়ুর উচ্চতা লিখতে হবে। এই সব তথ্য কোন কার্ডের কোন ঘরে লিখব?",
+    "expected_answer_bn": "এএনসি ভিজিটের তারিখ, গর্ভের মাস সংখ্যায়, ওজন কেজিতে, প্রথম এএনসিতে উচ্চতা সেন্টিমিটারে, শরীরের তাপমাত্রা ফারেনহাইটে, রক্তচাপ (যেমন ১২০ ওভার ৮০ mmHg) এবং ফিতা দিয়ে জরায়ুর উচ্চতা সেন্টিমিটারে গর্ভবতী মহিলার ভিজিট ও শারীরিক পরিমাপের ঘরে লিখুন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "c6390e1c-4558-469d-a13f-985ca2cb0ab5"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q335"
+  },
+  {
+    "question_en": "A pregnant woman at 24 weeks says she feels the baby move only 3 times a day. What should I advise and record on the card?",
+    "expected_answer_en": "Normally a fetus moves 8 to 10 times per day. If movement is absent or reduced, refer to the hospital. Record the daily fetal movement count on the card after talking with the mother.",
+    "question_bn": "২৪ সপ্তাহের একজন গর্ভবতী মহিলা বলছেন দিনে মাত্র ৩ বার বাচ্চা নড়াচড়া করছে। আমি কী পরামর্শ দেব এবং কার্ডে কী লিখব?",
+    "expected_answer_bn": "স্বাভাবিক অবস্থায় গর্ভস্থ শিশু দিনে ৮ থেকে ১০ বার নড়াচড়া করে। নড়াচড়া না করলে অথবা কম নড়াচড়া করলে হাসপাতালে রেফার করুন। মায়ের সাথে কথা বলে দৈনিক নড়াচড়ার সংখ্যা কার্ডে লিখুন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "af773e4f-1d36-4a7e-a380-a4d2c68dab33"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Maternal Danger Signs & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q336"
+  },
+  {
+    "question_en": "At ANC checkup, the pregnant woman's urine test is positive for protein. How should I record this on the card?",
+    "expected_answer_en": "Record the urine test result using tick marks according to the container instructions — mark (+/++/+++) for abnormal/positive results and mark (-) for normal results.",
+    "question_bn": "এএনসি চেকআপে গর্ভবতীর প্রস্রাব পরীক্ষায় প্রোটিন পজিটিভ এসেছে। কার্ডে এটি কীভাবে লিখব?",
+    "expected_answer_bn": "ইউরিন স্ট্রিপ পরীক্ষার ফলাফল কৌটার নির্দেশনা অনুযায়ী টিক চিহ্ন দিয়ে লিখুন — অস্বাভাবিক/পজিটিভ হলে (+/++/+++) এবং স্বাভাবিক হলে (-) টিক চিহ্ন দিন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "638c5a89-2709-4065-bd37-867e9cd75f4b"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q337"
+  },
+  {
+    "question_en": "A pregnant woman has not had an ultrasound and does not have a TT vaccination card. How should I record TT doses and ultrasound status?",
+    "expected_answer_en": "Mark (✓) if ultrasound has been done; encourage ultrasound around 20 weeks. Mark (X) if not done. For TT, talk with the woman or check her TT card. If no card exists, write the TT dose number with '+' beside it. If previous TT doses are complete, write 'complete' on the card.",
+    "question_bn": "একজন গর্ভবতী মহিলার আল্ট্রাসোনোগ্রাম হয়নি এবং টিটি টিকার কার্ড নেই। টিটি ডোজ ও আল্ট্রাসোনোগ্রামের অবস্থা কার্ডে কীভাবে লিখব?",
+    "expected_answer_bn": "আল্ট্রাসোনোগ্রাম হয়ে থাকলে টিক (✓) চিহ্ন দিন; ২০ সপ্তাহের মাঝে করার জন্য উৎসাহিত করুন। না হলে (X) চিহ্ন দিন। টিটি টিকার কার্ড দেখে অথবা মহিলার সাথে কথা বলে লিখুন। কার্ড না থাকলে ডোজ সংখ্যা লিখে পাশে '+' দিন। পূর্বের ডোজ সম্পূর্ণ থাকলে কার্ডে 'সম্পূর্ণ' লিখুন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "6fb98ab8-badc-4dcd-acb2-df859b89776f"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q338"
+  },
+  {
+    "question_en": "What prior pregnancy complications should I ask about and mark on the health card?",
+    "expected_answer_en": "Talk with the pregnant woman and mark (√) on the card for any history of caesarean section, abortion, antepartum or postpartum haemorrhage, pre-eclampsia, or eclampsia.",
+    "question_bn": "পূর্বের গর্ভের কোন জটিলতার ইতিহাস জিজ্ঞেস করে স্বাস্থ্য কার্ডে চিহ্নিত করতে হবে?",
+    "expected_answer_bn": "গর্ভবতী মহিলার সাথে আলাপ করে সিজারিয়ান অপারেশন, গর্ভপাত, প্রসব পূর্ব বা পরবর্তী রক্তক্ষরণ, প্রিএকলাম্পশিয়া বা একলাম্পশিয়ার ইতিহাস থাকলে কার্ডে টিক (√) চিহ্ন দিন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "99ce0bb8-3b99-48d9-87f5-c5fd25c8ba78"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q339"
+  },
+  {
+    "question_en": "During a PNC visit, the mother reports heavy bleeding — two pads soaked in half an hour. What should I record and do?",
+    "expected_answer_en": "Mark (✓) in the box for excessive bleeding (500 ml or more, or two pads soaked in half an hour between 6 hours and 6 weeks postpartum) and refer to the hospital immediately.",
+    "question_bn": "পিএনসি ভিজিটে মা জানালেন প্রচুর রক্তপাত হচ্ছে — আধা ঘণ্টায় ২টা প্যাড ভিজে গেছে। আমি কী লিখব এবং কী করব?",
+    "expected_answer_bn": "অতিরিক্ত রক্তস্রাবের (৬ ঘণ্টা পর থেকে ৬ সপ্তাহ পর্যন্ত আধা ঘণ্টায় ২টা প্যাড ভিজে গেলে বা ৫০০ মিলি বা তার বেশি রক্তপাত) ঘরে টিক (✓) চিহ্ন দিন এবং অবিলম্বে হাসপাতালে রেফার করুন।",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ],
+    "source_card_id": [
+      "1c1a7dfa-542c-44e4-af87-9baa63a335f2"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Emergency Management & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q340"
+  },
+  {
+    "question_en": "At the start of an EPI session, what should I explain to participants about the program's purpose and target population?",
+    "expected_answer_en": "Greet everyone, introduce the EPI program concept, explain who the target population is, write it on the board, and ask all participants to repeat it.",
+    "question_bn": "ইপিআই সেশনের শুরুতে কার্যক্রমের উদ্দেশ্য ও লক্ষ্যিত জনগোষ্ঠী সম্পর্কে অংশগ্রহণকারীদের কী ব্যাখ্যা করতে হবে?",
+    "expected_answer_bn": "সবাইকে শুভেচ্ছা জানিয়ে সেশন শুরু করুন, ইপিআই সর্ম্পকে ধারণা দিন, লক্ষ্যিত জনগোষ্ঠী কারা তা বলুন, বোর্ডে লিখুন এবং সকলকে বলতে বলুন।",
+    "module_id": [
+      "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+    ],
+    "source_card_id": [
+      "25738f5d-830f-4d8b-bc38-9ecacfd2b35f"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q341"
+  },
+  {
+    "question_en": "After vaccinating a child, the mother says the child seems unwell. How should I discuss vaccine side effects with her?",
+    "expected_answer_en": "Ask what kinds of problems children face after vaccination and listen carefully to what she says. Then discuss common and dangerous vaccine side effects and how to manage them.",
+    "question_bn": "শিশুকে টিকা দেওয়ার পর মা বলছেন শিশুটির শরীর খারাপ লাগছে। টিকার পার্শ্বপ্রতিক্রিয়া নিয়ে আমি তার সাথে কীভাবে আলোচনা করব?",
+    "expected_answer_bn": "টিকা নেয়ার পর শিশুরা কী ধরণের সমস্যার সম্মুখীন হয় তা জানতে চান এবং মায়ের কথা মনোযোগ সহকারে শুনুন। পরে টিকার সাধারণ ও বিপদজনক পার্শ্বপ্রতিক্রিয়া এবং এর সমাধান নিয়ে আলোচনা করুন।",
+    "module_id": [
+      "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+    ],
+    "source_card_id": [
+      "ab78583f-c3cc-44df-9bc0-9ae532e3329c"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q342"
+  },
+  {
+    "question_en": "During an EPI training session, how should I present the child vaccination schedule so everyone understands it?",
+    "expected_answer_en": "Know the names of vaccines given for each disease, have a few participants say the names and write them on the board, verify and correct errors through synthesis and analysis, present the vaccine schedule poster, and confirm that everyone has understood.",
+    "question_bn": "ইপিআই প্রশিক্ষণে শিশুর টিকার সিডিউল উপস্থাপন করার সময় সবাই যেন বুঝতে পারে, তার জন্য আমি কী করব?",
+    "expected_answer_bn": "কোন কোন রোগের জন্য কোন টিকা দেওয়া হয় তার নাম জানুন, কয়েকজনকে নাম বলতে বলুন এবং বোর্ডে লিখুন, যাচাই করে ভুল-ত্রুটি সংযোজন বিয়োজন করে ঠিক করুন, টিকার সিডিউলের পোস্টার উপস্থাপন করুন এবং সবাই বুঝেছে কিনা যাচাই করুন।",
+    "module_id": [
+      "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+    ],
+    "source_card_id": [
+      "44051a6f-21c2-434f-996e-4c5fbc5992d6"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q343"
+  }
+]

@@ -1,10 +1,10 @@
-"""W-10 — module completion worker.
+"""Module completion worker.
 
-Consumes the v3.3 module-pipeline telemetry events
+Consumes the module-pipeline telemetry events
 (`MODULE_DELIVERED`, `MODULE_CARD_VIEWED`, `MODULE_QUIZ_ATTEMPTED`) and updates
 `chw_module_completion` based on per-question quiz progress derived from
 `MODULE_QUIZ_ATTEMPTED`, plus `chw_behavioural_gap_state` for
-`MODULE_QUIZ_ATTEMPTED` (via the W-8 GapStateService).
+`MODULE_QUIZ_ATTEMPTED` (via GapStateService).
 
 Also consumes `SPICE_ACTION_OBSERVED` (clinical workflow hook): reads
 `payload_json.behavioural_gap_id` and records a gap observation via

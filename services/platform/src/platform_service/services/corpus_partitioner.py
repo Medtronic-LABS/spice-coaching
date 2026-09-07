@@ -9,10 +9,6 @@ until ~`stage_c_chunk_target_tokens` tokens; when over the target, look for
 the nearest outline section boundary within `stage_c_chunk_window_pct` of
 the cap and break there. Chunks are content-disjoint — every page lands in
 exactly one chunk.
-
-After all chunks are processed, candidates are deduplicated by normalised
-title (deterministic) and flagged for cross-chunk reviewer attention when
-near-duplicate titles appear across chunks (trigram similarity).
 """
 
 from __future__ import annotations
@@ -22,7 +18,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from platform_service.config import get_settings
-from platform_service.services.text_similarity import normalise_title, trigram_similarity
 from platform_service.services.token_estimation import estimate_token_count
 
 logger = logging.getLogger(__name__)
@@ -163,104 +158,3 @@ def chunk_by_token_budget(
             c.estimated_tokens,
         )
     return chunks
-
-
-# ── Title dedup + cross-chunk near-dup flagging ─────────────────────────
-
-
-def dedup_and_flag_cross_chunk(
-    chunked_candidates: list[tuple[str, list[dict[str, Any]]]],
-) -> list[dict[str, Any]]:
-    """Collapse same-titled candidates across chunks, flag near-dups for review.
-
-    Input: list of (chunk_id, candidates_for_that_chunk) pairs.
-    Output: deduplicated candidate list. Each candidate gains:
-        - `_chunk_lineage`: list of chunk_ids it appeared in
-        - `_cross_chunk_review`: True iff a different-titled candidate from
-          another chunk shares trigram similarity ≥ threshold
-
-    Same-title (post-normalisation) candidates from different chunks are
-    merged: provenance is unioned, lineage is unioned, the first occurrence's
-    other fields win.
-    """
-    settings = get_settings()
-    threshold = settings.stage_c_cross_chunk_similarity_threshold
-
-    # Step 1: dedup by normalised title across chunks. Preserves chunk lineage.
-    by_title: dict[str, dict[str, Any]] = {}
-    order: list[str] = []
-    for chunk_id, candidates in chunked_candidates:
-        for cand in candidates:
-            key = normalise_title(cand.get("proposed_title", ""))
-            if not key:
-                # Empty title — keep with synthetic key.
-                key = f"__empty_{id(cand)}"
-            if key in by_title:
-                rep = by_title[key]
-                # Union provenance.
-                seen_keys: set[tuple[str, str, str]] = set()
-                for entry in rep.get("source_provenance", []) or []:
-                    if not isinstance(entry, dict):
-                        continue
-                    doc = str(entry.get("source_document_id"))
-                    page = str(entry.get("source_page_id"))
-                    for block in entry.get("content_block_ids", []) or []:
-                        seen_keys.add((doc, page, str(block)))
-                merged_prov = list(rep.get("source_provenance", []) or [])
-                for entry in cand.get("source_provenance", []) or []:
-                    if not isinstance(entry, dict):
-                        continue
-                    doc = entry.get("source_document_id")
-                    page = entry.get("source_page_id")
-                    for block in entry.get("content_block_ids", []) or []:
-                        tup = (str(doc), str(page), str(block))
-                        if tup in seen_keys:
-                            continue
-                        seen_keys.add(tup)
-                        merged_prov.append(
-                            {
-                                "source_document_id": doc,
-                                "source_page_id": page,
-                                "content_block_ids": [block],
-                            }
-                        )
-                rep["source_provenance"] = merged_prov
-                # Track lineage.
-                rep.setdefault("_chunk_lineage", []).append(chunk_id)
-                logger.info(
-                    "Stage 2 cross-chunk dedup: collapsed candidate %r (also in %s)",
-                    cand.get("proposed_title", ""),
-                    chunk_id,
-                )
-            else:
-                cand_copy = dict(cand)
-                cand_copy["_chunk_lineage"] = [chunk_id]
-                by_title[key] = cand_copy
-                order.append(key)
-
-    deduped = [by_title[k] for k in order]
-
-    # Step 2: flag near-duplicates across chunks (different titles, similar
-    # content). Pairs with similarity >= threshold get _cross_chunk_review=True.
-    # We compare every pair once and mark both sides.
-    for i, a in enumerate(deduped):
-        a_title = a.get("proposed_title", "")
-        a_chunks = set(a.get("_chunk_lineage", []) or [])
-        for b in deduped[i + 1 :]:
-            b_chunks = set(b.get("_chunk_lineage", []) or [])
-            # Only flag when the candidates came from DIFFERENT chunks
-            # (within-chunk near-dups are the LLM's call to make).
-            if a_chunks & b_chunks:
-                continue
-            sim = trigram_similarity(a_title, b.get("proposed_title", ""))
-            if sim >= threshold:
-                a["_cross_chunk_review"] = True
-                b["_cross_chunk_review"] = True
-                logger.info(
-                    "Stage 2 cross-chunk near-dup flagged: %r vs %r similarity=%.2f",
-                    a_title,
-                    b.get("proposed_title", ""),
-                    sim,
-                )
-
-    return deduped

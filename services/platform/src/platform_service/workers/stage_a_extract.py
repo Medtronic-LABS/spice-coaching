@@ -1,6 +1,6 @@
 """Stage 1 — fused extraction + outline (was Stage A + Stage B).
 
-Per `docs/ARCHITECTURE_RESET.md`. The flow per source document:
+See `docs/content-administration/ingest-pipeline.md`. The flow per source document:
 
 1. Count pages (page_renderer.count_pages).
 2. Calibrate (sampled per-page text extraction → text_only / all_vision /

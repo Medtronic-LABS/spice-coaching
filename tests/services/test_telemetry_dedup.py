@@ -1,4 +1,4 @@
-"""W-10 — telemetry_dedup tests (mocked Redis).
+"""telemetry_dedup tests (mocked Redis).
 
 We don't run Redis in CI; the dedup module's Redis usage is small enough
 to assert on call shapes via AsyncMock. A separate integration test

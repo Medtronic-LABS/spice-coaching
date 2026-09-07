@@ -1,0 +1,57 @@
+{
+  "query_type": [
+    "Factual",
+    "Situational",
+    "Scenario-based",
+    "Procedural",
+    "Referral Decision",
+    "Drug / Dosage",
+    "Cross-card Synthesis",
+    "Negative",
+    "Counseling",
+    "Ambiguous"
+  ],
+  "query_type_aliases": {
+    "Scenario-based": "Situational"
+  },
+  "linguistic_variation": [
+    "Standard Written Bengali",
+    "Colloquial Spoken Bengali",
+    "Roman Transliteration",
+    "Banglish"
+  ],
+  "confidence": ["high", "medium", "low"],
+  "answerable": ["yes", "no", "partial"],
+  "chw_pattern": [
+    "None",
+    "Clinical Protocol & Escalation",
+    "Counseling & Home Management",
+    "Counseling & Birth Preparedness",
+    "Clinical Escalation & Patient Counseling",
+    "Lifestyle Counseling",
+    "Chronic Disease Counseling",
+    "Motivational Counseling & Overcoming Reluctance",
+    "Motivational Counseling & Risk Awareness",
+    "Symptom Identification",
+    "Emergency Management & Referral",
+    "Etiology Understanding",
+    "Prevention & Patient Education",
+    "Postnatal Maternal Counseling",
+    "Newborn Care Counseling",
+    "Danger Signs & Referral Criteria",
+    "Maternal Danger Signs & Referral",
+    "Problem Identification & Escalation",
+    "Self-care & Breast Care",
+    "Physiological Assessment",
+    "Differential Diagnosis & Complication Recognition",
+    "Documentation Verification & Coordination",
+    "Immunization Catch-up Rule",
+    "Tracking & Reporting Defaulters",
+    "Diagnostic Procedure",
+    "Treatment Protocol",
+    "Referral & Escalation",
+    "Patient Education",
+    "Cross-module Integration",
+    "Out-of-scope Refusal"
+  ]
+}

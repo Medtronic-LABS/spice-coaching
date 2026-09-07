@@ -1,0 +1,121 @@
+{
+  "records": [
+    {
+      "question_en": "During today's ANC visit, the mother has edema and urinary albumin and blood pressure are normal. What counseling should I give her?",
+      "expected_answer_en": "Advise the mother not to eat loose salt on her plate. Tell her not to sit with legs dangling. Keep feet elevated with a pillow under them. Encourage protein-rich foods.",
+      "question_bn": "আজকের এএনসি ভিজিটে মায়ের ইডিমা আছে, কিন্তু প্রস্রাবে অ্যালবুমিন ও রক্তচাপ স্বাভাবিক। এই অবস্থায় আমি তাকে কী পরামর্শ দেব?",
+      "expected_answer_bn": "মাকে পাতে আলগা লবণ না খাওয়ার পরামর্শ দিন। পা ঝুলিয়ে না বসতে বলুন। পায়ের নিচে বালিশ দিয়ে পা উঁচু করে রাখতে বলুন। আমিষ জাতীয় খাবার খেতে উৎসাহিত করুন।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["fabcfe06-262b-4bea-ab5e-7cfd05ddb997"],
+      "query_type": "Counseling",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Counseling & Home Management",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A pregnant mother has fever. What medicine and home care should I advise according to protocol?",
+      "expected_answer_en": "Advise the mother to take Napa or Paracetamol tablet as per the doctor's advice (on a full stomach). Wipe the whole body with a cloth soaked in normal or lukewarm water. She should eat plenty of liquid foods. If fever does not subside, seek the doctor's advice.",
+      "question_bn": "একজন গর্ভবতী মায়ের জ্বর হয়েছে। প্রোটোকল অনুযায়ী কোন ওষুধ ও বাড়িতে কী যত্নের পরামর্শ দেব?",
+      "expected_answer_bn": "চিকিৎসকের পরামর্শ অনুযায়ী ট্যাবলেট নাপা বা প্যারাসিটামল খেতে বলুন (ভরা পেটে)। স্বাভাবিক পানিতে বা কুসুম গরম পানিতে কাপড় ভিজিয়ে সমস্ত শরীর মুছে দিতে বলুন। বেশি বেশি তরল জাতীয় খাবার খেতে বলুন। জ্বর না কমলে চিকিৎসকের পরামর্শ নিতে বলুন।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["74ca51d6-4771-4042-aa20-6e65fa408a7d"],
+      "query_type": "Drug / Dosage",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Treatment Protocol",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "At a home visit I measured the mother's weight and found it has not increased or has decreased since the last visit. What should I do next?",
+      "expected_answer_en": "Weight remaining stable or decreasing during pregnancy is abnormal. Check whether anemia and fundal height are normal. Provide counseling as needed and refer if necessary.",
+      "question_bn": "বাড়ি ভিজিটে মায়ের ওজন মেপে দেখলাম গত ভিজিটের তুলনায় ওজন স্থির আছে বা কমে গেছে। পরবর্তীতে আমি কী করব?",
+      "expected_answer_bn": "গর্ভাবস্থায় ওজন স্থির থাকা বা কমে যাওয়া অস্বাভাবিক। রক্তস্বল্পতা এবং জরায়ুর উচ্চতা স্বাভাবিক আছে কিনা তা পরীক্ষা করে মিলিয়ে দেখুন। প্রয়োজনে পরামর্শ দিন এবং রেফার করুন।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["5432355f-fa15-40c1-b7e3-ec6742a56e1e"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Problem Identification & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is the normal pulse rate range for a pregnant mother?",
+      "expected_answer_en": "The normal pulse rate for a pregnant mother is 60 to 100 beats per minute.",
+      "question_bn": "গর্ভবতী মায়ের স্বাভাবিক নাড়ির গতি কত হওয়া উচিত?",
+      "expected_answer_bn": "গর্ভবতী মায়ের স্বাভাবিক নাড়ির গতি ৬০ থেকে ১০০ বার প্রতি মিনিটে।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["edf123a9-a22f-4751-9110-9be983fde845"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "I measured the mother's height and found it is below 145 centimeters. She seems otherwise well. What should I tell her?",
+      "expected_answer_en": "Normal height is 145 centimeters or more. If height is below 145 centimeters, the mother is at risk. Advise her to consult a doctor.",
+      "question_bn": "মায়ের উচ্চতা মেপে দেখলাম ১৪৫ সেন্টিমিটারের কম। অন্যদিকে সে ভালো আছে বলে মনে হচ্ছে। তাকে কী বলব?",
+      "expected_answer_bn": "স্বাভাবিক উচ্চতা ১৪৫ সেন্টিমিটার বা এর বেশি। উচ্চতা ১৪৫ সেন্টিমিটারের কম হলে মা ঝুঁকিপূর্ণ। তাকে ডাক্তারের পরামর্শ নিতে বলুন।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["b80df28d-9cdd-4012-aaf5-6e44e97f68e6"],
+      "query_type": "Situational",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Referral & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What are the step-by-step instructions to measure a pregnant mother's blood pressure correctly?",
+      "expected_answer_en": "Let the patient sit calmly for 5 minutes before measurement. Measure blood pressure with the back supported against a chair, arm resting on a table at heart level. Place the cuff two finger-widths above the elbow crease — not too loose or tight. Use the stethoscope at the artery where the pulse is felt. Inflate the cuff to 200 mmHg, then slowly release. Record systolic pressure where sound is first heard and diastolic where sound disappears. Fully release air and remove the cuff carefully.",
+      "question_bn": "গর্ভবতী মায়ের রক্তচাপ সঠিকভাবে মাপার ধাপে ধাপে নির্দেশনা কী?",
+      "expected_answer_bn": "রক্তচাপ পরীক্ষার পূর্বে ৫ মিনিট রোগীকে শান্তভাবে বসতে দিন। চেয়ারের পশ্চাৎ দেয়ালে পিঠ ঠেকিয়ে বসা অবস্থায়, হাত হৃদপিন্ডের সম-উচ্চতায় রেখে রক্তচাপ নিন। কনুইয়ের ভাঁজ থেকে দুই আঙ্গুল উপরে বাহুবন্ধনী বাঁধুন — খুব ঢিলা বা টাইট করা যাবে না। নাড়ীর গতি অনুভব করা যায় সেখানে স্টেথোস্কোপ রাখুন। বাহুবন্ধনীতে ২০০ মিলিমিটার পর্যন্ত বাতাস দিন, তারপর আস্তে আস্তে খুলুন। প্রথমে শব্দ শোনা যায় যেখানে সেটাই সিস্টোলিক এবং শেষে শব্দ বন্ধ হয় যেখানে সেটাই ডায়াস্টোলিক রক্তচাপ। বাতাস সম্পূর্ণ ছেড়ে বাহুবন্ধনী সাবধানে খুলে রাখুন।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["03dc8c43-6a98-450d-9166-c2312b8fd4aa"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Diagnostic Procedure",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "The mother's blood pressure is abnormal, urinary albumin and edema examination results are also abnormal. Should I refer her?",
+      "expected_answer_en": "Yes. If urinary albumin and edema examination results are abnormal, refer the mother to the Upazila hospital or health center.",
+      "question_bn": "মায়ের রক্তচাপ অস্বাভাবিক, প্রস্রাবে অ্যালবুমিন ও ইডিমা পরীক্ষার ফলাফলও অস্বাভাবিক। আমি কি তাকে রেফার করব?",
+      "expected_answer_bn": "হ্যাঁ। প্রস্রাবে অ্যালবুমিন এবং ইডিমা পরীক্ষার ফলাফল অস্বাভাবিক থাকলে মাকে উপজেলা হাসপাতাল বা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["74aece78-688f-40ee-895c-25ba4693df30", "d687a96e-ed56-4035-9e14-315b21de05ad"],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Clinical Protocol & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What temperature range is considered normal for a pregnant mother, and what counts as abnormal?",
+      "expected_answer_en": "Normal temperature is 97 to 99 degrees Fahrenheit (37 degrees Celsius). Abnormal temperature is above 99 degrees Fahrenheit (fever) or below 97 degrees Fahrenheit (hypothermia).",
+      "question_bn": "গর্ভবতী মায়ের জন্য স্বাভাবিক তাপমাত্রার সীমা কত, এবং কীকে অস্বাভাবিক বলা হয়?",
+      "expected_answer_bn": "স্বাভাবিক তাপমাত্রা ৯৭ ডিগ্রি ফারেনহাইট থেকে ৯৯ ডিগ্রি ফারেনহাইট (৩৭ ডিগ্রি সেলসিয়াস)। অস্বাভাবিক তাপমাত্রা হলো ৯৯ ডিগ্রি ফারেনহাইটের বেশি (জ্বর) এবং ৯৭ ডিগ্রি ফারেনহাইটের কম (হাইপোথারমিয়া)।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["675586e7-c59d-43a3-9032-81051032212e"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How do I measure fundal height for a pregnant mother at 20 weeks gestation?",
+      "expected_answer_en": "Ask the mother to empty her bladder. Have her lie down with knees bent. Palpate from the fundus downward to mark the upper border, then from below the navel to the symphysis pubis. Place the zero mark of the measuring tape at the upper mark, pass over the navel to the symphysis pubis, and record the centimeters on the maternal and newborn health card. From 16 to 23 weeks, record the result in the fundal height field. Also ask about fetal movement — normally the fetus moves 10 or more times in 12 hours.",
+      "question_bn": "২০ সপ্তাহের গর্ভবতী মায়ের জরায়ুর উচ্চতা কীভাবে মাপব?",
+      "expected_answer_bn": "মাকে প্রস্রাব করিয়ে নিন। শুয়ে দুই হাঁটু ভাঁজ করতে বলুন। জিফি-স্টারনাম থেকে নীচের দিকে হাত দিয়ে অনুভব করে উপরের দাগ দিন, নাভীর নিচ থেকে সিমফাইসিস পিউবিস পর্যন্ত মাপুন। মেজারিং টেপের '০' দাগ উপরের দাগে রেখে নাভীর উপর দিয়ে সিমফাইসিস পিউবিস পর্যন্ত টেনে সেন্টিমিটার কার্ডে লিখুন। ১৬–২৩ সপ্তাহে ফলাফল মা, নবজাতক ও শিশু স্বাস্থ্য তথ্য কার্ডের জরায়ুর উচ্চতার ঘরে লিখুন। বাচ্চার নড়াচড়া সম্পর্কেও জিজ্ঞাসা করুন — স্বাভাবিকভাবে ১২ ঘণ্টায় ১০ বা তার বেশি বার নড়াচড়া করে।",
+      "module_id": ["46900f4a-4978-4e3f-9db1-cceb677c8146"],
+      "source_card_id": ["905210ac-0b60-48d1-87a2-7030ee28f0c3"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Diagnostic Procedure",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

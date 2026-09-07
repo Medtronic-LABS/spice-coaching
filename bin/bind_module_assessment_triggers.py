@@ -39,7 +39,7 @@ import asyncio
 import sys
 from uuid import UUID
 
-from platform_service.celery_tasks import bind_assessment_triggers_task
+from platform_service.celery_enqueue import enqueue_bind_assessment_triggers
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
 from platform_service.db.models.trigger_definition import ModuleTriggerBinding, TriggerDefinition
@@ -114,7 +114,7 @@ async def _run(*, dry_run: bool, missing_only: bool, module_id: UUID | None) -> 
 
     enqueued = 0
     for mid, title in modules:
-        bind_assessment_triggers_task.delay(str(mid))
+        enqueue_bind_assessment_triggers(str(mid))
         print(f"enqueued {mid}  {title!r}")
         enqueued += 1
     print(f"Done. enqueued={enqueued}")

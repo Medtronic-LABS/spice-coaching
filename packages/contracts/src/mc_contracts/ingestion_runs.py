@@ -77,7 +77,6 @@ class IngestionRunStepPayload(BaseModel):
     error_code: str | None = None
     error_message: str | None = None
     activity: str | None = None
-    fusion: bool | None = None
     published_module_merge: PublishedModuleMergePoll | None = None
 
 

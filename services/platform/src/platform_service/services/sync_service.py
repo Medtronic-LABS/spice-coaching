@@ -13,6 +13,7 @@ from datetime import datetime
 
 from mc_contracts.sync import (
     BadgesSyncBundle,
+    CardEmbeddingsSyncBundle,
     ChatFaqsSyncBundle,
     ConfigSyncBundle,
     GapsSyncBundle,
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import Settings
 from platform_service.services.sync.badges_bundle_builder import BadgesBundleBuilder
+from platform_service.services.sync.card_embeddings_bundle_builder import CardEmbeddingsBundleBuilder
 from platform_service.services.sync.chat_faqs_bundle_builder import ChatFaqsBundleBuilder
 from platform_service.services.sync.config_bundle_builder import ConfigBundleBuilder
 from platform_service.services.sync.gaps_bundle_builder import GapsBundleBuilder
@@ -44,6 +46,7 @@ class SyncService:
         self._session = session
         self._config = ConfigBundleBuilder(session)
         self._modules = ModulesBundleBuilder(session)
+        self._card_embeddings = CardEmbeddingsBundleBuilder(session)
         self._source_documents = SourceDocumentsBundleBuilder(session)
         self._triggers = TriggersBundleBuilder(session)
         self._gaps = GapsBundleBuilder(session)
@@ -68,6 +71,19 @@ class SyncService:
             tenant_id=tenant_id,
             user_id=user_id,
             storage=storage,
+            settings=settings,
+        )
+
+    async def get_card_embeddings_bundle(
+        self,
+        *,
+        since: datetime,
+        tenant_id: int | None = None,
+        settings: Settings | None = None,
+    ) -> CardEmbeddingsSyncBundle:
+        return await self._card_embeddings.build(
+            since=since,
+            tenant_id=tenant_id,
             settings=settings,
         )
 

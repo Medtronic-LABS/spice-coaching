@@ -14,14 +14,16 @@ from platform_service.api.sync import router as sync_router
 from platform_service.auth.spice_identity import SYNC_AUTH_DISABLED_DEFAULT_USER_ID
 from platform_service.config import get_settings
 from platform_service.db.models.document_assignment import DocumentAssignment
+from platform_service.db.models.module_card import ModuleCard
 from platform_service.deps import get_db, get_object_storage_client
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.api.conftest import (
     _mock_storage,
     _seed_module,
     _seed_source_document,
+    _unit_basis_vector,
 )
 from tests.conftest import platform_path, requires_db
 from tests.helpers.hierarchy_fixtures import seed_basic_hierarchy
@@ -169,6 +171,53 @@ class TestSyncRoutes:
         assert data["modules"] == []
         assert data["assigned_module_ids"] == []
         assert data["requested_modules"] == []
+
+
+class TestCardEmbeddingsSync:
+    async def test_requires_since(self, client: AsyncClient) -> None:
+        resp = await client.get(platform_path("/sync/card-embeddings"))
+        assert resp.status_code == 422
+
+    async def test_empty_when_no_updates(self, client: AsyncClient) -> None:
+        since = datetime.now(UTC).isoformat()
+        resp = await client.get(platform_path("/sync/card-embeddings"), params={"since": since})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["cards"] == []
+        assert data["embedding_dimension"] == get_settings().embedding_dimension
+        assert "server_time_utc" in data
+
+    async def test_returns_embeddings_for_updated_module(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        module = await _seed_module(
+            db_session,
+            module_json={
+                "cards": [
+                    {
+                        "title": {"bn": "C1"},
+                        "body": {"bn": "B1"},
+                        "source_block_ids": [str(uuid4())],
+                    }
+                ]
+            },
+        )
+        card = (
+            await db_session.execute(select(ModuleCard).where(ModuleCard.module_id == module.id))
+        ).scalar_one()
+        card.local_embedding = _unit_basis_vector(0)
+        await db_session.commit()
+
+        since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+        resp = await client.get(platform_path("/sync/card-embeddings"), params={"since": since})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["cards"]) == 1
+        row = data["cards"][0]
+        assert row["card_id"] == str(card.id)
+        assert row["module_id"] == str(module.id)
+        assert row["card_family_id"] == str(card.card_family_id)
+        assert row["embedding"] == _unit_basis_vector(0)
 
 
 class TestSourceDocumentsSync:

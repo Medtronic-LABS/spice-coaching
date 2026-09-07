@@ -1,0 +1,108 @@
+{
+  "records": [
+    {
+      "question_en": "What is meant by 'family food' when counseling mothers about feeding infants after six months?",
+      "expected_answer_en": "Family food refers to food taken from what the whole family eats — food cooked for everyone at home — and given to the child alongside breast milk after the child completes six months of age.",
+      "question_bn": "ছয় মাস পূর্ণ হওয়ার পর শিশুকে খাওয়ানোর বিষয়ে পরামর্শ দেওয়ার সময় 'পারিবারিক খাবার' বলতে কী বোঝায়?",
+      "expected_answer_bn": "পারিবারিক খাবার বলতে বোঝায় পরিবারের সবার জন্য রান্না করা খাবার থেকে যে খাবার নিয়ে শিশুকে মায়ের দুধের পাশাপাশি খাওয়ানো হয়, এবং এটি শিশুর ছয় মাস পূর্ণ হওয়ার পর শুরু করা হয়।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["27c7b1ff-97c1-4d3f-a838-8b13d29d5b9f"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During a home visit, a grandmother wants to start giving mashed rice to a 5-month-old baby because the child seems hungry. How should I counsel the family?",
+      "expected_answer_en": "Advise waiting until the baby completes six months before starting complementary food. Before six months, giving extra food will reduce breast milk intake, so the child will not receive adequate nutrition for physical needs. Starting complementary food only after six months is the appropriate age, when the baby can learn to eat and swallow extra food more easily.",
+      "question_bn": "হোম ভিজিটে একজন দাদি ৫ মাসের শিশুকে ভাত চটকে খাওয়াতে চান, কারণ শিশু ক্ষুধার্ত বলে মনে হচ্ছে। আমি পরিবারকে কীভাবে পরামর্শ দেব?",
+      "expected_answer_bn": "ছয় মাস পূর্ণ না হওয়া পর্যন্ত বাড়তি খাবার শুরু না করতে বলুন। ছয় মাস পূর্ণ হওয়ার আগে বাড়তি খাবার দিলে মায়ের দুধ খাওয়া কমে যাবে, ফলে শিশু তার শারীরিক চাহিদা অনুযায়ী সঠিক পরিমাণে পুষ্টি পাবে না। ছয় মাস পূর্ণ হওয়ার পরই বাড়তি খাবার শুরু করা উপযুক্ত, তখন শিশু সহজে খেতে ও গিলতে শিখে।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["a7653ae6-2560-4321-8772-415f3aa6b719", "db6caa6f-a3f1-42db-9843-21c49d1bdf87"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Motivational Counseling & Overcoming Reluctance",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is the step-by-step method to prepare a nutritious family meal for a 9-month-old child?",
+      "expected_answer_en": "First wash hands well with soap and safe water, and wash a 250 ml measuring bowl. In the bowl, mash a small piece of fish, meat, egg, or liver (any one). Then fill the bowl with thick lentil, vegetables, and the remaining rice. Mix everything together. Ensure the total prepared amount matches the age-appropriate quantity. Mix micronutrient powder with one meal each day.",
+      "question_bn": "৯ মাসের শিশুর জন্য পুষ্টিকর পারিবারিক খাবার তৈরির ধাপে ধাপে পদ্ধতি কী?",
+      "expected_answer_bn": "প্রথমে সাবান ও নিরাপদ পানি দিয়ে ভালোভাবে হাত ধুয়ে নিন এবং ২৫০ মিলি লিটার মাপের বাটি ধুয়ে নিন। বাটিতে একটুকরা মাছ, মাংস, ডিম বা কলিজা যে কোন একটি চটকে নিন। এরপর বাটিতে ঘন ডাল, সবজি এবং বাকি ভাত দিয়ে পূরণ করুন। সবকিছু একসঙ্গে মাখান। মোট তৈরি খাবারের পরিমাণ যেন বয়স অনুযায়ী ঠিক থাকে। প্রতিদিন একবেলার খাবারের সঙ্গে পুষ্টিকণা মেশাতে হবে।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["d7899089-e934-4130-80a0-641a101fd32e", "bc2aa259-7525-48d1-8636-fb6a79d66812"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Prevention & Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "I visited a 7-month-old who has never received any complementary food and appears weak and thin. The mother says she did not know she had to start other foods. Should I refer the child, or can I manage this at the community level?",
+      "expected_answer_en": "After six months, breast milk alone is not sufficient; the child needs other foods or normal growth will not occur and the child will suffer malnutrition. Counsel the mother to start family food immediately alongside continued breastfeeding. Teach appropriate food quantity, frequency, and preparation. Continue close follow-up; if the child's condition does not improve or worsens, refer to the nearest health facility.",
+      "question_bn": "আমি ৭ মাসের এক শিশুর বাড়িতে গিয়েছিলাম, যাকে কখনো বাড়তি খাবার দেওয়া হয়নি এবং সে দুর্বল ও ক্ষীণ দেখাচ্ছে। মা বলছেন তিনি জানতেন না অন্য খাবার দিতে হবে। আমি শিশুকে রেফার করব, নাকি সম্প্রদায় পর্যায়ে পরিচালনা করতে পারি?",
+      "expected_answer_bn": "ছয় মাসের পর শুধু মায়ের দুধ শিশুর জন্য যথেষ্ট নয়; অন্যান্য খাবার না দিলে শিশুর স্বাভাবিক বৃদ্ধি ঘটবে না এবং শিশু অপুষ্টিতে ভুগবে। মাকে পরামর্শ দিন যে এখনই মায়ের দুধের পাশাপাশি পারিবারিক খাবার শুরু করতে হবে। বয়স অনুযায়ী খাবারের পরিমাণ, বার ও প্রস্তুতির নিয়ম শেখান। ঘন ঘন ফলো-আপ করুন; শিশুর অবস্থা উন্নত না হলে বা খারাপ হলে নিকটস্থ স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["db6caa6f-a3f1-42db-9843-21c49d1bdf87", "a7653ae6-2560-4321-8772-415f3aa6b719"],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Problem Identification & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "Why is complementary family food necessary after a child completes six months of age?",
+      "expected_answer_en": "After six months, breast milk alone is not enough for the child's nutritional needs. Without other foods from six months onward, the child will not grow normally and will suffer from malnutrition.",
+      "question_bn": "শিশুর ছয় মাস পূর্ণ হওয়ার পর বাড়তি পারিবারিক খাবার কেন প্রয়োজন?",
+      "expected_answer_bn": "ছয় মাসের পর শুধু মায়ের দুধ শিশুর জন্য যথেষ্ট নয়। প্রয়োজনীয় পুষ্টির জন্য শিশুকে অন্যান্য খাবার দিতে হবে। ছয় মাস বয়স থেকে অন্যান্য খাবার না দিলে শিশুর স্বাভাবিক বৃদ্ধি ঘটবে না এবং শিশু অপুষ্টিতে ভুগবে।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["db6caa6f-a3f1-42db-9843-21c49d1bdf87"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Etiology Understanding",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should the consistency and texture of complementary food change as the child grows from 6 months to 2 years?",
+      "expected_answer_en": "From 6 to 8 months, give mashed/pureed food. From 9 to 11 months, give food cut into small pieces. From 12 to 24 months, give food like adults eat. For quantity and frequency: 6–8 months — half a 250 ml bowl twice daily plus 1–2 nutritious snacks; 9–11 months — half bowl three times daily plus snacks; 12–23 months — one full bowl three times daily plus snacks. Continue breastfeeding alongside complementary foods until at least two years.",
+      "question_bn": "৬ মাস থেকে ২ বছর বয়স পর্যন্ত শিশু বড় হওয়ার সঙ্গে বাড়তি খাবারের ঘনত্ব ও গঠন কীভাবে বদলাতে হবে?",
+      "expected_answer_bn": "ছয় মাস থেকে আট মাস বয়সী শিশুদের চটকানো খাবার দিতে হবে। নয় মাস থেকে এগারো মাস বয়সী শিশুদের খাবার ছোট ছোট টুকরা করে দিতে হবে। বারো মাস থেকে চব্বিশ মাস বয়সী শিশুদের বড়দের মতো খাবার দিতে হবে। পরিমাণ ও বার: ৬–৮ মাস — ২৫০ মি.লি. বাটির অর্ধেক বাটি দিনে ২ বার + পুষ্টিকর নাশতা ১–২ বার; ৯–১১ মাস — অর্ধেক বাটি দিনে ৩ বার + নাশতা; ১২–২৩ মাস — এক বাটি দিনে ৩ বার + নাশতা। বাড়তি খাবারের সঙ্গে কমপক্ষে দুই বছর বয়স পর্যন্ত মায়ের দুধ খাওয়াতে হবে।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["0804277e-0dc3-49d2-81fa-937bdfde47f5", "bc2aa259-7525-48d1-8636-fb6a79d66812"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A mother asks why she should feed family food instead of buying separate baby food, and how often she should feed her 10-month-old. What comprehensive advice should I give?",
+      "expected_answer_en": "Explain that family food saves cost because no extra food needs to be purchased. It supports good physical growth and mental development, strengthens immunity, and is less hassle. For a 9–11 month child, give half a 250 ml bowl of family food three times daily plus 1–2 nutritious snacks (dairy-based foods and seasonal fruits). Include animal protein (fish/meat/egg) at least once daily, vegetables, thick lentil, and rice. Continue breastfeeding until two years. Vary foods because children enjoy different tastes.",
+      "question_bn": "একজন মা জিজ্ঞেস করছেন কেন আলাদা বেবি ফুড কিনে না পরিবারের খাবার খাওয়াবেন, এবং তার ১০ মাসের শিশুকে কতবার খাওয়াতে হবে। আমি কী সমন্বিত পরামর্শ দেব?",
+      "expected_answer_bn": "বোঝান যে পারিবারিক খাবারে আলাদা খাবার কেনার দরকার হয় না, খরচ কম হয়, শারীরিক বৃদ্ধি ও মানসিক বিকাশ ভালো হয়, রোগ প্রতিরোধ ক্ষমতা বাড়ে এবং ঝামেলা কম। ৯–১১ মাসের শিশুর জন্য ২৫০ মি.লি. বাটির অর্ধেক বাটি পারিবারিক খাবার দিনে ৩ বার + পুষ্টিকর নাশতা ১–২ বার (দুধের তৈরি খাবার ও মৌসুমি ফল) দিন। প্রতিদিন কমপক্ষে একবার প্রাণিজ খাবার (মাছ/মাংস/ডিম), সবজি, ঘন ডাল ও ভাত দিন। দুই বছর পর্যন্ত বুকের দুধ চালিয়ে যান। শিশুরা বিভিন্ন খাবার পছন্দ করে, তাই খাবারে বৈচিত্র্য রাখুন।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["b5354c00-0ec6-4f08-8556-0f0872f995a1", "bc2aa259-7525-48d1-8636-fb6a79d66812", "7231df47-09b2-450b-8301-0a4c08cfa19d"],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Counseling & Home Management",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A mother refuses to give fish or meat to her 8-month-old, saying it will make the child sick. She only gives rice and dal. How should I counsel her?",
+      "expected_answer_en": "Explain that selecting nutritious food from the family meal is very important so the child gets all nutrients needed for brain growth and physical development. Ensure animal protein such as fish, meat, chicken liver, or egg at least once daily — small fish or meat can be mashed with rice. Also give sweet pumpkin, ripe mango, papaya, jackfruit, and one teaspoon of oil mixed into food (unless the child already eats fried food). Do not give separate water during feeding; offer breast milk instead so the small stomach is not filled without nutrition. Introduce variety as children enjoy different foods.",
+      "question_bn": "একজন মা তার ৮ মাসের শিশুকে মাছ-মাংস দিতে অস্বীকার করছেন, বলছেন শিশু অসুস্থ হয়ে যাবে। তিনি শুধু ভাত-ডাল দেন। আমি তাকে কীভাবে পরামর্শ দেব?",
+      "expected_answer_bn": "বোঝান যে পরিবারের রান্না করা খাবার থেকে পুষ্টিকর খাবার নির্বাচন করা খুবই গুরুত্বপূর্ণ, যাতে শিশু ব্রেনের বৃদ্ধি ও শারীরিক গঠনের জন্য প্রয়োজনীয় সব পুষ্টি পায়। কমপক্ষে দিনে একবার প্রাণিজ খাবার যেমন মাছ, মাংস, মুরগির কলিজা, ডিম দিন — ছোট মাছ বা মাংস পিষে ভাতের সাথে মাখানো যায়। মিষ্টি কুমড়া, পাকা আম, পাকা পেঁপে, কাঁঠালও দিন এবং এক চা চামচ তেল মেশান (শিশু তেলে ভাজা খেলে আলাদা তেল লাগবে না)। খাওয়ানোর সময় আলাদা পানি দেবেন না, বুকের দুধ দিন যাতে ছোট পেট ভরে পুষ্টিকর খাবার না খেতে পারে। শিশুরা বিভিন্ন খাবার খেতে ভালোবাসে, তাই নতুন খাবার যোগ করুন।",
+      "module_id": ["41c7bb53-12bc-4385-a1ce-8a79a8e208f9"],
+      "source_card_id": ["7231df47-09b2-450b-8301-0a4c08cfa19d"],
+      "query_type": "Counseling",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Motivational Counseling & Risk Awareness",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

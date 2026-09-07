@@ -1,4 +1,4 @@
-"""W-8 — module_selector integration tests."""
+"""module_selector integration tests."""
 
 from __future__ import annotations
 

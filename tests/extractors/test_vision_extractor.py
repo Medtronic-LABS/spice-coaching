@@ -1,4 +1,4 @@
-"""W-2 Stage A — vision_extractor unit tests with mocked AIRuntimeClient.
+"""Stage A — vision_extractor unit tests with mocked AIRuntimeClient.
 
 Verifies the vision call is constructed correctly and that error paths
 surface as VisionExtractionError.
@@ -7,10 +7,12 @@ surface as VisionExtractionError.
 import base64
 from typing import Any
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from mc_contracts.enums import GenerationType
 from mc_contracts.internal_ai import InferenceRequest, InferenceResponse, TraceContext
+from platform_service.services.prompt_template_service import RenderedPrompt
 from platform_service.workers.extractors.vision_extractor import (
     VisionExtractionError,
     VisionExtractor,
@@ -295,10 +297,6 @@ class TestUnwrapEnvelopeIntegration:
 class TestExtractImageText:
     @pytest.fixture
     def _render_image_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from uuid import uuid4
-
-        from platform_service.services.prompt_template_service import RenderedPrompt
-
         async def _fake_render(
             self,
             session,

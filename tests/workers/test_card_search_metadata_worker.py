@@ -221,7 +221,7 @@ class TestCardSearchMetadataWorker:
                 AsyncMock(return_value=batch_result),
             ),
             patch(
-                "platform_service.celery_tasks.generate_module_search_metadata_task",
+                "platform_service.workers.card_search_metadata_worker.enqueue_module_search_metadata",
                 mock_module_metadata,
             ),
         ):
@@ -233,7 +233,7 @@ class TestCardSearchMetadataWorker:
             )
 
         assert count == 2
-        mock_module_metadata.delay.assert_called_once()
+        mock_module_metadata.assert_called_once()
         refreshed_step = await db_session.get(IngestionRunStep, step.id)
         assert refreshed_step is not None
         assert refreshed_step.status == "succeeded"
@@ -254,7 +254,7 @@ class TestCardSearchMetadataWorker:
                 AsyncMock(return_value=batch_result),
             ),
             patch(
-                "platform_service.celery_tasks.generate_module_search_metadata_task",
+                "platform_service.workers.card_search_metadata_worker.enqueue_module_search_metadata",
                 mock_module_metadata,
             ),
         ):
@@ -265,7 +265,7 @@ class TestCardSearchMetadataWorker:
         assert rows[0].search_metadata_jsonb is not None
         assert rows[0].search_metadata_jsonb["keywords"]["bn"] == ["cough"]
         assert rows[1].search_metadata_jsonb is None
-        mock_module_metadata.delay.assert_called_once()
+        mock_module_metadata.assert_called_once()
         refreshed_step = await db_session.get(IngestionRunStep, step.id)
         assert refreshed_step is not None
         assert refreshed_step.status == "succeeded"
@@ -279,7 +279,7 @@ class TestCardSearchMetadataWorker:
         mock_module_metadata = MagicMock()
 
         with patch(
-            "platform_service.celery_tasks.generate_module_search_metadata_task",
+            "platform_service.workers.card_search_metadata_worker.enqueue_module_search_metadata",
             mock_module_metadata,
         ):
             count = await generate_card_search_metadata_batch(
@@ -290,7 +290,7 @@ class TestCardSearchMetadataWorker:
             )
 
         assert count == 0
-        mock_module_metadata.delay.assert_called_once()
+        mock_module_metadata.assert_called_once()
 
     async def test_chain_downstream_false_skips_module_metadata(self, db_session: AsyncSession) -> None:
         module = await _seed_module(db_session)
@@ -309,7 +309,7 @@ class TestCardSearchMetadataWorker:
                 AsyncMock(return_value=batch_result),
             ),
             patch(
-                "platform_service.celery_tasks.generate_module_search_metadata_task",
+                "platform_service.workers.card_search_metadata_worker.enqueue_module_search_metadata",
                 mock_module_metadata,
             ),
         ):
@@ -319,4 +319,4 @@ class TestCardSearchMetadataWorker:
         rows = await _card_rows(db_session, module.id)
         assert rows[0].search_metadata_jsonb is not None
         assert rows[0].search_metadata_jsonb["keywords"]["bn"] == ["cough"]
-        mock_module_metadata.delay.assert_not_called()
+        mock_module_metadata.assert_not_called()

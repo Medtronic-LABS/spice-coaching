@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal, cast
 from uuid import UUID
 
 from eval.rag.corpus import CardCorpusDoc, CorpusDoc, lookup_card_by_id
+from eval.rag.golden_manifest import load_golden_source_array
 
 QuestionLang = Literal["en", "bn"]
 
@@ -204,7 +204,22 @@ def _is_canonical_golden_item(item: dict[str, object]) -> bool:
     return "question_bn" in item and "expected_module_id" not in item
 
 
-def _is_golden_v2_item(item: dict[str, object]) -> bool:
+def _canonical_localized_text(
+    item: dict[str, object],
+    *,
+    language: QuestionLang,
+    record_id: str,
+    field: Literal["question", "expected_answer"],
+) -> str:
+    suffix = "_en" if language == "en" else "_bn"
+    key = f"{field}{suffix}"
+    value = item.get(key)
+    if not value:
+        raise ValueError(f"Record {record_id} must include {key}")
+    return str(value)
+
+
+def _is_localized_question_item(item: dict[str, object]) -> bool:
     if "expected_module_id" not in item:
         return False
     return "question_en" in item or isinstance(item.get("question"), dict)
@@ -237,7 +252,7 @@ def _parse_golden_answerable(raw: object, *, module_ids: list[UUID]) -> tuple[bo
     return True, False
 
 
-def _v2_question_texts(item: dict[str, object], idx: int) -> tuple[str, str]:
+def _localized_question_texts(item: dict[str, object], idx: int) -> tuple[str, str]:
     question_data = item.get("question")
     if isinstance(question_data, dict):
         question_en = question_data.get("en")
@@ -286,8 +301,8 @@ def _load_legacy_record(idx: int, item: dict[str, object]) -> GoldenRecord:
     )
 
 
-def _load_v2_records(idx: int, item: dict[str, object]) -> list[GoldenRecord]:
-    question_en, question_bn = _v2_question_texts(item, idx)
+def _load_localized_question_records(idx: int, item: dict[str, object]) -> list[GoldenRecord]:
+    question_en, question_bn = _localized_question_texts(item, idx)
 
     category = str(item.get("question_category", ""))
     base_id = str(item.get("id") or f"q_{idx + 1:03d}")
@@ -327,12 +342,19 @@ def _load_v2_records(idx: int, item: dict[str, object]) -> list[GoldenRecord]:
     return records
 
 
-def _load_canonical_record(idx: int, item: dict[str, object]) -> GoldenRecord:
-    question_bn = item.get("question_bn")
-    if not question_bn:
-        raise ValueError(f"Record {idx} must include question_bn")
-
+def _load_canonical_record(
+    idx: int,
+    item: dict[str, object],
+    *,
+    language: QuestionLang = "bn",
+) -> GoldenRecord:
     record_id = str(item.get("id") or f"q_{idx + 1:03d}")
+    question = _canonical_localized_text(
+        item,
+        language=language,
+        record_id=record_id,
+        field="question",
+    )
     module_ids = _parse_golden_module_ids(item.get("module_id"), record_id=record_id)
     source_card_ids = _parse_golden_source_card_ids(item.get("source_card_id"), record_id=record_id)
     is_answerable, is_out_of_scope = _parse_golden_answerable(
@@ -343,57 +365,22 @@ def _load_canonical_record(idx: int, item: dict[str, object]) -> GoldenRecord:
     return GoldenRecord(
         id=record_id,
         category=str(item.get("query_type", "")),
-        question=str(question_bn),
+        question=question,
         expected_module=None,
         relevant_module_ids=module_ids,
         is_answerable=is_answerable,
         expected_module_id=module_ids[0] if len(module_ids) == 1 else None,
         expected_card_ids=source_card_ids,
-        question_lang="bn",
+        question_lang=language,
         is_out_of_scope=is_out_of_scope,
     )
 
 
-def _sanitize_json_control_chars_in_strings(text: str) -> str:
-    """Replace raw newlines inside JSON string literals with spaces."""
-    result: list[str] = []
-    in_string = False
-    escape = False
-    for char in text:
-        if escape:
-            result.append(char)
-            escape = False
-            continue
-        if char == "\\" and in_string:
-            result.append(char)
-            escape = True
-            continue
-        if char == '"':
-            in_string = not in_string
-            result.append(char)
-            continue
-        if in_string and char in "\n\r":
-            result.append(" ")
-            continue
-        result.append(char)
-    return "".join(result)
-
-
-def loads_golden_json(text: str) -> object:
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return json.loads(_sanitize_json_control_chars_in_strings(text))
-
-
 def load_golden_json_array(path: Path) -> list[object]:
-    raw = loads_golden_json(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, list):
-        raise ValueError(f"Golden dataset must be a JSON array: {path}")
-    return raw
+    return load_golden_source_array(path)
 
 
-def load_golden_dataset(path: Path) -> list[GoldenRecord]:
+def load_golden_dataset(path: Path, *, language: QuestionLang = "bn") -> list[GoldenRecord]:
     if not path.is_file():
         raise FileNotFoundError(f"Golden dataset not found: {path}")
 
@@ -403,10 +390,10 @@ def load_golden_dataset(path: Path) -> list[GoldenRecord]:
     for idx, item in enumerate(raw):
         if not isinstance(item, dict):
             raise ValueError(f"Record {idx} must be an object")
-        if _is_golden_v2_item(item):
-            records.extend(_load_v2_records(idx, item))
+        if _is_localized_question_item(item):
+            records.extend(_load_localized_question_records(idx, item))
         elif _is_canonical_golden_item(item):
-            records.append(_load_canonical_record(idx, item))
+            records.append(_load_canonical_record(idx, item, language=language))
         else:
             records.append(_load_legacy_record(idx, item))
     return records

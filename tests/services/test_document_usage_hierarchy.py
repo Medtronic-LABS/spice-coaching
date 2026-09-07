@@ -7,8 +7,12 @@ from collections.abc import AsyncIterator
 import pytest
 import pytest_asyncio
 from mc_contracts.enums import HierarchyRole
+from platform_service.db.models.hierarchy_user import ROLE_SUPER_ADMIN
+from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
 from platform_service.services.document_usage_hierarchy import (
+    OrgUser,
     apply_document_usage_filters,
+    filter_users_by_chw_ids,
     org_user_index,
     resolve_users_by_geography_ids,
     resolve_users_by_geography_names,
@@ -129,9 +133,6 @@ class TestOrgUserIndexSuperAdmin:
     SUPER_ADMIN_ID = 9001
 
     async def test_super_admin_has_null_district(self, db_session: AsyncSession) -> None:
-        from platform_service.db.models.hierarchy_user import ROLE_SUPER_ADMIN
-        from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
-
         await HierarchyRepository(db_session).ensure_super_admin_user(
             user_id=self.SUPER_ADMIN_ID,
             name="Admin",
@@ -229,11 +230,6 @@ class TestApplyDocumentUsageFilters:
         assert all(upazila_id in index[uid].upazila_ids for uid in result)
 
     async def test_filter_users_by_chw_ids_none_passthrough(self) -> None:
-        from platform_service.services.document_usage_hierarchy import (
-            OrgUser,
-            filter_users_by_chw_ids,
-        )
-
         users = [
             OrgUser(
                 id=1,
@@ -251,11 +247,6 @@ class TestApplyDocumentUsageFilters:
         assert filter_users_by_chw_ids(users, None) == users
 
     async def test_filter_users_by_chw_ids_intersects(self) -> None:
-        from platform_service.services.document_usage_hierarchy import (
-            OrgUser,
-            filter_users_by_chw_ids,
-        )
-
         users = [
             OrgUser(
                 id=1,

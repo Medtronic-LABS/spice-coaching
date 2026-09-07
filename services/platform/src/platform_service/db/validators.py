@@ -1,10 +1,8 @@
-"""v3.3 application-layer constraint validators.
+"""Application-layer constraint validators.
 
 Cross-table constraints that don't fit into a simple SQL CHECK or UNIQUE.
 Called at write time by repositories and services to keep the data model
 invariants intact.
-
-Per Implementation Plan v2 §3 / Data Model v3.3 §11.
 """
 
 from typing import Any
@@ -24,7 +22,7 @@ class ValidationError(ValueError):
         self.message = message
 
 
-# ── Module card content completeness (Data Model v3.3 §5.3 constraint) ───
+# ── Module card content completeness ───
 # Refresher / digital_proficiency cards need primary-locale body populated.
 # content_update cards need previous_practice AND current_practice AND
 # rationale_for_change populated in the deployment primary locale.
@@ -80,7 +78,7 @@ def validate_module_card_content_completeness(card_dict: dict[str, Any], module_
         )
 
 
-# ── Trigger predicate validation (Data Model v3.3 §6.2) ─────────────────
+# ── Trigger predicate validation ─────────────────
 # Per-kind JSON Schema. Implementation kept lightweight (manual key checks)
 # to avoid pulling jsonschema as a runtime dependency for one validator;
 # escalation to jsonschema is fine when predicate shapes grow.
@@ -152,7 +150,7 @@ def validate_trigger_predicate(trigger_kind: str, predicate: dict[str, Any]) -> 
             )
 
 
-# ── Module membership consistency (Data Model v3.3 §5.6a/b) ─────────────
+# ── Module membership consistency ─────────────
 # Every membership row's referenced card/quiz must resolve to a versioned row
 # whose family_id matches the family the membership claims. This guards
 # against orphaned or family-mismatched memberships.

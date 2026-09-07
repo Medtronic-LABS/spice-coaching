@@ -22,6 +22,7 @@ from platform_service.services.run_state_service import (
     RUN_FAILED,
     RUN_PARTIALLY_SUCCEEDED,
     RUN_RUNNING,
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
     STAGE_EXTRACT,
     STAGE_MODULE_IDENTIFY,
@@ -525,6 +526,8 @@ class TestIngestRetryService:
         assert result.chunk_id is None
         enqueue.assert_called_once()
         assert "identify_chunk_ids" not in enqueue.call_args.kwargs
+        assert enqueue.call_args.kwargs["stop_after_identify"] is True
+        assert enqueue.call_args.kwargs["continue_batch"] is True
         cands = (
             (
                 await db_session.execute(
@@ -545,6 +548,89 @@ class TestIngestRetryService:
             .all()
         )
         assert steps == []
+
+    async def test_identify_retry_rejected_after_merge_started(self, db_session: AsyncSession) -> None:
+        batch, _doc, run = await _seed_batch_run(db_session)
+        db_session.add(
+            IngestionRunStep(
+                ingestion_run_id=run.id,
+                stage=STAGE_MODULE_IDENTIFY,
+                status=STEP_FAILED,
+                started_at=datetime.now(UTC),
+            )
+        )
+        db_session.add(
+            IngestionRunStep(
+                ingestion_run_id=run.id,
+                stage=STAGE_CANDIDATE_MERGE,
+                status=STEP_SUCCEEDED,
+                started_at=datetime.now(UTC),
+            )
+        )
+        await db_session.commit()
+
+        with pytest.raises(AppError) as exc:
+            await IngestRetryService(db_session).retry(
+                batch_id=batch.id,
+                run_id=run.id,
+                stage=STAGE_MODULE_IDENTIFY,
+            )
+        assert exc.value.code == "identify_retry_after_merge"
+        assert exc.value.status == 422
+
+    async def test_chunk_identify_retry_rejected_after_merge_started(self, db_session: AsyncSession) -> None:
+        batch, _doc, run = await _seed_batch_run(db_session)
+        db_session.add(
+            IngestionRunStep(
+                ingestion_run_id=run.id,
+                stage=STAGE_MODULE_IDENTIFY,
+                status=STEP_FAILED,
+                started_at=datetime.now(UTC),
+                input_summary_jsonb={"chunk_id": "chunk-1"},
+            )
+        )
+        db_session.add(
+            IngestionRunStep(
+                ingestion_run_id=run.id,
+                stage=STAGE_CANDIDATE_MERGE,
+                status=STEP_FAILED,
+                started_at=datetime.now(UTC),
+            )
+        )
+        await db_session.commit()
+
+        with pytest.raises(AppError) as exc:
+            await IngestRetryService(db_session).retry(
+                batch_id=batch.id,
+                run_id=run.id,
+                stage=STAGE_MODULE_IDENTIFY,
+                chunk_id="chunk-1",
+            )
+        assert exc.value.code == "identify_retry_after_merge"
+
+    async def test_candidate_merge_retry_enqueues_batch_merge(self, db_session: AsyncSession) -> None:
+        batch, _doc, run = await _seed_batch_run(db_session)
+        db_session.add(
+            IngestionRunStep(
+                ingestion_run_id=run.id,
+                stage=STAGE_CANDIDATE_MERGE,
+                status=STEP_FAILED,
+                started_at=datetime.now(UTC),
+                error_jsonb={"code": "candidate_merge_failed"},
+            )
+        )
+        await db_session.commit()
+
+        with patch("platform_service.services.ingest_retry_service.enqueue_candidate_merge_retry") as enqueue:
+            result = await IngestRetryService(db_session).retry(
+                batch_id=batch.id,
+                run_id=run.id,
+                stage=STAGE_CANDIDATE_MERGE,
+            )
+
+        assert result.status == "retry_queued"
+        enqueue.assert_called_once()
+        assert enqueue.call_args.kwargs["batch_id"] == batch.id
 
 
 class TestIngestRetryBatch:

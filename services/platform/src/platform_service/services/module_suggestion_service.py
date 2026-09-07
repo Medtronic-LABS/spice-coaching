@@ -1,4 +1,4 @@
-"""Gap-driven or quiz-driven module suggestions for a CHW (W-8 adjacent).
+"""Gap-driven or quiz-driven module suggestions for a CHW.
 
 When ``telemetry_behavioural_gap_state_enabled`` is true, resolves published
 modules from ``chw_behavioural_gap_state`` via ``module_behavioural_gap`` links.

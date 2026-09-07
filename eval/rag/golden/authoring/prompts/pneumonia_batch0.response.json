@@ -1,0 +1,142 @@
+{
+  "records": [
+    {
+      "question_en": "What organs make up the respiratory system?",
+      "expected_answer_en": "The organs through which breathing occurs — such as the nose, mouth, throat, and lungs — together form the respiratory system.",
+      "question_bn": "শ্বাসতন্ত্র গঠন করে এমন কোন কোন অঙ্গ?",
+      "expected_answer_bn": "যে সকল অঙ্গ দিয়ে শ্বাস নেওয়া হয় যেমন নাক, মুখ, গলা, ফুসফুস — এগুলোকে একসাথে শ্বাসতন্ত্র বলে।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "9ef4e6c3-ae2a-4c4f-a0c9-9060621242d1"
+      ],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Etiology Understanding",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A child has a runny nose, cough, sore throat, and fever. Could this be a respiratory tract infection?",
+      "expected_answer_en": "Yes. Symptoms of respiratory tract infection include runny nose, cough, sore throat, difficulty breathing, ear problems, and fever. Sudden infection of any part of the respiratory tract is called ARI (Acute Respiratory tract Infection).",
+      "question_bn": "একটি শিশুর নাক দিয়ে পানি পড়ছে, কাশি, গলা ব্যথা ও জ্বর আছে। এটি কি শ্বাসতন্ত্রের সংক্রমণ হতে পারে?",
+      "expected_answer_bn": "হ্যাঁ। শ্বাসতন্ত্রের সংক্রমণের লক্ষণগুলো হলো নাক দিয়ে পানি পড়া, কাশি, গলা ব্যাথা, বাধাগ্রস্থ শ্বাসপ্রশ্বাস, কানের সমস্যা এবং জ্বর। শ্বাসতন্ত্রের যে কোন অংশের হঠাৎ সংক্রমণকে এআরআই বা শ্বাসতন্ত্রের তীব্র সংক্রমণ বলে।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "610320ac-c1d7-43a3-a084-bbe76637ca52",
+        "9636d88f-1b81-4da3-9e27-858c6417cd22"
+      ],
+      "query_type": "Situational",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Symptom Identification",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How do I count a child's respiratory rate correctly during a home visit?",
+      "expected_answer_en": "Keep the child calm and ensure adequate light in the room. Place a watch or timer with a second hand on the child's chest. Look at the watch first, then count breaths. Observe the rise and fall of the chest or abdomen. One inhalation and exhalation counts as one breath; the number of breaths per minute is the respiratory rate.",
+      "question_bn": "বাড়ি ভিজিটে শিশুর শ্বাস-প্রশ্বাসের হার সঠিকভাবে কীভাবে গণনা করব?",
+      "expected_answer_bn": "শিশুকে শান্ত অবস্থায় রাখুন এবং ঘরে যথেষ্ট আলোর ব্যবস্থা করুন। সেকেন্ডের কাঁটাযুক্ত ঘড়ি বা টাইমার শিশুর বুকের উপর রাখুন। আগে ঘড়ি দেখুন, পরে শ্বাস গণনা করুন। বুক বা পেটের উঠানামা লক্ষ্য করুন। একবার শ্বাস নেওয়া ও ছাড়াকে এক শ্বাস-প্রশ্বাস বলা হয়; এক মিনিটে যতবার হয় সেই সংখ্যাই শ্বাস-প্রশ্বাসের হার।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "d90a791b-9192-4afa-ab4c-382a4e252035"
+      ],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A child has fast breathing with chest indrawing and cannot be fed. Should I refer to the hospital?",
+      "expected_answer_en": "Yes. Refer the child to the hospital if there is fast breathing with chest indrawing, inability to feed, abnormal sleepiness, grunting or wheezing sounds during breathing, convulsions, very high fever or abnormally low body temperature, or excessive vomiting.",
+      "question_bn": "একটি শিশুর দ্রুত শ্বাস হচ্ছে, বুকের পাঁজর ডেবে যাচ্ছে এবং খাওয়ানো যাচ্ছে না। হাসপাতালে রেফার করতে হবে?",
+      "expected_answer_bn": "হ্যাঁ। দ্রুত শ্বাসের সাথে বুকের পাঁজর ডেবে যাওয়া, খাওয়ানো না যাওয়া, অস্বাভাবিক ঘুমঘাম, শ্বাসের সময় সাঁই সাঁই বা গড় গড় শব্দ, খিঁচুনি, অতিরিক্ত জ্বর বা তাপমাত্রা কমে যাওয়া, অথবা অতিরিক্ত বমি হলে শিশুকে হাসপাতালে রেফার করতে হবে।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "0df837e5-15c8-459d-866d-abe6c9bf7e5b"
+      ],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Emergency Management & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is pneumonia and what are its main symptoms?",
+      "expected_answer_en": "Infection of the lungs only is called pneumonia. Symptoms include rapid breathing, chest indrawing, fever, cough, and difficulty breathing.",
+      "question_bn": "নিউমোনিয়া কী এবং এর প্রধান লক্ষণগুলো কী?",
+      "expected_answer_bn": "শুধুমাত্র ফুসফুসের সংক্রমণকে নিউমোনিয়া বলা হয়। লক্ষণগুলো হলো দ্রুত শ্বাস, বুকের খাঁচা ডেবে যাওয়া, জ্বর, কাশি এবং শ্বাসকষ্ট।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "606ee3d0-17da-41f3-8c41-275e60350154"
+      ],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Symptom Identification",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "When counting breaths, the child's breathing rate seems faster than normal. What does this indicate?",
+      "expected_answer_en": "When the breathing rate is higher than normal, it is called rapid breathing (fast breathing). Count how many times the child breathes in and out in one minute while calm — that number is the respiratory rate.",
+      "question_bn": "শ্বাস গণনা করতে গিয়ে দেখলাম শিশুর শ্বাসের গতি স্বাভাবিকের চেয়ে বেশি। এর মানে কী?",
+      "expected_answer_bn": "শ্বাসের গতি স্বাভাবিকের চেয়ে বেড়ে গেলে তাকে দ্রুত শ্বাস বলে। শিশুকে শান্ত অবস্থায় রেখে এক মিনিটে যতবার শ্বাস নেওয়া ও ছাড়া হয় সেই সংখ্যাকে শ্বাস-প্রশ্বাসের হার বলা হয়।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "d90a791b-9192-4afa-ab4c-382a4e252035"
+      ],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A low-birth-weight infant in a crowded, damp home develops cough and rapid breathing. What risk factors and illness might explain this?",
+      "expected_answer_en": "Indirect risk factors include birth weight below 2.5 kg, bathing the baby immediately after birth, malnutrition, not feeding colostrum or exclusive breastfeeding for six months, missing vaccinations, vitamin A deficiency, damp/cold indoor environment, and overcrowding. Rapid breathing with cough may indicate pneumonia — infection of the lungs with symptoms including chest indrawing and difficulty breathing.",
+      "question_bn": "দুই দশমিক পাঁচ কেজির কম ওজনের একটি শিশু ঘনবসতি ও স্যাঁতস্যাঁতে ঘরে কাশি ও দ্রুত শ্বাসে ভুগছে। কোন ঝুঁকির কারণ ও রোগ এটি ব্যাখ্যা করতে পারে?",
+      "expected_answer_bn": "পরোক্ষ কারণগুলোর মধ্যে জন্মকালীন ওজন ২.৫ কেজির কম, জন্মের পর পর গোসল, পুষ্টিহীনতা, শাল দুধ না খাওয়ানো, ছয় মাস পর্যন্ত শুধুমাত্র বুকের দুধ না খাওয়ানো, টিকা না দেওয়া, ভিটামিন এ এর অভাব, বদ্ধ-ঠান্ডা-ভেজা ঘর এবং ঘন বসতি। কাশি ও দ্রুত শ্বাস নিউমোনিয়ার লক্ষণ হতে পারে — ফুসফুসের সংক্রমণ, যার লক্ষণে বুকের খাঁচা ডেবে যাওয়া ও শ্বাসকষ্ট অন্তর্ভুক্ত।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "0baa3edc-fcc5-4d39-a3c0-65c2c9a74db8",
+        "606ee3d0-17da-41f3-8c41-275e60350154"
+      ],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Differential Diagnosis & Complication Recognition",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What advice should I give parents to help prevent respiratory infections in their child?",
+      "expected_answer_en": "Advise exclusive breastfeeding for six months, timely vaccinations, adequate nutrition including vitamin A, keeping the home warm and dry rather than damp and cold, avoiding overcrowding, and not bathing the newborn immediately after birth.",
+      "question_bn": "শিশুর শ্বাসতন্ত্রের সংক্রমণ প্রতিরোধে বাবা-মাকে কী পরামর্শ দেব?",
+      "expected_answer_bn": "ছয় মাস পর্যন্ত শুধুমাত্র বুকের দুধ খাওয়ানো, সময়মতো টিকা দেওয়া, পুষ্টিকর খাবার ও ভিটামিন এ নিশ্চিত করা, ঘর শুকনো ও উষ্ণ রাখা (স্যাঁতস্যাঁতে না), ঘনবসতি এড়ানো এবং নবজাতককে জন্মের পর পর গোসল না করানোর পরামর্শ দিন।",
+      "module_id": [
+        "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+      ],
+      "source_card_id": [
+        "0baa3edc-fcc5-4d39-a3c0-65c2c9a74db8"
+      ],
+      "query_type": "Counseling",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Prevention & Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

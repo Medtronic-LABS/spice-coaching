@@ -15,6 +15,7 @@ from platform_service.api.hierarchy import router as hierarchy_router
 from platform_service.auth.spice_context import SpiceUserContext
 from platform_service.config import get_settings
 from platform_service.deps import get_db
+from platform_service.services.hierarchy_service import HierarchyService
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,7 @@ from tests.helpers.hierarchy_fixtures import (
     PO_OTHER_ID,
     SK_ID,
     SK_OTHER_ID,
+    hierarchy_user,
     seed_basic_hierarchy,
 )
 
@@ -234,10 +236,6 @@ class TestAdminHierarchy:
         assert second.json()["code"] == ErrorCode.HIERARCHY_USER_CONFLICT.value
 
     async def test_list_all_users_pages_past_limit(self, db_session: AsyncSession) -> None:
-        from platform_service.services.hierarchy_service import HierarchyService
-
-        from tests.helpers.hierarchy_fixtures import hierarchy_user
-
         await seed_basic_hierarchy(db_session, tenant_id=0)
         district_id = (await db_session.execute(text("SELECT id FROM district LIMIT 1"))).scalar_one()
         for i in range(5):

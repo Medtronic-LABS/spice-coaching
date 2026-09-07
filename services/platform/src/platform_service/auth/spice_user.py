@@ -23,7 +23,8 @@ def get_selected_tenant_id(request: Request) -> int:
     """Return the selected tenant set by :class:`SpiceAuthMiddleware`.
 
     When SPICE auth is enabled this is ``userDetail.country.tenantId`` from
-    authenticate. Defaults to ``0`` if middleware did not run (auth off / exempt).
+    authenticate. When auth is disabled this is the ``TenantId`` header, or ``0``
+    when absent. Exempt paths default to ``0``.
     """
     tenant_id = getattr(request.state, "selected_tenant_id", None)
     if tenant_id is None:

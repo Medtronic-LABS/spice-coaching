@@ -1,6 +1,6 @@
-"""v3.3 chw_module_completion — per-CHW per-module-family completion state.
+"""chw_module_completion — per-CHW per-module-family completion state.
 
-Per Data Model v3.3 §7.2. Drives the morning rotation logic, the periodic
+See `docs/concepts/modules-cards-families.md` Drives the morning rotation logic, the periodic
 refresh after a passed quiz (default 90 days), and the repeated-failure
 escalation rule (≥3 failed attempts within 30 days → supervisor alert).
 """

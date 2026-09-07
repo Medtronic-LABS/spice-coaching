@@ -23,6 +23,7 @@ ai-runtime calls happen during the test.
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 from typing import Any
@@ -31,7 +32,6 @@ from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
-from platform_service import celery_tasks
 from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.models.behavioural_gap import BehaviouralGap
 from platform_service.db.models.content_block import ContentBlock
@@ -330,28 +330,16 @@ class TestHappyPath:
         orch = StageDOrchestrator(db_session, card_drafter=drafter)
 
         with pytest.MonkeyPatch.context() as mp:
-            quiz_delay = MagicMock()
-            card_batch_delay = MagicMock()
-            metadata_delay = MagicMock()
+            quiz_enqueue = MagicMock()
             mp.setattr(
-                "platform_service.celery_tasks.generate_module_quiz_task.delay",
-                quiz_delay,
-            )
-            mp.setattr(
-                "platform_service.celery_tasks.generate_module_card_search_metadata_batch_task.delay",
-                card_batch_delay,
-            )
-            mp.setattr(
-                "platform_service.celery_tasks.generate_module_search_metadata_task.delay",
-                metadata_delay,
+                "platform_service.services.draft_pipeline.enqueue_module_quiz",
+                quiz_enqueue,
             )
             result = await orch.run(candidate_id=candidate.id)
             await db_session.commit()
 
         assert result.module_id is not None
-        quiz_delay.assert_not_called()
-        card_batch_delay.assert_called_once()
-        metadata_delay.assert_not_called()
+        quiz_enqueue.assert_not_called()
 
 
 # ─── Validator interaction ────────────────────────────────────────────────
@@ -449,26 +437,26 @@ class TestFailurePaths:
     async def test_post_publish_enqueue_failure_does_not_fail_stage(
         self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """If `delay()` raises (e.g., broker unreachable), the module is
+        """If enqueue raises (e.g., broker unreachable), the module is
         still persisted and Stage D returns success. The try/except inside
         `_enqueue_post_publish` catches and logs."""
         candidate = await _seed_candidate(db_session)
         drafter = _make_card_drafter_mock([_make_card() for _ in range(5)])
 
-        # Patch the actual celery task `.delay` methods so the orchestrator's
-        # try/except path is exercised. The first call raises; the second
-        # would also raise but `_enqueue_post_publish` catches the first
-        # exception and bails out of the whole block.
         raising = MagicMock(side_effect=RuntimeError("broker unreachable"))
-        monkeypatch.setattr(celery_tasks.generate_module_quiz_task, "delay", raising)
-        monkeypatch.setattr(celery_tasks.generate_module_embedding_task, "delay", raising)
+        monkeypatch.setattr(
+            "platform_service.services.draft_pipeline.enqueue_module_quiz",
+            raising,
+        )
+        monkeypatch.setattr(
+            "platform_service.services.draft_pipeline.enqueue_classify_module_gaps",
+            raising,
+        )
 
         # Restore the original _enqueue_post_publish (test ordering may have
         # left a no-op stub from earlier tests).
 
         # Reload the staticmethod from the source.
-        import importlib
-
         # no-inline-imports: import-after-reload required for fresh module state
         import platform_service.workers.stage_d_draft as _stage_d_mod
 
@@ -1032,7 +1020,9 @@ class TestPublishedModuleMerge:
         for row in card_rows:
             assert row.search_metadata_jsonb is None
 
-    async def test_merge_enqueue_forces_card_metadata_regeneration(self, db_session: AsyncSession) -> None:
+    async def test_merge_enqueues_post_publish_for_primary_and_secondary(
+        self, db_session: AsyncSession
+    ) -> None:
         candidate = await _seed_candidate(db_session, proposed_title="Sample Topic")
         block_id = UUID(candidate.source_provenance_jsonb[0]["content_block_ids"][0])
         published = await _seed_published_module(db_session, block_ids=[block_id])
@@ -1050,11 +1040,11 @@ class TestPublishedModuleMerge:
             )
         )
         drafter = _make_card_drafter_mock(new_cards)
-        mock_card_batch = MagicMock()
+        mock_quiz = MagicMock()
 
         with patch(
-            "platform_service.services.draft_pipeline.generate_module_card_search_metadata_batch_task",
-            mock_card_batch,
+            "platform_service.services.draft_pipeline.enqueue_module_quiz",
+            mock_quiz,
         ):
             orch = StageDOrchestrator(
                 db_session,
@@ -1065,8 +1055,7 @@ class TestPublishedModuleMerge:
             await db_session.commit()
 
         # Dual-path enqueues post-publish for primary and secondary.
-        assert mock_card_batch.call_count == 2
-        assert mock_card_batch.call_args.kwargs.get("force") is True
+        assert mock_quiz.call_count == 2
 
     async def test_merge_excludes_other_tenant_modules_from_proposal_set(
         self, db_session: AsyncSession

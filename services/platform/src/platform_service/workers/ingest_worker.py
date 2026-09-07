@@ -1,12 +1,10 @@
-"""Ingest and cross-source fusion background jobs (Celery-backed).
+"""Ingest background jobs (Celery-backed).
 
 ``POST /admin/ingest/upload`` stores bytes; ``POST /admin/ingest`` enqueues
-``run_ingest_batch_job``. When a batch has two or more source jobs,
-cross-source fusion runs in-process after all per-file pipelines finish.
-Each job opens its own DB session(s) — the API request session is not reused.
+``run_ingest_batch_job``. Each source runs extract + identify, then the batch
+merges same-topic candidates, then each successful source drafts. Each job
+opens its own DB session(s) — the API request session is not reused.
 """
-
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -17,22 +15,23 @@ from uuid import UUID
 
 from mc_contracts.errors import ErrorCode
 
-from platform_service.auth.tenant_context import DEFAULT_SELECTED_TENANT_ID, using_selected_tenant
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.attribution_audit import record_attribution_event
-from platform_service.services.cross_source_fusion_runner import CrossSourceFusionRunner
+from platform_service.services.candidate_merge_runner import CandidateMergeRunner
+from platform_service.services.candidate_merger import CandidateMergerError
 from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.run_state_service import (
     RUN_FAILED,
-    ConcurrentFusionRunError,
+    RUN_RUNNING,
     ConcurrentRunError,
     RunStateService,
 )
 from platform_service.services.source_thumbnail_service import source_type_supports_thumbnail
 from platform_service.workers.pipeline_orchestrator import PipelineOrchestrator
-from platform_service.workers.tenant_binding import source_document_tenant_id
+from platform_service.workers.tenant_binding import ingest_batch_tenant_id, source_document_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +49,11 @@ class IngestJob:
     run_id: UUID | None = None
     batch_id: UUID | None = None
     identify_chunk_ids: tuple[str, ...] = ()
+    stop_after_identify: bool = False
+    continue_batch: bool = False
 
 
-def _ingest_job_from_dict(data: dict[str, Any]) -> IngestJob:
+def ingest_job_from_dict(data: dict[str, Any]) -> IngestJob:
     run_raw = data.get("run_id")
     batch_raw = data.get("batch_id")
     raw_chunks = data.get("identify_chunk_ids") or []
@@ -65,6 +66,8 @@ def _ingest_job_from_dict(data: dict[str, Any]) -> IngestJob:
         run_id=UUID(str(run_raw)) if run_raw else None,
         batch_id=UUID(str(batch_raw)) if batch_raw else None,
         identify_chunk_ids=chunk_ids,
+        stop_after_identify=bool(data.get("stop_after_identify")),
+        continue_batch=bool(data.get("continue_batch")),
     )
 
 
@@ -81,6 +84,10 @@ def ingest_job_to_dict(job: IngestJob) -> dict[str, Any]:
         payload["batch_id"] = str(job.batch_id)
     if job.identify_chunk_ids:
         payload["identify_chunk_ids"] = list(job.identify_chunk_ids)
+    if job.stop_after_identify:
+        payload["stop_after_identify"] = True
+    if job.continue_batch:
+        payload["continue_batch"] = True
     return payload
 
 
@@ -107,7 +114,7 @@ async def _mark_active_ingest_failed(source_document_id: UUID) -> None:
 
 
 async def run_pipeline_for_source_job(job: IngestJob) -> None:
-    """Run the full A→B→C→D pipeline for one source_document."""
+    """Run the pipeline for one source_document (full or stop-after-identify)."""
     logger.info("Running pipeline for source_document_id=%s", job.source_document_id)
     tenant_id = await source_document_tenant_id(job.source_document_id)
     with using_selected_tenant(tenant_id):
@@ -119,25 +126,30 @@ async def run_pipeline_for_source_job(job: IngestJob) -> None:
                 primary_language=job.primary_language,
                 run_id=job.run_id,
                 identify_chunk_ids=list(job.identify_chunk_ids) or None,
+                stop_after_identify=job.stop_after_identify,
             )
             async with SessionLocal() as session:
-                await record_attribution_event(
-                    session,
-                    event_type="ingest_completed",
-                    actor="system",
-                    source_document_id=job.source_document_id,
-                    payload={"final_status": result.final_status, "run_id": str(result.run_id)},
-                )
+                if not job.stop_after_identify:
+                    await record_attribution_event(
+                        session,
+                        event_type="ingest_completed",
+                        actor="system",
+                        source_document_id=job.source_document_id,
+                        payload={"final_status": result.final_status, "run_id": str(result.run_id)},
+                    )
                 if job.batch_id is not None:
                     await RunStateService(session).refresh_batch_status(job.batch_id)
                 await session.commit()
             logger.info(
-                "Pipeline finished run_id=%s final_status=%s candidates=%d drafts=%d",
+                "Pipeline finished run_id=%s final_status=%s candidates=%d drafts=%d stop_after_identify=%s",
                 result.run_id,
                 result.final_status,
                 result.candidates_emitted,
                 result.drafts_produced,
+                job.stop_after_identify,
             )
+            if job.continue_batch and job.batch_id is not None:
+                await _merge_and_draft_batch(job.batch_id)
         except ConcurrentRunError:
             logger.warning(
                 "Skipping ingest for source_document_id=%s — another worker owns the active run",
@@ -162,53 +174,6 @@ async def run_pipeline_for_source_job(job: IngestJob) -> None:
                     await failure_session.commit()
             except Exception:
                 logger.exception("Failed to record ingest_failed for %s", job.source_document_id)
-            raise
-
-
-async def run_cross_source_fusion_job(payload: dict[str, Any]) -> None:
-    """Run Stage 2b → publish for the given source documents."""
-    source_document_ids = [UUID(str(d)) for d in payload["source_document_ids"]]
-    batch_raw = payload.get("batch_id")
-    ingest_batch_id = UUID(str(batch_raw)) if batch_raw else None
-    fusion_raw = payload.get("fusion_run_id")
-    fusion_run_id = UUID(str(fusion_raw)) if fusion_raw else None
-    tenant_id = (
-        await source_document_tenant_id(source_document_ids[0])
-        if source_document_ids
-        else DEFAULT_SELECTED_TENANT_ID
-    )
-    with using_selected_tenant(tenant_id):
-        try:
-            summary = await CrossSourceFusionRunner.run_staged(
-                source_document_ids,
-                ingest_batch_id=ingest_batch_id,
-                reuse_fusion_run_id=fusion_run_id,
-            )
-            if ingest_batch_id is not None:
-                async with SessionLocal() as session:
-                    await RunStateService(session).refresh_batch_status(ingest_batch_id)
-                    await session.commit()
-            logger.info(
-                "Fusion run %s finished: input=%d groups=%d published=%d failed=%d coverage_warnings=%d retired=%d",
-                summary.fusion_run_id,
-                summary.input_candidate_count,
-                summary.fusion_group_count,
-                summary.fused_modules_published,
-                summary.fused_modules_failed,
-                summary.fused_modules_with_coverage_warning,
-                summary.constituents_retired,
-            )
-        except (ConcurrentRunError, ConcurrentFusionRunError) as exc:
-            logger.warning(
-                "Skipping fusion for source_document_ids=%s — %s",
-                [str(d) for d in source_document_ids],
-                exc,
-            )
-        except Exception:
-            logger.exception(
-                "Fusion run crashed for source_document_ids=%s",
-                [str(d) for d in source_document_ids],
-            )
             raise
 
 
@@ -250,35 +215,94 @@ async def _wait_for_thumbnail_ready(job: IngestJob) -> None:
         )
 
 
+async def _draft_jobs_for_batch(batch_id: UUID) -> list[IngestJob]:
+    """Build draft-resume jobs for identify-succeeded running sources."""
+    async with SessionLocal() as session:
+        run_state = RunStateService(session)
+        sources = SourceRepository(session)
+        runs = await run_state.list_runs_for_batch(batch_id)
+        jobs: list[IngestJob] = []
+        for run in runs:
+            if run.status != RUN_RUNNING:
+                continue
+            if not await run_state.is_module_identify_fully_succeeded(run.id):
+                continue
+            doc = await sources.get_source_document(run.source_document_id)
+            if doc is None:
+                continue
+            jobs.append(
+                IngestJob(
+                    source_document_id=run.source_document_id,
+                    source_path=doc.original_storage_path,
+                    source_type=doc.source_type,
+                    primary_language=doc.primary_language,
+                    run_id=run.id,
+                    batch_id=batch_id,
+                    stop_after_identify=False,
+                )
+            )
+        return jobs
+
+
+async def _merge_and_draft_batch(batch_id: UUID) -> None:
+    """Run candidate merge then Stage D for identify-succeeded sources.
+
+    Binds the batch tenant so Stage C/D create/merge paths that call
+    ``require_selected_tenant_id`` succeed outside per-source pipeline scopes.
+    """
+    tenant_id = await ingest_batch_tenant_id(batch_id)
+    with using_selected_tenant(tenant_id):
+        try:
+            summary = await CandidateMergeRunner.run_staged(batch_id)
+        except CandidateMergerError:
+            logger.exception("Candidate merge failed for batch_id=%s", batch_id)
+            async with SessionLocal() as session:
+                await RunStateService(session).refresh_batch_status(batch_id)
+                await session.commit()
+            return
+        logger.info(
+            "Candidate merge batch_id=%s input=%d groups=%d skipped=%s succeeded=%s",
+            batch_id,
+            summary.input_candidate_count,
+            summary.group_count,
+            summary.skipped,
+            summary.succeeded,
+        )
+        if not summary.succeeded:
+            async with SessionLocal() as session:
+                await RunStateService(session).refresh_batch_status(batch_id)
+                await session.commit()
+            return
+        for job in await _draft_jobs_for_batch(batch_id):
+            await run_pipeline_for_source_job(job)
+
+
+async def run_candidate_merge_job(payload: dict[str, Any]) -> None:
+    """Retry entry: merge then draft for one ingest batch."""
+    batch_id = UUID(str(payload["batch_id"]))
+    await _merge_and_draft_batch(batch_id)
+
+
 async def run_ingest_batch_job(payload: dict[str, Any]) -> None:
-    """Run pipelines sequentially; fuse after all complete when ≥2 sources."""
-    jobs = [_ingest_job_from_dict(j) for j in payload["jobs"]]
-    should_fuse = len(jobs) >= 2
+    """Identify all sources, merge same-topic candidates, then draft."""
+    jobs = [ingest_job_from_dict(j) for j in payload["jobs"]]
     batch_raw = payload.get("batch_id")
     batch_id = UUID(str(batch_raw)) if batch_raw else None
-    source_document_ids = [job.source_document_id for job in jobs]
     for job in jobs:
         await _wait_for_thumbnail_ready(job)
-        await run_pipeline_for_source_job(job)
-    if should_fuse:
-        if batch_id is not None:
-            async with SessionLocal() as session:
-                run_state = RunStateService(session)
-                if await run_state.batch_has_awaiting_input(batch_id):
-                    logger.info(
-                        "Deferring cross-source fusion for batch_id=%s; merge decision pending",
-                        batch_id,
-                    )
-                    await run_state.refresh_batch_status(batch_id)
-                    await session.commit()
-                    return
-        fusion_payload: dict[str, Any] = {
-            "source_document_ids": [str(d) for d in source_document_ids],
-        }
-        if batch_id is not None:
-            fusion_payload["batch_id"] = str(batch_id)
-        await run_cross_source_fusion_job(fusion_payload)
-    elif batch_id is not None:
+        identify_job = IngestJob(
+            source_document_id=job.source_document_id,
+            source_path=job.source_path,
+            source_type=job.source_type,
+            primary_language=job.primary_language,
+            run_id=job.run_id,
+            batch_id=job.batch_id or batch_id,
+            identify_chunk_ids=job.identify_chunk_ids,
+            stop_after_identify=True,
+        )
+        await run_pipeline_for_source_job(identify_job)
+    if batch_id is not None:
+        await _merge_and_draft_batch(batch_id)
         async with SessionLocal() as session:
             await RunStateService(session).refresh_batch_status(batch_id)
             await session.commit()

@@ -13,8 +13,8 @@ from platform_service.services.run_state.constants import (
     BATCH_PARTIALLY_SUCCEEDED,
     POST_PUBLISH_STAGES,
     RUN_PARTIALLY_SUCCEEDED,
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
-    STAGE_CROSS_SOURCE_FUSION,
     STAGE_EXTRACT,
     STAGE_GAP_CLASSIFICATION,
     STAGE_MODULE_IDENTIFY,
@@ -35,7 +35,7 @@ _STAGE_TITLES: dict[str, str] = {
     STAGE_QUIZ_GENERATION: "Generating quiz",
     STAGE_GAP_CLASSIFICATION: "Classifying behavioural gaps",
     STAGE_TRIGGER_BINDING: "Binding triggers",
-    STAGE_CROSS_SOURCE_FUSION: "Fusing across sources",
+    STAGE_CANDIDATE_MERGE: "Merging module candidates",
 }
 
 _IDENTIFY_NO_CANDIDATES_MESSAGE = "Module identify stage completed without emitting any candidates."
@@ -169,7 +169,7 @@ def summarize_ingestion_run_error(
     Strips internal pipeline-claim keys. Returns ``None`` when there is nothing
     to present after stripping. When ``status`` is not partial/failed and the
     payload has no structural failure fields, still returns cleaned error if
-    non-empty (e.g. fusion metadata).
+    non-empty (e.g. leftover run metadata).
     """
     error = dict(as_error_object(error_jsonb))
     error.pop(_PIPELINE_CLAIM_KEY, None)

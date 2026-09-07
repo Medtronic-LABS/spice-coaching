@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
-from mc_contracts.coaching import CoachingRagRequest, CoachingRagResponse
+from mc_contracts.coaching import CoachingLocalRagRequest, CoachingRagRequest, CoachingRagResponse
 from mc_foundation.objectstore import ObjectStore
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,3 +26,16 @@ async def rag_query(
     """Embed ``question``, retrieve top similar **published** modules, generate a grounded answer."""
     tenant_id = get_selected_tenant_id(request)
     return await CoachingRagService(session, ai, storage).query(body, tenant_id=tenant_id)
+
+
+@router.post("/local-rag-query", response_model=CoachingRagResponse)
+async def local_rag_query(
+    request: Request,
+    body: CoachingLocalRagRequest,
+    session: AsyncSession = Depends(get_db),
+    ai: AIRuntimeClient = Depends(get_ai_client),
+    storage: ObjectStore = Depends(get_object_storage_client),
+) -> CoachingRagResponse:
+    """Embed via local models, retrieve top similar **published** cards, generate a grounded answer."""
+    tenant_id = get_selected_tenant_id(request)
+    return await CoachingRagService(session, ai, storage).local_query(body, tenant_id=tenant_id)

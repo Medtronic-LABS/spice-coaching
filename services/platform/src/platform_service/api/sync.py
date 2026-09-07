@@ -5,6 +5,7 @@ Canonical paths:
   GET /sync/config                    → ConfigSyncBundle
   GET  /sync/source-documents?since=<ISO-8601> → SourceDocumentsSyncBundle
   GET  /sync/chat-faqs?since=<ISO-8601> → ChatFaqsSyncBundle
+  GET  /sync/card-embeddings?since=<ISO-8601> → CardEmbeddingsSyncBundle
   GET  /sync/badges                       → BadgesSyncBundle
   GET  /sync/video-progress?since=<ISO-8601> → VideoProgressSyncBundle
   POST /sync/presigned-urls               → StoragePathsPresignResponse (object names)
@@ -17,6 +18,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, Query, Request
 from mc_contracts.sync import (
     BadgesSyncBundle,
+    CardEmbeddingsSyncBundle,
     ChatFaqsSyncBundle,
     ConfigSyncBundle,
     GapsSyncBundle,
@@ -111,6 +113,34 @@ async def sync_modules(
         tenant_id=effective_tenant,
         user_id=effective_user_id,
         storage=storage,
+        settings=settings,
+    )
+
+
+@router.get("/card-embeddings", response_model=CardEmbeddingsSyncBundle)
+async def sync_card_embeddings(
+    request: Request,
+    since: datetime = Query(
+        ...,
+        description="ISO-8601 datetime; return embeddings for published modules updated after this timestamp",
+    ),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> CardEmbeddingsSyncBundle:
+    """Return card embedding vectors for published training modules updated after ``since``.
+
+    Cards without a persisted ``local_embedding`` are omitted. Join on ``card_id`` with
+    the card payloads from ``GET /sync/modules``.
+    """
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=UTC)
+
+    resolve_sync_user_id(request)
+    effective_tenant = _effective_tenant_id(request)
+
+    return await SyncService(db).get_card_embeddings_bundle(
+        since=since,
+        tenant_id=effective_tenant,
         settings=settings,
     )
 

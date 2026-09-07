@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
 from platform_service.auth.spice_context import SpiceUserContext
 from platform_service.auth.tenant_context import (
     DEFAULT_SELECTED_TENANT_ID,
+    HEADER_TENANT_ID,
     get_context_selected_tenant_id,
     require_selected_tenant_id,
+    resolve_selected_tenant_when_auth_disabled,
+    selected_tenant_from_header,
     selected_tenant_from_user,
     set_context_selected_tenant_id,
     using_selected_tenant,
@@ -76,3 +80,20 @@ def test_require_selected_tenant_id_returns_bound_tenant() -> None:
         raise AssertionError("expected ValueError after using_selected_tenant exits")
     except ValueError as exc:
         assert "not bound" in str(exc)
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected"),
+    [
+        ({}, DEFAULT_SELECTED_TENANT_ID),
+        ({HEADER_TENANT_ID: "7"}, 7),
+        ({HEADER_TENANT_ID: "  12  "}, 12),
+        ({HEADER_TENANT_ID: "0"}, 0),
+        ({HEADER_TENANT_ID: ""}, DEFAULT_SELECTED_TENANT_ID),
+        ({HEADER_TENANT_ID: "not-a-number"}, DEFAULT_SELECTED_TENANT_ID),
+    ],
+)
+def test_selected_tenant_from_header(headers: dict[str, str], expected: int) -> None:
+    assert resolve_selected_tenant_when_auth_disabled(headers) == expected
+    if expected == DEFAULT_SELECTED_TENANT_ID and HEADER_TENANT_ID not in headers:
+        assert selected_tenant_from_header(headers) is None

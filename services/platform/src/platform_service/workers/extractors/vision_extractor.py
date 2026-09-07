@@ -1,6 +1,6 @@
-"""W-2 Stage A — vision fallback extraction via ai-runtime.
+"""Stage A — vision fallback extraction via ai-runtime.
 
-Per Pipeline v3.3 §4.3. Renders the page to PNG (via page_renderer) and
+See `docs/content-administration/ingest-pipeline.md` Renders the page to PNG (via page_renderer) and
 sends it to ai-runtime through AIRuntimeClient with
 generation_type=VISION_EXTRACTION. The verbatim-preserving prompt instructs
 the model to return markdown without paraphrasing or translating.

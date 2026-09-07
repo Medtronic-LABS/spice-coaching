@@ -8,14 +8,12 @@ from uuid import uuid4
 
 from platform_service.services.ingestion_run_presenter import IngestionRunPresenter
 from platform_service.services.run_state_service import (
-    FUSION_RUN_TYPE,
     RUN_RUNNING,
     RUN_SUCCEEDED,
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
-    STAGE_CROSS_SOURCE_FUSION,
     STEP_RUNNING,
     STEP_SUCCEEDED,
-    RunStateService,
 )
 
 
@@ -34,6 +32,8 @@ def _step(
         input_summary_jsonb=input_summary,
         output_summary_jsonb=output_summary,
         error_jsonb=None,
+        error_code=None,
+        error_message=None,
     )
 
 
@@ -62,15 +62,14 @@ class TestRunKind:
         run = SimpleNamespace(error_jsonb=None)
         assert IngestionRunPresenter.run_kind(run) == "pipeline"
 
-    def test_fusion_run(self) -> None:
-        run = SimpleNamespace(error_jsonb={"type": FUSION_RUN_TYPE})
-        assert IngestionRunPresenter.run_kind(run) == FUSION_RUN_TYPE
+    def test_historical_fusion_type_is_pipeline(self) -> None:
+        run = SimpleNamespace(error_jsonb={"type": "cross_source_fusion"})
+        assert IngestionRunPresenter.run_kind(run) == "pipeline"
 
     def test_non_object_error_jsonb_is_pipeline(self) -> None:
         # Corrupted / legacy array values must not crash poll serialisation.
         run = SimpleNamespace(error_jsonb=[{"_pipeline_claim": {"claim_token": "x"}}])
         assert IngestionRunPresenter.run_kind(run) == "pipeline"
-        assert RunStateService.is_fusion_run(run) is False
 
 
 class TestStepToPollDict:
@@ -109,11 +108,6 @@ class TestStepToPollDict:
             "secondary_module_id": secondary,
         }
 
-    def test_fusion_card_draft_flag(self) -> None:
-        step = _step(input_summary={"candidate_id": str(uuid4()), "fusion": True})
-        out = IngestionRunPresenter.step_to_poll_dict(step)
-        assert out["fusion"] is True
-
 
 class TestCurrentActivityFromSteps:
     def test_published_module_merge(self) -> None:
@@ -133,33 +127,19 @@ class TestCurrentActivityFromSteps:
             "candidate_id": cand,
         }
 
-    def test_cross_source_fusion_activity(self) -> None:
+    def test_candidate_merge_activity(self) -> None:
         steps = [
             _step(
-                stage=STAGE_CROSS_SOURCE_FUSION,
-                input_summary={"activity": "cross_source_fusion"},
+                stage=STAGE_CANDIDATE_MERGE,
+                input_summary={"activity": "candidate_merge"},
             )
         ]
         activity = IngestionRunPresenter.current_activity_from_steps(steps, run_status=RUN_RUNNING)
         assert activity == {
-            "kind": "cross_source_fusion",
-            "stage": STAGE_CROSS_SOURCE_FUSION,
+            "kind": "candidate_merge",
+            "stage": STAGE_CANDIDATE_MERGE,
         }
 
     def test_none_when_run_not_running(self) -> None:
         steps = [_step(input_summary={"activity": "published_module_merge"})]
         assert IngestionRunPresenter.current_activity_from_steps(steps, run_status=RUN_SUCCEEDED) is None
-
-    def test_fusion_draft_without_activity_not_current(self) -> None:
-        """Fusion card_draft steps expose ``fusion`` on the step dict, not current_activity."""
-        steps = [
-            _step(
-                input_summary={
-                    "candidate_id": str(uuid4()),
-                    "fusion": True,
-                    "merged_title": "Fused ANC",
-                },
-            )
-        ]
-        assert IngestionRunPresenter.current_activity_from_steps(steps, run_status=RUN_RUNNING) is None
-        assert IngestionRunPresenter.step_to_poll_dict(steps[0])["fusion"] is True

@@ -63,7 +63,9 @@ _REASON_MESSAGES: dict[str, str] = {
         "We couldn't draft module cards for one or more candidates. "
         "Try retrying or reviewing the source document."
     ),
-    "fusion_failed": ("We couldn't merge content across multiple sources. Please retry the batch."),
+    "candidate_merge_failed": (
+        "We couldn't merge overlapping module candidates in this batch. Please retry merge."
+    ),
     "embedding_failed": ("We couldn't generate search embeddings for this module. Please retry."),
     "generation_failed": ("A content generation step failed. Please retry the ingestion."),
 }
@@ -73,7 +75,7 @@ _ERROR_CODE_MESSAGES: dict[str, str] = {
     ErrorCode.IDENTIFY_FAILED.value: _REASON_MESSAGES["identify_failed"],
     ErrorCode.IDENTIFY_NO_CANDIDATES.value: _REASON_MESSAGES["identify_no_candidates"],
     ErrorCode.DRAFT_FAILED.value: _REASON_MESSAGES["draft_failed"],
-    ErrorCode.FUSION_FAILED.value: _REASON_MESSAGES["fusion_failed"],
+    ErrorCode.CANDIDATE_MERGE_FAILED.value: _REASON_MESSAGES["candidate_merge_failed"],
     ErrorCode.PIPELINE_CRASHED.value: _REASON_MESSAGES["pipeline_crashed"],
     ErrorCode.THUMBNAIL_FAILED.value: _REASON_MESSAGES["thumbnail_failed"],
     ErrorCode.EMBEDDING_FAILED.value: _REASON_MESSAGES["embedding_failed"],

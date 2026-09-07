@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -60,3 +60,22 @@ def selected_tenant_from_user(user: SpiceUserContext | None) -> int | None:
     if user is None or user.country is None:
         return None
     return user.country.tenant_id
+
+
+def selected_tenant_from_header(headers: Mapping[str, str]) -> int | None:
+    """Parse ``TenantId`` request header; return ``None`` if absent or invalid."""
+    raw = headers.get(HEADER_TENANT_ID)
+    if raw is None:
+        return None
+    stripped = raw.strip()
+    if not stripped:
+        return None
+    try:
+        return int(stripped)
+    except ValueError:
+        return None
+
+
+def resolve_selected_tenant_when_auth_disabled(headers: Mapping[str, str]) -> int:
+    """Resolve selected tenant when SPICE auth is disabled (local/dev)."""
+    return selected_tenant_from_header(headers) or DEFAULT_SELECTED_TENANT_ID

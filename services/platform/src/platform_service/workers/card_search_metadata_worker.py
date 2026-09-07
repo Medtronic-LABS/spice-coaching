@@ -13,6 +13,7 @@ from uuid import UUID
 
 from mc_contracts.errors import ErrorCode
 
+from platform_service.celery_enqueue import enqueue_module_search_metadata
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.module_read_repository import ModuleReadRepository
@@ -32,9 +33,7 @@ def _enqueue_module_search_metadata(
     embedding_step_id: UUID | None,
     trigger_binding_step_id: UUID | None,
 ) -> None:
-    from platform_service.celery_tasks import generate_module_search_metadata_task
-
-    generate_module_search_metadata_task.delay(
+    enqueue_module_search_metadata(
         str(module_id),
         str(metadata_step_id) if metadata_step_id else None,
         str(embedding_step_id) if embedding_step_id else None,

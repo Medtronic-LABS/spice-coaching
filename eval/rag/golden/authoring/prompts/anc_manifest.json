@@ -1,0 +1,31 @@
+{
+  "domain": "anc",
+  "batch_count": 4,
+  "total_expected_records": 43,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "anc_batch0.prompt.json",
+      "prompt_md": "anc_batch0.prompt.md",
+      "expected_record_count": 7
+    },
+    {
+      "batch_index": 1,
+      "prompt_json": "anc_batch1.prompt.json",
+      "prompt_md": "anc_batch1.prompt.md",
+      "expected_record_count": 10
+    },
+    {
+      "batch_index": 2,
+      "prompt_json": "anc_batch2.prompt.json",
+      "prompt_md": "anc_batch2.prompt.md",
+      "expected_record_count": 9
+    },
+    {
+      "batch_index": 3,
+      "prompt_json": "anc_batch3.prompt.json",
+      "prompt_md": "anc_batch3.prompt.md",
+      "expected_record_count": 17
+    }
+  ]
+}

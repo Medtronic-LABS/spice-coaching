@@ -1,4 +1,4 @@
-"""W-8 — trigger_evaluator: pure-unit tests of gap-trigger firing logic."""
+"""trigger_evaluator: pure-unit tests of gap-trigger firing logic."""
 
 from __future__ import annotations
 

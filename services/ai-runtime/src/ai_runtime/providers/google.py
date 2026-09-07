@@ -5,7 +5,7 @@ and the Gemini Developer API (API key) — selected at construction time.
 The new SDK exposes a native async surface via `client.aio.models.*`, so we
 no longer need `asyncio.to_thread` wrappers.
 
-v3.3 multimodal: VISION_EXTRACTION sends one or more `types.Part.from_bytes`
+Multimodal: VISION_EXTRACTION sends one or more `types.Part.from_bytes`
 parts alongside the human message text. The system_prompt remains a
 `system_instruction` (passed via GenerateContentConfig).
 """

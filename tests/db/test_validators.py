@@ -1,4 +1,4 @@
-"""W-1 unit tests — application-layer constraint validators.
+"""Unit tests — application-layer constraint validators.
 
 Pure-Python tests of the validators in platform_service.db.validators.
 No DB needed.

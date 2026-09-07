@@ -39,6 +39,9 @@ node_modules/
 # Typed application logs (compose bind-mounts ./logs)
 /logs/
 
+# MkDocs build output
+/site/
+
 # OS
 .DS_Store
 Thumbs.db

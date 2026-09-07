@@ -1,6 +1,6 @@
-"""W-2 Stage A — empirical extraction calibration.
+"""Stage A — empirical extraction calibration.
 
-Per Pipeline v3.3 §4.4. At ingestion start, run the quality heuristic on a
+See `docs/content-administration/ingest-pipeline.md` At ingestion start, run the quality heuristic on a
 stratified sample of pages and decide the corpus-level extraction path:
 
 - > force_vision_threshold sample fail rate → all pages run vision
@@ -77,7 +77,7 @@ def stratified_sample_indices(total_pages: int, sample_size: int) -> list[int]:
 def decide_path(*, sample_pass_count: int, sample_fail_count: int) -> str:
     """Apply the calibration thresholds to decide the corpus-level path.
 
-    Per Pipeline v3.3 §4.4:
+    See `docs/content-administration/ingest-pipeline.md`:
     - fail_rate > force_vision_threshold → "all_vision"
     - fail_rate < skip_vision_threshold  → "text_only"
     - between → "per_page"

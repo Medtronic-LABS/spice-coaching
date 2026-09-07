@@ -1,0 +1,62 @@
+{
+  "records": [
+    {
+      "question_en": "What should be assessed when examining a newborn during a postnatal visit?",
+      "question_bn": "প্রসব পরবর্তী পরিদর্শনে নবজাতকের পরীক্ষা-নিরীক্ষায় কী কী দেখতে হবে?",
+      "expected_answer_en": "Examine the newborn's weight, respiratory rate, cyanosis (bluish skin colour), temperature, jaundice, umbilicus, and urine and stool passage.",
+      "expected_answer_bn": "নবজাতকের ওজন, শ্বাসের গতি, সাইনোসিস (শরীরের রং নীলচে হওয়া), তাপমাত্রা, জন্ডিস, নাভী ও প্রস্রাব-পায়খানা পরীক্ষা করতে হয়।",
+      "module_id": ["bb5fb8d0-56ec-4134-b9ba-35317227e91b"],
+      "source_card_id": ["a0e5387f-fe69-49c6-86ee-da491a04b6ac"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should I care for a newborn's umbilical cord stump after delivery?",
+      "question_bn": "প্রসবের পর নবজাতকের নাভীর যত্ন কীভাবে করব?",
+      "expected_answer_en": "Apply 7.1% chlorhexidine to the umbilicus once after birth and do not apply anything else. The cord should fall off within 7 to 10 days.",
+      "expected_answer_bn": "জন্মের পর নাভীতে ৭.১% ক্লোরোহেক্সিডিন লাগানোর পর আর কিছু লাগানো যাবে না। নাভী সাত থেকে দশ দিনের মধ্যে শরীর থেকে পড়ে যাবে।",
+      "module_id": ["bb5fb8d0-56ec-4134-b9ba-35317227e91b"],
+      "source_card_id": ["2744ec06-2aee-49ce-a763-d76b0466626d"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Treatment Protocol",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What complete newborn care advice should I give a mother during the first month after birth?",
+      "question_bn": "জন্মের পর প্রথম মাসে মাকে নবজাতকের সম্পূর্ণ যত্ন সম্পর্কে কী কী পরামর্শ দেব?",
+      "expected_answer_en": "Ensure colostrum in the first 3 days and exclusive breastfeeding 10–12 times daily until 6 months. Apply 7.1% chlorhexidine to the umbilicus once only. Do not bathe for 3 days or cut hair for 1 month; wash hands with soap before and after handling. Give BCG vaccine as soon as possible after birth, then attend the vaccination centre 5 times from 1.5 to 15–18 months for vaccines against 10 diseases. For low birth weight babies, advise Kangaroo Mother Care and refer immediately to hospital or Upazila Health Complex if danger signs appear.",
+      "expected_answer_bn": "প্রথম তিন দিন শালদুধ নিশ্চিত করুন এবং ছয় মাস পর্যন্ত দিনে দশ থেকে বারো বার শুধুমাত্র বুকের দুধ খাওয়ান। নাভীতে একবার ৭.১% ক্লোরোহেক্সিডিন লাগান, এরপর আর কিছু নয়। তিন দিন গোসল করাবেন না, এক মাস চুল কাটবেন না; শিশু ধরার আগে ও পরে সাবান দিয়ে হাত ধুবেন। জন্মের পর যত তাড়াতাড়ি সম্ভব বিসিজি টিকা দিন, এরপর দেড় মাস থেকে পনেরো থেকে আঠারো মাস পর্যন্ত মোট পাঁচ বার টিকা কেন্দ্রে গিয়ে দশটি রোগের টিকা নিন। কম জন্ম ওজনের শিশুর জন্য ক্যাঙ্গারু মাদার কেয়ার পরামর্শ দিন এবং বিপদচিহ্ন দেখা দিলে সাথে সাথে হাসপাতালে বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+      "module_id": ["bb5fb8d0-56ec-4134-b9ba-35317227e91b"],
+      "source_card_id": [
+        "a05420f1-e40e-4d86-a4ed-9a0ccf6758fb",
+        "2744ec06-2aee-49ce-a763-d76b0466626d",
+        "bafddfcf-e4d4-449e-8a96-083459245c98",
+        "d1cb2b4d-b278-43a9-aea8-c716bcf1a017",
+        "f532e43c-b3fa-4893-a013-fbab3409f373"
+      ],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Newborn Care Counseling",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A mother with a low birth weight newborn asks what special care she should follow at home. What should I counsel?",
+      "question_bn": "কম জন্ম ওজনের নবজাতকের মা জিজ্ঞেস করছেন বাড়িতে কী বিশেষ যত্ন নিতে হবে। তাকে কী পরামর্শ দেব?",
+      "expected_answer_en": "Counsel on special care for low birth weight newborns, including Kangaroo Mother Care. Also explain that if any danger signs appear, refer the baby immediately to a hospital or Upazila Health Complex.",
+      "expected_answer_bn": "কম জন্ম ওজনের নবজাতকের জন্য বিশেষ যত্ন (ক্যাঙ্গারু মাদার কেয়ার) সম্পর্কে পরামর্শ দিন। এছাড়া বিপদচিহ্ন দেখা দিলে সাথে সাথে হাসপাতালে বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করতে বলুন।",
+      "module_id": ["bb5fb8d0-56ec-4134-b9ba-35317227e91b"],
+      "source_card_id": ["f532e43c-b3fa-4893-a013-fbab3409f373"],
+      "query_type": "Counseling",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Newborn Care Counseling",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

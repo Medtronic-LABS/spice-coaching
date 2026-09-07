@@ -1,4 +1,4 @@
-"""W-3 Stage B — markdown_outline_parser unit tests."""
+"""Stage B — markdown_outline_parser unit tests."""
 
 from platform_service.workers.extractors.markdown_outline_parser import (
     extract_topic_terms,

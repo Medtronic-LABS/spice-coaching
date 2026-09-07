@@ -306,6 +306,20 @@ services:
       # ── Google: embedding / transcription models (generate models are
       # code defaults in ai_runtime.generation_profiles) ─────────────
       google_embedding_model: ${GOOGLE_EMBEDDING_MODEL:-gemini-embedding-001}
+      # Local EmbeddingGemma (POST /internal/embed with use_local=true)
+      local_embedding_model: ${LOCAL_EMBEDDING_MODEL:-google/embeddinggemma-300m}
+      local_embedding_device: ${LOCAL_EMBEDDING_DEVICE:-cpu}
+      huggingface_token: ${HUGGINGFACE_TOKEN:-${HF_TOKEN:-}}
+      # Local Qwen3 GGUF via llama.cpp (POST /internal/generate with use_local=true)
+      local_generation_gguf_path: ${LOCAL_GENERATION_GGUF_PATH:-}
+      local_generation_gguf_repo: ${LOCAL_GENERATION_GGUF_REPO:-Qwen/Qwen3-0.6B-GGUF}
+      local_generation_gguf_file: ${LOCAL_GENERATION_GGUF_FILE:-Qwen3-0.6B-Instruct-Q4_K_M.gguf}
+      local_generation_n_ctx: ${LOCAL_GENERATION_N_CTX:-32768}
+      local_generation_n_threads: ${LOCAL_GENERATION_N_THREADS:-8}
+      local_generation_n_batch: ${LOCAL_GENERATION_N_BATCH:-512}
+      local_generation_max_input_tokens: ${LOCAL_GENERATION_MAX_INPUT_TOKENS:-20000}
+      local_preload_on_startup: ${LOCAL_PRELOAD_ON_STARTUP:-true}
+      json_parse_retries_local: ${JSON_PARSE_RETRIES_LOCAL:-0}
       # Canonical pgvector corpus dimension; align matches platform's setting.
       embedding_dimension: ${EMBEDDING_DIMENSION:-768}
       app_env: ${APP_ENV:-development}
@@ -363,6 +377,26 @@ services:
     depends_on:
       platform-api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /usr/share/nginx/html/index.html"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # ── GitBook site (optional MkDocs) ───────────────────────────────────────────
+  # Opt-in via profile so the default stack does not start docs:
+  #   docker compose --profile docs-static up --build
+  # Docs only:
+  #   docker compose --profile docs-static up docs-static --build
+  docs-static:
+    profiles: ["docs-static"]
+    build:
+      context: .
+      dockerfile: docs/Dockerfile
+      target: static
+    ports:
+      - "${DOCS_PORT:-18081}:80"
     healthcheck:
       test: ["CMD-SHELL", "test -s /usr/share/nginx/html/index.html"]
       interval: 10s

@@ -20,6 +20,7 @@ security_logger = get_security_logger()
 _RATE_LIMIT_RULES: tuple[tuple[str, str], ...] = (
     ("telemetry/events", "telemetry"),
     ("coaching/rag-query", "rag"),
+    ("coaching/local-rag-query", "rag"),
     ("admin/ingest", "admin_ingest"),
 )
 

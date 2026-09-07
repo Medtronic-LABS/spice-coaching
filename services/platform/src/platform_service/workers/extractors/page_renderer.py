@@ -1,6 +1,6 @@
-"""W-2 Stage A — page-to-PNG rendering.
+"""Stage A — page-to-PNG rendering.
 
-Per Pipeline v3.3 §4.5. Renders source pages to PNG at 2× DPI (configurable).
+See `docs/content-administration/ingest-pipeline.md` Renders source pages to PNG at 2× DPI (configurable).
 Used both for vision fallback (vision_extractor consumes the bytes) and for
 the reviewer drill-down UI (lazy-rendered for text-path pages).
 

@@ -1,4 +1,4 @@
-"""W-4 / Layer 2 — insufficient_source_filter unit tests.
+"""insufficient_source_filter unit tests.
 
 After the architecture reset, this filter is **advisory**: stage_c_identify
 records `fail_reasons` on `quality_flags_jsonb` instead of rejecting the

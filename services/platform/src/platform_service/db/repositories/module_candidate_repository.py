@@ -1,8 +1,8 @@
 """module_candidate_draft repository.
 
-Per `docs/ARCHITECTURE_RESET.md`. Candidates are ephemeral pipeline state
+See `docs/content-administration/ingest-pipeline.md`. Candidates are ephemeral pipeline state
 for Stage 2 retry semantics and run-history visibility — not a reviewer
-queue. The W-6 review-status / claim / reviewer columns were dropped in
+queue. Review-status, claim, and reviewer columns were dropped in
 migration 0007; this repo no longer carries an `update_review_status`
 method.
 """
@@ -78,6 +78,16 @@ class ModuleCandidateRepository:
             select(ModuleCandidateDraft)
             .where(ModuleCandidateDraft.ingestion_run_id == ingestion_run_id)
             .order_by(ModuleCandidateDraft.created_at)
+        )
+        return list(result.scalars().all())
+
+    async def list_candidates_for_runs(self, ingestion_run_ids: list[UUID]) -> list[ModuleCandidateDraft]:
+        if not ingestion_run_ids:
+            return []
+        result = await self._session.execute(
+            select(ModuleCandidateDraft)
+            .where(ModuleCandidateDraft.ingestion_run_id.in_(ingestion_run_ids))
+            .order_by(ModuleCandidateDraft.created_at, ModuleCandidateDraft.id)
         )
         return list(result.scalars().all())
 

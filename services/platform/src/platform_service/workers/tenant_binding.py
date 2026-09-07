@@ -9,6 +9,7 @@ from uuid import UUID
 
 from platform_service.auth.tenant_context import DEFAULT_SELECTED_TENANT_ID, using_selected_tenant
 from platform_service.db.base import SessionLocal
+from platform_service.db.models.ingest_batch import IngestBatch
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.module_completion.telemetry_parsing import coerce_tenant_id
@@ -29,6 +30,15 @@ async def source_document_tenant_id(source_document_id: UUID) -> int:
         if doc is None:
             return DEFAULT_SELECTED_TENANT_ID
         return doc.tenant_id
+
+
+async def ingest_batch_tenant_id(batch_id: UUID) -> int:
+    """Load tenant_id from an ingest_batch row (default when missing)."""
+    async with SessionLocal() as session:
+        batch = await session.get(IngestBatch, batch_id)
+        if batch is None:
+            return DEFAULT_SELECTED_TENANT_ID
+        return batch.tenant_id
 
 
 async def module_tenant_id(module_id: UUID) -> int:

@@ -11,7 +11,6 @@ from mc_contracts.errors import ErrorCode
 from platform_service.db.models.ingestion_run import IngestionRun
 from platform_service.db.models.source_document import SourceDocument
 from platform_service.services.run_state_service import (
-    FUSION_RUN_TYPE,
     RUN_FAILED,
     RUN_PARTIALLY_SUCCEEDED,
     RUN_RUNNING,
@@ -201,43 +200,6 @@ class TestMaybeFinalizeIngestionRun:
         assert "Card drafting failed" in (row.error_jsonb.get("message") or "")
 
 
-class TestFusionRunLookup:
-    async def test_find_active_fusion_run_for_document(self, db_session: AsyncSession) -> None:
-        sd1 = SourceDocument(
-            title="a",
-            source_type="pdf",
-            primary_language="en",
-            content_domain="clinical",
-            original_storage_path="/tmp/a.pdf",
-            tenant_id=1,
-        )
-        sd2 = SourceDocument(
-            title="b",
-            source_type="pdf",
-            primary_language="en",
-            content_domain="clinical",
-            original_storage_path="/tmp/b.pdf",
-            tenant_id=1,
-        )
-        db_session.add_all([sd1, sd2])
-        await db_session.flush()
-        fusion_run = IngestionRun(
-            source_document_id=sd1.id,
-            status=RUN_RUNNING,
-            error_jsonb={
-                "type": FUSION_RUN_TYPE,
-                "source_document_ids": [str(sd1.id), str(sd2.id)],
-            },
-        )
-        db_session.add(fusion_run)
-        await db_session.commit()
-
-        run_state = RunStateService(db_session)
-        found = await run_state.find_active_fusion_run_for_document(sd2.id)
-        assert found is not None
-        assert found.id == fusion_run.id
-
-
 class TestPatchStepInputSummary:
     async def test_merges_activity_into_input_summary(self, db_session: AsyncSession) -> None:
         run_state, run = await _seed_run(db_session)
@@ -311,37 +273,3 @@ class TestCompleteRunMarksSourceFailed:
         await db_session.commit()
         await db_session.refresh(sd)
         assert sd.status == "retired"
-
-    async def test_fusion_run_failure_preserves_source_documents_status(
-        self, db_session: AsyncSession
-    ) -> None:
-        sd_a = SourceDocument(
-            title="a",
-            source_type="pdf",
-            primary_language="en",
-            content_domain="clinical",
-            original_storage_path="/tmp/a.pdf",
-            status="ingested",
-            tenant_id=1,
-        )
-        sd_b = SourceDocument(
-            title="b",
-            source_type="pdf",
-            primary_language="en",
-            content_domain="clinical",
-            original_storage_path="/tmp/b.pdf",
-            status="ingested",
-            tenant_id=1,
-        )
-        db_session.add_all([sd_a, sd_b])
-        await db_session.flush()
-        run_state = RunStateService(db_session)
-        fusion_run = await run_state.start_fusion_run(source_document_ids=[sd_a.id, sd_b.id])
-        await db_session.commit()
-
-        await run_state.complete_run(fusion_run.id, status=RUN_FAILED)
-        await db_session.commit()
-        await db_session.refresh(sd_a)
-        await db_session.refresh(sd_b)
-        assert sd_a.status == "ingested"
-        assert sd_b.status == "ingested"

@@ -1,6 +1,6 @@
-"""W-2 Stage A — text-first extraction.
+"""Stage A — text-first extraction.
 
-Per Pipeline v3.3 §4.1. Source-type dispatcher:
+See `docs/content-administration/ingest-pipeline.md` Source-type dispatcher:
 - PDF → pymupdf get_text per page
 - PPTX → python-pptx slide text per slide (one slide = one "page")
 - DOCX → python-docx paragraph text (one document = one "page" — docx
@@ -189,7 +189,7 @@ def extract_pptx_slides(pptx_path: str | Path) -> list[ExtractedPage]:
 
     Slide title becomes a markdown # heading; non-title text frames become
     paragraphs. Embedded videos / audio / pictures are skipped (no text).
-    Master slide content is excluded (per Implementation Plan W-2 edge case 7).
+    Master slide content is excluded .
     """
     path = Path(pptx_path)
     if not path.is_file():

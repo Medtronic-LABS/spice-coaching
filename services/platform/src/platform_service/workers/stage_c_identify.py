@@ -9,10 +9,8 @@ step). New flow:
 3. Run `module_identifier` once per chunk (in parallel, bounded by
    `stage_c_section_concurrency`)
 4. Backfill any empty `content_block_ids` from each chunk's actual blocks
-5. Dedup candidates by normalised title across chunks; flag near-duplicates
-   for reviewer attention via trigram similarity
-6. Run the advisory `insufficient_source_filter` for quality flags
-7. Persist as `module_candidate_draft` rows for Stage 2-draft
+5. Run the advisory `insufficient_source_filter` for quality flags
+6. Persist as `module_candidate_draft` rows for Stage 2-draft
 
 For the SK manual (~250K tokens, target 60K, window 10%): produces ~4 chunks.
 For SOPs under the target: produces 1 chunk (single-call path).
@@ -45,7 +43,6 @@ from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.localized import candidate_description_localized
 from platform_service.services.corpus_partitioner import (
     chunk_by_token_budget,
-    dedup_and_flag_cross_chunk,
     estimate_corpus_tokens,
 )
 from platform_service.services.ingest_step_errors import build_step_failure
@@ -62,7 +59,6 @@ from platform_service.services.run_state_service import (
     STEP_RUNNING,
     RunStateService,
 )
-from platform_service.services.text_similarity import trigram_similarity
 from platform_service.workers.extractors.content_block_parser import (
     estimate_token_count,
     parse_page_blocks,
@@ -323,12 +319,12 @@ class StageCOrchestrator:
             )
             chunked_candidates.append((chunk.chunk_id, candidates))
 
-        raw_candidates = dedup_and_flag_cross_chunk(chunked_candidates)
-
-        if selective:
-            # Flag-only against existing drafts; do not collapse/delete siblings.
-            existing = await self._candidate_repo.list_candidates_for_run(ingestion_run_id)
-            await self._flag_near_dupes_against_existing(raw_candidates, existing)
+        raw_candidates: list[dict[str, Any]] = []
+        for chunk_id, candidates in chunked_candidates:
+            for cand in candidates:
+                cand_copy = dict(cand)
+                cand_copy["_chunk_lineage"] = [chunk_id]
+                raw_candidates.append(cand_copy)
 
         outline_section_count = sum(len(o.get("sections", [])) for o in document_outlines)
         flag_counts: dict[str, int] = {}
@@ -342,8 +338,6 @@ class StageCOrchestrator:
             )
             existing_flags = list(cand.get("_quality_flags") or [])
             existing_flags.extend(decision.fail_reasons)
-            if cand.get("_cross_chunk_review"):
-                existing_flags.append("cross_chunk_near_duplicate")
             cand["_quality_flags"] = existing_flags
             if existing_flags:
                 candidates_flagged += 1
@@ -380,15 +374,7 @@ class StageCOrchestrator:
                 tenant_id=require_selected_tenant_id(),
             )
 
-        cross_chunk_review_count = sum(1 for c in raw_candidates if c.get("_cross_chunk_review"))
-        if selective:
-            # Include newly flagged existing drafts in review count.
-            existing_after = await self._candidate_repo.list_candidates_for_run(ingestion_run_id)
-            for draft in existing_after:
-                flags = (draft.quality_flags_jsonb or {}).get("flags") or []
-                if "cross_chunk_near_duplicate" in flags:
-                    cross_chunk_review_count += 1
-
+        cross_chunk_review_count = 0
         logger.info(
             "Stage 2 ingestion_run=%s: emitted=%d flagged=%d cross_chunk_review=%d "
             "(chunks: %d/%d succeeded; flag_counts=%s; selective=%s)",
@@ -443,33 +429,6 @@ class StageCOrchestrator:
             },
         )
         return step.id
-
-    async def _flag_near_dupes_against_existing(
-        self,
-        new_candidates: list[dict[str, Any]],
-        existing: list[Any],
-    ) -> None:
-        """Mark near-duplicate titles across new vs existing drafts (flag only)."""
-        settings = get_settings()
-        threshold = settings.stage_c_cross_chunk_similarity_threshold
-        for cand in new_candidates:
-            title = cand.get("proposed_title", "")
-            cand_chunks = set(cand.get("_chunk_lineage") or [])
-            for draft in existing:
-                draft_chunks = set(draft.source_chunk_ids or [])
-                if cand_chunks & draft_chunks:
-                    continue
-                sim = trigram_similarity(title, draft.proposed_title or "")
-                if sim < threshold:
-                    continue
-                cand["_cross_chunk_review"] = True
-                flags = list((draft.quality_flags_jsonb or {}).get("flags") or [])
-                if "cross_chunk_near_duplicate" not in flags:
-                    flags.append("cross_chunk_near_duplicate")
-                    await self._candidate_repo.update_quality_flags(
-                        draft.id,
-                        {"flags": flags},
-                    )
 
     # ── Internal helpers ────────────────────────────────────────────────
 

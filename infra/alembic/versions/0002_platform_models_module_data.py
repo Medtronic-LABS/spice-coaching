@@ -22,7 +22,7 @@ and existing deployments alike. The original SQL file is preserved in
 ``infra/sql/platform_models_module_data.sql`` and can be applied as a
 one-shot dev helper outside of alembic (e.g. ``psql -f`` for a local
 demo environment); production paths should ingest real documents
-through the v3.3 pipeline.
+through the ingest pipeline.
 """
 
 # pylint: disable=no-member

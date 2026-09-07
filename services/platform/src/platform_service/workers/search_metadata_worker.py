@@ -12,6 +12,7 @@ from uuid import UUID
 
 from mc_contracts.errors import ErrorCode
 
+from platform_service.celery_enqueue import enqueue_bind_assessment_triggers, enqueue_module_embedding
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.module_read_repository import ModuleReadRepository
@@ -24,22 +25,17 @@ logger = logging.getLogger(__name__)
 
 
 def _enqueue_embedding(module_id: UUID, embedding_step_id: UUID | None) -> None:
-    from platform_service.celery_tasks import generate_module_embedding_task
-
     step_arg = str(embedding_step_id) if embedding_step_id else None
-    generate_module_embedding_task.delay(str(module_id), step_arg)
+    enqueue_module_embedding(str(module_id), step_arg)
 
 
 def _enqueue_post_metadata(
     module_id: UUID, *, embedding_step_id: UUID | None, trigger_binding_step_id: UUID | None
 ) -> None:
     if trigger_binding_step_id is not None:
-        from platform_service.celery_tasks import bind_assessment_triggers_task
-
-        bind_assessment_triggers_task.delay(
+        enqueue_bind_assessment_triggers(
             str(module_id),
             str(trigger_binding_step_id),
-            str(embedding_step_id) if embedding_step_id else None,
         )
         return
     _enqueue_embedding(module_id, embedding_step_id)

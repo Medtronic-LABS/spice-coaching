@@ -26,7 +26,8 @@ from __future__ import annotations
 
 import argparse
 
-from platform_service.celery_tasks import aggregate_chat_faqs_task
+from platform_service.celery_enqueue import enqueue_aggregate_chat_faqs
+from platform_service.task_names import AGGREGATE_CHAT_FAQS
 
 
 def main() -> int:
@@ -39,11 +40,11 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.dry_run:
-        print("Dry run: would enqueue platform.aggregate_chat_faqs")
+        print(f"Dry run: would enqueue {AGGREGATE_CHAT_FAQS}")
         return 0
 
-    result = aggregate_chat_faqs_task.delay()
-    print(f"Enqueued platform.aggregate_chat_faqs task_id={result.id}")
+    result = enqueue_aggregate_chat_faqs()
+    print(f"Enqueued {AGGREGATE_CHAT_FAQS} task_id={result.id}")
     return 0
 
 

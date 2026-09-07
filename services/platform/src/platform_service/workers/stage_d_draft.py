@@ -1,6 +1,6 @@
 """Stage 2-draft (was Stage D) — locale-keyed card drafter, per candidate.
 
-Per `docs/ARCHITECTURE_RESET.md`:
+See `docs/content-administration/ingest-pipeline.md`:
 
 - Stage 2-draft takes one `module_candidate_draft`, drafts cards in the
   deployment primary locale, and persists a `module` row as
@@ -186,14 +186,10 @@ class StageDOrchestrator:
 
         `enqueue_post_publish` controls whether quiz + embedding generation
         Celery tasks are fired after the module is persisted. Default True
-        preserves the existing per-doc ingestion flow. The cross-source
-        fusion runner passes False because it may DELETE a freshly-drafted
-        module on cross-source coverage failure, which races with the
-        post-publish workers and produces FK violations on insert. The
-        runner re-enqueues after coverage validation passes.
+        preserves the existing per-doc ingestion flow.
 
         `skip_merge` when True skips merging new cards into similar
-        active modules (internal opt-out used by cross-source fusion).
+        active modules (internal opt-out).
 
         When merge is attempted and the LLM finds a match, dual-path
         ``review_pending`` modules are persisted immediately in two new

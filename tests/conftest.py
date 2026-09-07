@@ -28,11 +28,13 @@ import logging
 import os
 import subprocess
 from collections.abc import AsyncIterator, Callable, Iterator
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal, get_engine, reset_engine_caches
+from platform_service.services.prompt_template_service import PromptTemplateService, RenderedPrompt
 from sqlalchemy import text as _text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
@@ -186,9 +188,6 @@ async def db_session(test_db_url: str) -> AsyncIterator[AsyncSession]:
 @pytest.fixture
 def mock_prompt_templates(monkeypatch: pytest.MonkeyPatch):
     """Stub DB-backed prompt rendering for unit tests without seeded templates."""
-    from uuid import uuid4
-
-    from platform_service.services.prompt_template_service import PromptTemplateService, RenderedPrompt
 
     async def _render(
         self: PromptTemplateService,

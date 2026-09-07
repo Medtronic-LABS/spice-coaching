@@ -2,7 +2,7 @@
 
 Clients map ``code`` to user-facing copy. ``detail`` is technical/debug text.
 
-Human-readable catalogue for clients: ``docs/error-codes.json`` (repo root).
+Human-readable catalogue for clients: ``docs/error-codes.json``.
 When adding, removing, or renaming an ``ErrorCode``, update that file in the
 same change; pre-commit enforces parity.
 """
@@ -59,7 +59,7 @@ class ErrorCode(str, Enum):
     CHUNK_REQUIRED = "chunk_required"
     CHUNK_ID_INVALID = "chunk_id_invalid"
     MODULE_ID_MISSING = "module_id_missing"
-    FUSION_SOURCES_MISSING = "fusion_sources_missing"
+    IDENTIFY_RETRY_AFTER_MERGE = "identify_retry_after_merge"
 
     # Modules / admin
     MODULE_NOT_FOUND = "module_not_found"
@@ -117,7 +117,7 @@ class ErrorCode(str, Enum):
     IDENTIFY_FAILED = "identify_failed"
     IDENTIFY_NO_CANDIDATES = "identify_no_candidates"
     DRAFT_FAILED = "draft_failed"
-    FUSION_FAILED = "fusion_failed"
+    CANDIDATE_MERGE_FAILED = "candidate_merge_failed"
     THUMBNAIL_FAILED = "thumbnail_failed"
     EMBEDDING_FAILED = "embedding_failed"
     SEARCH_METADATA_FAILED = "search_metadata_failed"

@@ -1,4 +1,4 @@
-"""W-8 — Server-side gap-trigger evaluator.
+"""Server-side gap-trigger evaluator.
 
 Pure-logic helpers (no DB). Given a CHW's `chw_behavioural_gap_state` row
 and a gap-kind predicate, decide:
@@ -9,7 +9,7 @@ and a gap-kind predicate, decide:
 Workflow-event triggers are evaluated by the SDK (per Architecture R8 the
 SPICE app pushes workflow events), so the server-side evaluator covers only
 `gap` and (downstream) `content_push`. Content_push fires once per published
-module version; that flow lives in the publisher (W-6) and the sync API (W-9).
+module version; that flow lives in the publisher and the sync API.
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def should_reset_window(
     in which case the caller should reset occurrence_count to 1 (this
     observation) before re-evaluating.
 
-    Edge case (#2 from Implementation Plan §10): occurrence #2 lands on day 15
+    Edge case: occurrence #2 lands on day 15
     when window is 14 days → window expired → counter reset, no trigger.
     """
     if gap_state.last_observed_at is None:

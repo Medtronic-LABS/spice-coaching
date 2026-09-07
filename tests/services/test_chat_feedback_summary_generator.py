@@ -6,6 +6,10 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
+from mc_contracts.chat_feedback_summary import (
+    ChatFeedbackEventCounts,
+    ChatFeedbackSummaryResponse,
+)
 from mc_contracts.enums import GenerationType
 from mc_contracts.internal_ai import InferenceResponse, TokenUsage
 from platform_service.config import Settings
@@ -162,11 +166,6 @@ class TestChatFeedbackSummaryGenerator:
         assert result.negative_offline_recommendations
 
     async def test_includes_previous_summary_in_request_payload(self) -> None:
-        from mc_contracts.chat_feedback_summary import (
-            ChatFeedbackEventCounts,
-            ChatFeedbackSummaryResponse,
-        )
-
         tenant_id = 1
         batch = TenantFeedbackBatch(
             tenant_id=tenant_id,

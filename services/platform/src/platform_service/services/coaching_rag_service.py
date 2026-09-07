@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from mc_contracts.coaching import (
+    CoachingLocalRagRequest,
     CoachingRagRequest,
     CoachingRagResponse,
     RetrievedModuleHit,
@@ -33,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.config import Settings, get_settings
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.repositories.module_repository import ModuleRepository
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.exceptions import EmbeddingDimensionError
@@ -49,7 +51,10 @@ from platform_service.services.coaching_chat_router import CoachingChatRouter
 from platform_service.services.coaching_rag_errors import CoachingRagError
 from platform_service.services.embedding_vector import assert_embedding_dimension
 from platform_service.services.llm_text_utils import format_grounded_rag_answer, strip_json_fence
-from platform_service.services.prompt_registry import COACHING_RAG_TEMPLATE_ID
+from platform_service.services.prompt_registry import (
+    COACHING_LOCAL_CARD_RAG_TEMPLATE_ID,
+    COACHING_RAG_TEMPLATE_ID,
+)
 from platform_service.services.prompt_template_service import PromptTemplateService, prompt_spec_from_rendered
 from platform_service.services.prompt_variables.coaching_rag_variables import build_coaching_rag_variables
 
@@ -71,7 +76,10 @@ def coaching_rag_response_locales(settings: Settings) -> frozenset[str]:
     return frozenset({settings.deployment_primary_locale}) | settings.deployment_additional_locale_set
 
 
-def resolve_response_language(body: CoachingRagRequest, settings: Settings) -> str:
+def resolve_response_language(
+    body: CoachingRagRequest | CoachingLocalRagRequest,
+    settings: Settings,
+) -> str:
     lang = body.response_language.strip() or settings.deployment_primary_locale
     allowed = sorted(coaching_rag_response_locales(settings))
     if lang not in allowed:
@@ -113,6 +121,7 @@ class CoachingRagService:
             routed = await CoachingChatRouter(self._session, self._ai).route(
                 question=body.question,
                 lang=lang,
+                use_local=body.use_local,
             )
             if routed is not None and routed.should_early_return:
                 return CoachingRagResponse(
@@ -122,10 +131,11 @@ class CoachingRagService:
                     model=routed.model,
                     cited_module_ids=[],
                     suggested_questions=routed.suggested_questions,
+                    generation_context="" if body.include_generation_context else None,
                 )
 
         try:
-            vectors = await self._ai.embed([body.question])
+            vectors = await self._ai.embed([body.question], use_local=body.use_local)
         except Exception:
             logger.exception("ai-runtime embed failed for rag-query")
             raise CoachingRagError("ai-runtime embed failed") from None
@@ -140,14 +150,20 @@ class CoachingRagService:
             query_vector=query_vec,
             limit=settings.coaching_rag_module_limit,
             tenant_id=tenant_id,
+            use_local=body.use_local,
         )
         if not pairs:
+            if body.use_local:
+                raise CoachingRagError(
+                    "no published modules with local embeddings matched the corpus; "
+                    "run bin/backfill_module_local_embeddings.py first",
+                    status_code=404,
+                )
             raise CoachingRagError(
                 "no published modules with embeddings matched the corpus; ingest/publish modules first",
                 status_code=404,
             )
 
-        per_mod = max(800, settings.coaching_rag_context_max_chars // max(1, len(pairs)))
         module_ids = [m.id for m, _ in pairs]
         card_rows = await ModuleRepository(self._session).list_cards_for_module_ids(module_ids)
         cards_by_module: dict[UUID, list[dict[str, Any]]] = {}
@@ -155,12 +171,13 @@ class CoachingRagService:
             if row.module_id is None:
                 continue
             cards_by_module.setdefault(row.module_id, []).append(card_row_to_dict(row))
-        context = self._build_retrieval_context(
-            pairs,
-            per_module_budget=per_mod,
-            cards_by_module=cards_by_module,
+        context = self.build_retrieval_context(pairs, cards_by_module=cards_by_module)
+        resp = await self.generate_answer(
+            question=body.question,
+            context=context,
+            lang=lang,
+            use_local=body.use_local,
         )
-        resp = await self._generate_answer(body, context, lang=lang)
         if resp.error:
             raise CoachingRagError(f"ai-runtime error: {resp.error}")
 
@@ -180,6 +197,7 @@ class CoachingRagService:
             )
             for m, dist in pairs
         ]
+        generation_context = context if body.include_generation_context else None
         if not cited_ids:
             return CoachingRagResponse(
                 answer=answer,
@@ -188,6 +206,7 @@ class CoachingRagService:
                 model=resp.model,
                 cited_module_ids=[],
                 suggested_questions=suggested_questions,
+                generation_context=generation_context,
             )
 
         attributions = await self._build_attribution(
@@ -203,6 +222,123 @@ class CoachingRagService:
             model=resp.model,
             cited_module_ids=cited_ids,
             suggested_questions=suggested_questions,
+            generation_context=generation_context,
+        )
+
+    async def local_query(
+        self,
+        body: CoachingLocalRagRequest,
+        *,
+        tenant_id: int | None = None,
+    ) -> CoachingRagResponse:
+        settings = self._settings
+        ttl = min(
+            settings.coaching_rag_presigned_url_ttl_seconds,
+            settings.admin_file_presigned_max_seconds,
+        )
+        lang = resolve_response_language(body, settings)
+
+        if should_route_chat(body.question):
+            routed = await CoachingChatRouter(self._session, self._ai).route(
+                question=body.question,
+                lang=lang,
+                use_local=True,
+                card_local=True,
+            )
+            if routed is not None and routed.should_early_return:
+                return CoachingRagResponse(
+                    answer=routed.answer,
+                    retrieved_modules=[],
+                    source_documents=[],
+                    model=routed.model,
+                    cited_module_ids=[],
+                    suggested_questions=routed.suggested_questions,
+                    generation_context="" if body.include_generation_context else None,
+                )
+
+        try:
+            vectors = await self._ai.embed([body.question], use_local=True)
+        except Exception:
+            logger.exception("ai-runtime embed failed for local-rag-query")
+            raise CoachingRagError("ai-runtime embed failed") from None
+        if not vectors:
+            raise CoachingRagError(
+                "ai-runtime returned no embedding for query",
+                code=ErrorCode.EMPTY_EMBEDDING.value,
+            )
+
+        query_vec = self._assert_query_embedding(vectors[0], expected_dim=settings.embedding_dimension)
+        card_pairs = await ModuleRepository(self._session).search_cards_by_local_embedding(
+            query_vector=query_vec,
+            limit=settings.coaching_local_rag_card_limit,
+            tenant_id=tenant_id,
+        )
+        if not card_pairs:
+            raise CoachingRagError(
+                "no published cards with local embeddings matched the corpus; "
+                "run bin/backfill_module_card_local_embeddings.py first",
+                status_code=404,
+            )
+
+        module_ids = list({card.module_id for card, _ in card_pairs})
+        module_repo = ModuleRepository(self._session)
+        parent_modules = await module_repo.list_modules_by_ids(module_ids, tenant_id=tenant_id)
+        modules_by_id = {module.id: module for module in parent_modules}
+
+        cards_by_module: dict[UUID, list[dict[str, Any]]] = {}
+        for card, _ in card_pairs:
+            cards_by_module.setdefault(card.module_id, []).append(card_row_to_dict(card))
+
+        context = self.build_card_retrieval_context(
+            card_pairs,
+            modules_by_id=modules_by_id,
+        )
+        resp = await self.generate_local_card_answer(
+            question=body.question,
+            context=context,
+            lang=lang,
+        )
+        if resp.error:
+            raise CoachingRagError(f"ai-runtime error: {resp.error}")
+
+        payload = parse_rag_json(resp.raw_text, resp.parsed_json)
+        answer = format_grounded_rag_answer((payload.get("answer") or "").strip())
+        if not answer:
+            raise CoachingRagError("model JSON missing non-empty 'answer' field")
+
+        cited_ids = self._resolve_cited_ids_for_card_rag(
+            self._parse_cited_module_ids(payload.get("cited_module_ids") or []),
+            modules_by_id=modules_by_id,
+            card_pairs=card_pairs,
+        )
+        suggested_questions = self._parse_suggested_questions(payload.get("suggested_questions"))
+        retrieved_hits = self._retrieved_module_hits_from_card_pairs(card_pairs, modules_by_id=modules_by_id)
+        generation_context = context if body.include_generation_context else None
+        if not cited_ids:
+            return CoachingRagResponse(
+                answer=answer,
+                retrieved_modules=retrieved_hits,
+                source_documents=[],
+                model=resp.model,
+                cited_module_ids=[],
+                suggested_questions=suggested_questions,
+                generation_context=generation_context,
+            )
+
+        attributions = await self._build_attribution(
+            cited_ids=cited_ids,
+            ttl=ttl,
+            cards_by_module=cards_by_module,
+            tenant_id=tenant_id,
+        )
+        return CoachingRagResponse(
+            answer=answer,
+            retrieved_modules=retrieved_hits,
+            source_documents=attributions,
+            model=resp.model,
+            cited_module_ids=cited_ids,
+            suggested_questions=suggested_questions,
+            generation_context=generation_context,
         )
 
     @staticmethod
@@ -246,6 +382,19 @@ class CoachingRagService:
             used += len(chunk)
         return "\n".join(lines)
 
+    def build_retrieval_context(
+        self,
+        pairs: list[tuple[Module, float]],
+        *,
+        cards_by_module: dict[UUID, list[dict[str, Any]]],
+    ) -> str:
+        per_mod = max(800, self._settings.coaching_rag_context_max_chars // max(1, len(pairs)))
+        return self._build_retrieval_context(
+            pairs,
+            per_module_budget=per_mod,
+            cards_by_module=cards_by_module,
+        )
+
     def _build_retrieval_context(
         self,
         pairs: list[tuple[Module, float]],
@@ -274,12 +423,76 @@ class CoachingRagService:
             return text[:context_max_chars] + "\n... CONTEXT TRUNCATED ..."
         return text
 
-    async def _generate_answer(
+    def build_card_retrieval_context(
         self,
-        body: CoachingRagRequest,
-        context: str,
+        card_pairs: list[tuple[ModuleCard, float]],
         *,
+        modules_by_id: dict[UUID, Module],
+    ) -> str:
+        per_card = max(800, self._settings.coaching_rag_context_max_chars // max(1, len(card_pairs)))
+        primary_locale = deployment_locales(self._settings)
+        blocks: list[str] = []
+        for card, dist in card_pairs:
+            if card.module_id not in modules_by_id:
+                continue
+            card_dict = card_row_to_dict(card)
+            migrated = migrate_legacy_card(dict(card_dict), primary=primary_locale)
+            title_map = migrated.get("title") if isinstance(migrated.get("title"), dict) else {}
+            body_map = migrated.get("body") if isinstance(migrated.get("body"), dict) else {}
+            title_primary = primary_text(title_map, settings=self._settings) or ""
+            body_primary = card_body_plain_text(
+                body_map.get(primary_locale) if isinstance(body_map, dict) else None
+            )
+            block = (
+                f"[[[ CARD_BLOCK card_id={card.id} module_id={card.module_id} "
+                f"cosine_distance={dist:.6f} ]]]\n"
+                f"title[{primary_locale}]: {title_primary}\n"
+                f"body[{primary_locale}]: {body_primary}\n"
+            )
+            if len(block) > per_card:
+                block = block[:per_card] + "\n... CARD TRUNCATED ...\n"
+            blocks.append(block)
+        text = "\n\n".join(blocks)
+        context_max_chars = self._settings.coaching_rag_context_max_chars
+        if len(text) > context_max_chars:
+            return text[:context_max_chars] + "\n... CONTEXT TRUNCATED ..."
+        return text
+
+    @staticmethod
+    def _retrieved_module_hits_from_card_pairs(
+        card_pairs: list[tuple[ModuleCard, float]],
+        *,
+        modules_by_id: dict[UUID, Module],
+    ) -> list[RetrievedModuleHit]:
+        best_dist: dict[UUID, float] = {}
+        for card, dist in card_pairs:
+            if card.module_id not in best_dist or dist < best_dist[card.module_id]:
+                best_dist[card.module_id] = dist
+
+        seen: set[UUID] = set()
+        hits: list[RetrievedModuleHit] = []
+        for card, _ in card_pairs:
+            module = modules_by_id.get(card.module_id)
+            if module is None or module.id in seen:
+                continue
+            seen.add(module.id)
+            hits.append(
+                RetrievedModuleHit(
+                    module_id=module.id,
+                    title=module.title_localized,
+                    domain=module.domain,
+                    cosine_distance=best_dist[module.id],
+                )
+            )
+        return hits
+
+    async def generate_answer(
+        self,
+        *,
+        question: str,
+        context: str,
         lang: str,
+        use_local: bool = False,
     ) -> InferenceResponse:
         settings = self._settings
         rendered = await PromptTemplateService().render(
@@ -287,7 +500,7 @@ class CoachingRagService:
             template_id=COACHING_RAG_TEMPLATE_ID,
             variant_key=None,
             variables=build_coaching_rag_variables(
-                question=body.question,
+                question=question,
                 context=context,
                 lang=lang,
                 settings=settings,
@@ -302,12 +515,48 @@ class CoachingRagService:
                 output_format="json",
             ),
             trace_context=TraceContext(),
-            context={"question": body.question},
+            context={"question": question},
         )
         try:
-            return await self._ai.generate(req)
+            return await self._ai.generate(req, use_local=use_local)
         except Exception:
             logger.exception("ai-runtime generate failed for rag-query")
+            raise CoachingRagError("ai-runtime generation failed") from None
+
+    async def generate_local_card_answer(
+        self,
+        *,
+        question: str,
+        context: str,
+        lang: str,
+    ) -> InferenceResponse:
+        settings = self._settings
+        rendered = await PromptTemplateService().render(
+            self._session,
+            template_id=COACHING_LOCAL_CARD_RAG_TEMPLATE_ID,
+            variant_key=None,
+            variables=build_coaching_rag_variables(
+                question=question,
+                context=context,
+                lang=lang,
+                settings=settings,
+            ),
+        )
+        req = InferenceRequest(
+            request_id=str(uuid.uuid4()),
+            generation_type=GenerationType.COACHING_LOCAL_CARD_RAG,
+            prompt=prompt_spec_from_rendered(rendered),
+            constraints=GenerationConstraints(
+                language=lang,
+                output_format="json",
+            ),
+            trace_context=TraceContext(),
+            context={"question": question},
+        )
+        try:
+            return await self._ai.generate(req, use_local=True)
+        except Exception:
+            logger.exception("ai-runtime generate failed for local-rag-query")
             raise CoachingRagError("ai-runtime generation failed") from None
 
     @staticmethod
@@ -340,6 +589,29 @@ class CoachingRagService:
             except (ValueError, TypeError):
                 continue
         return cited_ids
+
+    @staticmethod
+    def _resolve_cited_ids_for_card_rag(
+        cited_ids: list[UUID],
+        *,
+        modules_by_id: dict[UUID, Module],
+        card_pairs: list[tuple[ModuleCard, float]],
+    ) -> list[UUID]:
+        card_to_module = {card.id: card.module_id for card, _ in card_pairs}
+        resolved: list[UUID] = []
+        seen: set[UUID] = set()
+        for raw_id in cited_ids:
+            if raw_id in card_to_module:
+                module_id = card_to_module[raw_id]
+            elif raw_id in modules_by_id:
+                module_id = raw_id
+            else:
+                module_id = raw_id
+            if module_id in seen:
+                continue
+            seen.add(module_id)
+            resolved.append(module_id)
+        return resolved
 
     async def _build_attribution(
         self,

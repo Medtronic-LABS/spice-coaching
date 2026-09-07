@@ -1,0 +1,25 @@
+{
+  "domain": "neonatal",
+  "batch_count": 3,
+  "total_expected_records": 18,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "neonatal_batch0.prompt.json",
+      "prompt_md": "neonatal_batch0.prompt.md",
+      "expected_record_count": 11
+    },
+    {
+      "batch_index": 1,
+      "prompt_json": "neonatal_batch1.prompt.json",
+      "prompt_md": "neonatal_batch1.prompt.md",
+      "expected_record_count": 3
+    },
+    {
+      "batch_index": 2,
+      "prompt_json": "neonatal_batch2.prompt.json",
+      "prompt_md": "neonatal_batch2.prompt.md",
+      "expected_record_count": 4
+    }
+  ]
+}

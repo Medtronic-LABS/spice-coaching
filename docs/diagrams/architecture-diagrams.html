@@ -286,7 +286,7 @@ flowchart TD
     E --> F[Create ingestion_run rows + enqueue Celery]
     F --> G[Stage A: Extract pages + content_blocks]
     G --> H[Stage C: Identify module candidates]
-    H --> I[Stage D: Draft cards → module rows]
+    H --> I[card_draft: Draft cards → module rows]
     I --> J{Publish}
     J --> K[module.lifecycle_status = published]
     K --> L[Enqueue embedding + quiz + gap jobs]

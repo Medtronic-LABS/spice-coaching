@@ -1,7 +1,7 @@
-"""Configuration tests, aligned to the post-architecture-reset settings.
+"""Configuration tests for current Settings fields.
 
-The original W-0 file asserted defaults for many fields that the
-architecture reset removed (see config.py P3 cleanup): feature flags
+The original file asserted defaults for many fields that were
+removed (see config.py cleanup): feature flags
 (`generate_embeddings_on_publish`), snippet thresholds, distractor
 critique knobs, reviewer-queue settings, outline thresholds. Those
 fields are gone and the corresponding tests would simply
@@ -422,17 +422,17 @@ def test_deployed_env_does_not_require_spice_tenant_id_map(
         "snippet_substantive_overlap_threshold",  # snippet system deleted
         "distractor_critique_min_score",  # distractor critique deleted
         "distractor_critique_max_attempts",  # distractor critique deleted
-        "reviewer_claim_ttl_days",  # W-6 reviewer queue deleted
-        "reviewer_token",  # W-6 reviewer auth deleted
+        "reviewer_claim_ttl_days",  # reviewer queue deleted
+        "reviewer_token",  # reviewer auth deleted
     ],
 )
 def test_architecture_reset_removed_settings_are_gone(removed_attr: str) -> None:
     """If anyone re-introduces these, code paths that used to exist need
-    to come back too — re-read docs/ARCHITECTURE_RESET.md before doing so."""
+    to come back too — re-read docs/content-administration/ingest-pipeline.md before doing so."""
     s = Settings()
     assert not hasattr(s, removed_attr), (
         f"`{removed_attr}` was removed by the architecture reset; "
         "if you're adding it back, also revert the corresponding code "
-        "deletion (W-6 reviewer queue, snippet system, distractor critique, "
+        "deletion (reviewer queue, snippet system, distractor critique, "
         "Stage B outline parser, or the embedding feature flag)."
     )

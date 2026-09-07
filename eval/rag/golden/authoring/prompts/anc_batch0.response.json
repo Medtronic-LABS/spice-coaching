@@ -1,0 +1,95 @@
+{
+  "records": [
+    {
+      "question_en": "During a community meeting, a pregnant woman asked why she needs regular check-ups during pregnancy. What should I explain about the importance of antenatal check-ups?",
+      "expected_answer_en": "Discuss the importance of check-ups during pregnancy and inform the pregnant mother how many times and where she should receive services. Antenatal check-ups help register the mother for services, provide access to care for any pregnancy-related problems, and allow early identification of high-risk pregnancies and danger signs so necessary action can be taken.",
+      "question_bn": "একটি কমিউনিটি মিটিংয়ে একজন গর্ভবতী মা জানতে চাইলেন গর্ভকালে নিয়মিত চেকআপ কেন দরকার। গর্ভকালীন চেকআপের গুরুত্ব সম্পর্কে আমি কী ব্যাখ্যা করব?",
+      "expected_answer_bn": "গর্ভকালীন সময়ে চেকআপের গুরুত্ব নিয়ে আলোচনা করুন এবং গর্ভবতী মাকে জানান তিনি কমপক্ষে কয়বার ও কোথায় সেবা নেবেন। গর্ভকালীন চেকআপের মাধ্যমে মা সেবা পাওয়ার জন্য তালিকাভুক্ত হন, গর্ভকালীন যেকোনো সমস্যার জন্য সেবা ও চিকিৎসা পাওয়ার সুযোগ পান, এবং ঝুঁকিপূর্ণ গর্ভধারণ ও বিপদজনক লক্ষণ আগেই নির্ণয় করে প্রয়োজনীয় ব্যবস্থা নেওয়া যায়।",
+      "module_id": ["1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"],
+      "source_card_id": ["690a687f-22f6-437a-bc5c-ecc635470a99"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During today's ANC visit, I noticed the mother's weight has not increased since last month — it seems stable or slightly decreased. What should I do in this situation?",
+      "expected_answer_en": "If weight remains stable or decreases during pregnancy, it is abnormal. Check for anemia and measure fundal height to see if it matches the expected gestational age. Provide counseling and refer as needed.",
+      "question_bn": "আজকের এএনসি ভিজিটে দেখলাম গত মাস থেকে মায়ের ওজন বাড়েনি — ওজন স্থির বা সামান্য কমে গেছে। এই অবস্থায় আমি কী করব?",
+      "expected_answer_bn": "গর্ভাবস্থায় ওজন স্থির থাকা বা কমে যাওয়া অস্বাভাবিক। রক্তস্বল্পতা পরীক্ষা করুন, জরায়ুর উচ্চতা মেপে দেখুন স্বাভাবিক আছে কিনা। পরামর্শ দিন এবং প্রয়োজনে রেফার করুন।",
+      "module_id": ["1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"],
+      "source_card_id": ["6a9f576f-de32-4ebb-b2fe-cb02fd7b356d"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Problem Identification & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is the correct step-by-step procedure to measure a pregnant woman's weight during an ANC visit?",
+      "expected_answer_en": "Use a bathroom scale kept in the same place with the indicator set to zero. Weigh yourself first to confirm the scale is working. The mother should stand barefoot in light clothing, upright and still on the scale with feet slightly apart, heels and toes on the scale. Record the weight in kilograms on the designated form once the indicator stabilizes.",
+      "question_bn": "এএনসি ভিজিটে গর্ভবতী মহিলার ওজন মাপার সঠিক ধাপে ধাপে পদ্ধতি কী?",
+      "expected_answer_bn": "বাথরুম স্কেল একই জায়গায় রেখে নির্ণায়ক কাঁটা শূন্য (০)-তে আনুন। নিজের ওজন মেপে যন্ত্রটি ঠিক আছে কিনা দেখুন। মাকে খালি পায়ে হালকা কাপড়ে, সোজা হয়ে, নড়াচড়া না করে দাঁড়াতে বলুন — দুই পায়ের মাঝে ফাঁক রেখে গোড়ালি ও আঙ্গুল যন্ত্রের উপর থাকবে। কাঁটা স্থির হলে কেজিতে নির্ধারিত ফরমে ওজন লিখুন।",
+      "module_id": ["1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"],
+      "source_card_id": ["81130cba-2f96-471e-87b4-e4977a4e339f"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "I measured a pregnant mother's height and found it is 142 cm, which is below 145 cm. Should I refer her, and what advice should I give?",
+      "expected_answer_en": "Normal height is 145 cm or more. If height is below 145 cm, the mother is at risk. Advise her to consult a doctor for further assessment and management.",
+      "question_bn": "একজন গর্ভবতী মায়ের উচ্চতা মেপে দেখলাম ১৪২ সে.মি., যা ১৪৫ সে.মি.-এর কম। আমি কি তাকে রেফার করব এবং কী পরামর্শ দেব?",
+      "expected_answer_bn": "স্বাভাবিক উচ্চতা ১৪৫ সে.মি. বা এর বেশি। উচ্চতা ১৪৫ সে.মি.-এর কম হলে মা ঝুঁকিপূর্ণ — তাকে ডাক্তারের পরামর্শ নিতে বলুন।",
+      "module_id": ["1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"],
+      "source_card_id": ["0c0a26e0-ed62-4429-8f65-44d8dc40ab55"],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Referral & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is the normal pulse rate range for a pregnant woman, and how does it differ for children?",
+      "expected_answer_en": "The normal pulse rate is 60 to 100 beats per minute. For children, the normal range is 100 to 160 beats per minute.",
+      "question_bn": "গর্ভবতী মহিলার স্বাভাবিক নাড়ির গতি কত, এবং শিশুদের ক্ষেত্রে তা কীভাবে আলাদা?",
+      "expected_answer_bn": "স্বাভাবিক নাড়ির গতি ৬০ থেকে ১০০ বার প্রতি মিনিটে। শিশুদের ক্ষেত্রে ১০০ থেকে ১৬০ বার প্রতি মিনিটে।",
+      "module_id": ["1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"],
+      "source_card_id": ["2a04425c-2fd6-4814-b0f9-1b14553882e5"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should I measure a pregnant woman's temperature using a thermometer during a home visit?",
+      "expected_answer_en": "Hold the thermometer by the glass part (not the silver bulb). Shake the mercury down before use. Place the silver bulb under the armpit with no clothing underneath and hold for two minutes. Read the temperature where the expanded mercury line ends on the white scale. Normal temperature is 97°F to 99°F (37°C).",
+      "question_bn": "বাড়ি ভিজিটে থার্মোমিটার দিয়ে গর্ভবতী মহিলার তাপমাত্রা কীভাবে মাপব?",
+      "expected_answer_bn": "থার্মোমিটারের কাঁচের অংশে ধরুন (রুপালী অংশে নয়)। ব্যবহারের আগে পারদ ঝাঁকিয়ে নিচে নামান। রুপালী অংশ বগলের নিচে চাপ দিয়ে ধরে রাখুন — বগলে কাপড় থাকবে না — দুই মিনিট রাখুন। সাদা স্কেলে প্রসারিত পারদের শেষ মাথা যে দাগে থাকে সেটাই তাপমাত্রা। স্বাভাবিক তাপমাত্রা ৯৭° ফারেনহাইট থেকে ৯৯° ফারেনহাইট (৩৭° সে.)।",
+      "module_id": ["1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"],
+      "source_card_id": ["5375135e-5877-4ebe-a47f-2d5654651e19"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Diagnostic Procedure",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During an ANC visit I checked for edema, measured blood pressure and urinary protein — all are normal. What home care advice should I give the mother, and when should I refer?",
+      "expected_answer_en": "If urinary albumin and blood pressure results are normal, provide counseling only. Advise avoiding loose salt on food, not sitting with legs dangling, keeping feet elevated on a pillow, and eating protein-rich foods. If urinary albumin or blood pressure results are abnormal, refer the mother. For fever above 99°F, advise paracetamol or Napa per physician guidance, sponge the body with normal or lukewarm water, increase fluid intake, and consult a physician if fever does not subside.",
+      "question_bn": "এএনসি ভিজিটে ইডিমা, রক্তচাপ ও প্রস্রাবে প্রোটিন পরীক্ষা করেছি — সব স্বাভাবিক। মাকে বাড়িতে কী পরামর্শ দেব, আর কখন রেফার করব?",
+      "expected_answer_bn": "প্রস্রাবে অ্যালবুমিন ও রক্তচাপ স্বাভাবিক থাকলে শুধু পরামর্শ দিন — পাতে আলগা লবণ না খাওয়া, পা ঝুলিয়ে না বসা, পায়ের নিচে বালিশ দিয়ে পা উচু রাখা এবং আমিষ জাতীয় খাবার খাওয়ার পরামর্শ দিন। এই পরীক্ষার ফলাফল অস্বাভাবিক হলে রেফার করুন। জ্বর (৯৯° ফারেনহাইটের বেশি) হলে চিকিৎসকের পরামর্শ অনুযায়ী প্যারাসিটামল বা নাপা, স্বাভাবিক বা কুসুম গরম পানিতে কাপড় ভিজিয়ে শরীর মুছা, বেশি তরল খাওয়া এবং জ্বর না কমলে চিকিৎসকের পরামর্শ নিতে বলুন।",
+      "module_id": ["1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"],
+      "source_card_id": ["dbef5a4b-e803-41b4-93af-cd4e6dbde2ff", "09446d3d-1f44-4721-9456-62da472c99f8"],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Counseling & Home Management",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

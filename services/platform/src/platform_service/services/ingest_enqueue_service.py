@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from platform_service.celery_tasks import (
-    bind_assessment_triggers_task,
-    classify_module_gaps_task,
-    generate_module_quiz_task,
-    generate_source_thumbnail_task,
-    retry_ingest_fusion_task,
-    retry_ingest_pipeline_task,
-    run_ingest_batch_task,
+from platform_service.celery_enqueue import (
+    enqueue_bind_assessment_triggers,
+    enqueue_classify_module_gaps,
+    enqueue_module_quiz,
+    enqueue_retry_ingest_candidate_merge,
+    enqueue_retry_ingest_pipeline,
+    enqueue_run_ingest_batch,
+    enqueue_source_thumbnail,
 )
 from platform_service.config import get_settings
 from platform_service.services.ingest_upload_service import IngestedSourceResult
@@ -45,9 +45,9 @@ def enqueue_thumbnail_and_batch(
     batch_id: UUID,
 ) -> None:
     for job in jobs:
-        generate_source_thumbnail_task.delay(ingest_job_to_dict(job))
+        enqueue_source_thumbnail(ingest_job_to_dict(job))
 
-    run_ingest_batch_task.delay(
+    enqueue_run_ingest_batch(
         {
             "batch_id": str(batch_id),
             "jobs": [ingest_job_to_dict(job) for job in jobs],
@@ -62,7 +62,7 @@ def enqueue_thumbnail_retry(
     source_type: str,
     run_id: UUID,
 ) -> None:
-    generate_source_thumbnail_task.delay(
+    enqueue_source_thumbnail(
         {
             "source_document_id": str(source_document_id),
             "source_path": source_path,
@@ -82,6 +82,8 @@ def enqueue_pipeline_resume(
     run_id: UUID,
     batch_id: UUID,
     identify_chunk_ids: list[str] | None = None,
+    stop_after_identify: bool = False,
+    continue_batch: bool = False,
 ) -> None:
     payload: dict = {
         "source_document_id": str(source_document_id),
@@ -93,22 +95,15 @@ def enqueue_pipeline_resume(
     }
     if identify_chunk_ids:
         payload["identify_chunk_ids"] = list(identify_chunk_ids)
-    retry_ingest_pipeline_task.delay(payload)
+    if stop_after_identify:
+        payload["stop_after_identify"] = True
+    if continue_batch:
+        payload["continue_batch"] = True
+    enqueue_retry_ingest_pipeline(payload)
 
 
-def enqueue_fusion_retry(
-    *,
-    source_document_ids: list[UUID],
-    batch_id: UUID,
-    fusion_run_id: UUID,
-) -> None:
-    retry_ingest_fusion_task.delay(
-        {
-            "source_document_ids": [str(d) for d in source_document_ids],
-            "batch_id": str(batch_id),
-            "fusion_run_id": str(fusion_run_id),
-        }
-    )
+def enqueue_candidate_merge_retry(*, batch_id: UUID) -> None:
+    enqueue_retry_ingest_candidate_merge({"batch_id": str(batch_id)})
 
 
 def enqueue_post_publish_step_retry(
@@ -123,12 +118,12 @@ def enqueue_post_publish_step_retry(
     mid = str(module_id)
     sid = str(step_id)
     if stage == STAGE_QUIZ_GENERATION:
-        generate_module_quiz_task.delay(mid, sid)
+        enqueue_module_quiz(mid, sid)
         return
     if stage == STAGE_GAP_CLASSIFICATION:
-        classify_module_gaps_task.delay(mid, sid)
+        enqueue_classify_module_gaps(mid, sid)
         return
     if stage == STAGE_TRIGGER_BINDING:
-        bind_assessment_triggers_task.delay(mid, sid)
+        enqueue_bind_assessment_triggers(mid, sid)
         return
     raise ValueError(f"unsupported post-publish stage for retry: {stage!r}")

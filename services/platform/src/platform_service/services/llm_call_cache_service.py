@@ -1,4 +1,4 @@
-"""W-7 — llm_call_cache service + caching wrapper around AIRuntimeClient.
+"""llm_call_cache service + caching wrapper around AIRuntimeClient.
 
 Per Pipeline §16 P3 / Data Model §4.3. Hashes (generation_type + prompt +
 input payload) and stores the parsed ai-runtime response in `llm_call_cache`.
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 # Bumped when cache key shape changes so old Redis/DB rows cannot collide
 # with requests that no longer include model/budget fields.
-_CACHE_KEY_VERSION = 2
+_CACHE_KEY_VERSION = 3
 
 
 def _stored_response_has_error(response_jsonb: dict[str, Any]) -> bool:
@@ -70,6 +70,7 @@ def compute_input_hash(request: InferenceRequest) -> str:
             "output_format": request.constraints.output_format,
         },
         "context": request.context,
+        "use_local": request.use_local,
         "image_attachments": [
             # `label` is descriptive metadata (e.g. "{source_doc_id}/page_n")
             # used for tracing, not content. Excluded from the hash so two

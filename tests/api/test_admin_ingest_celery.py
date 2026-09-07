@@ -10,7 +10,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
-import platform_service.celery_tasks as celery_tasks
 import pytest
 import pytest_asyncio
 from fastapi import APIRouter, FastAPI, HTTPException, Request
@@ -247,7 +246,9 @@ class TestIngestEnqueuesCelery:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         upload = await _upload_files(client, [("guide.pdf", b"%PDF-1.4 minimal")])
         assert upload.status_code == 201
@@ -288,7 +289,9 @@ class TestIngestEnqueuesCelery:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
         if await db_session.get(HierarchyUser, AM_ID) is None:
             await seed_basic_hierarchy(db_session, tenant_id=1)
             await db_session.commit()
@@ -317,13 +320,15 @@ class TestIngestEnqueuesCelery:
         assert run is not None
         assert run.ingested_by == AM_ID
 
-    async def test_start_ingest_multi_source_enqueues_for_auto_fusion(
+    async def test_start_ingest_multi_source_enqueues_batch(
         self,
         client: AsyncClient,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         upload = await _upload_files(
             client,
@@ -347,7 +352,9 @@ class TestIngestEnqueuesCelery:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         upload = await _upload_files(client, [("guide.pdf", b"%PDF-1.4 minimal")])
         assert upload.status_code == 201
@@ -363,7 +370,9 @@ class TestIngestEnqueuesCelery:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         upload = await _upload_files(client, [("guide.pdf", b"%PDF-1.4 minimal")])
         assert upload.status_code == 201
@@ -383,7 +392,9 @@ class TestIngestDuplicateOverride:
     ) -> None:
         existing = await _seed_ingested_source(db_session)
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _upload_files(client, [("guide.pdf", _DUPLICATE_PDF_BYTES)])
         assert resp.status_code == 409
@@ -554,7 +565,9 @@ class TestIngestDuplicateOverride:
     ) -> None:
         existing = await _seed_ingested_source(db_session)
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _start_ingest(client, [str(existing.id)])
         assert resp.status_code == 409
@@ -579,7 +592,9 @@ class TestIngestDuplicateOverride:
             content_sha256=hashlib.sha256(b"%PDF-fresh").hexdigest(),
         )
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _start_ingest(client, [str(ingested.id), str(staged.id)])
         assert resp.status_code == 409
@@ -601,7 +616,9 @@ class TestIngestDuplicateOverride:
     ) -> None:
         existing = await _seed_ingested_source(db_session)
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _start_ingest(
             client,
@@ -625,7 +642,9 @@ class TestIngestionInstructions:
     ) -> None:
         staged = await _seed_uploaded_source(db_session)
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _start_ingest(
             client,
@@ -645,7 +664,9 @@ class TestIngestionInstructions:
     ) -> None:
         staged = await _seed_uploaded_source(db_session)
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _start_ingest(
             client,
@@ -668,7 +689,9 @@ class TestCardinalityTargets:
     ) -> None:
         staged = await _seed_uploaded_source(db_session)
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _start_ingest(client, [str(staged.id)], cards_per_module=99)
         assert resp.status_code == 422
@@ -682,7 +705,9 @@ class TestCardinalityTargets:
     ) -> None:
         staged = await _seed_uploaded_source(db_session)
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
 
         resp = await _start_ingest(
             client,
@@ -706,8 +731,12 @@ class TestIngestBatchPoll:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         delay_mock = MagicMock()
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", delay_mock)
-        monkeypatch.setattr(celery_tasks.generate_source_thumbnail_task, "delay", MagicMock())
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", delay_mock
+        )
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_source_thumbnail", MagicMock()
+        )
 
         staged = await _seed_uploaded_source(db_session)
         start = await _start_ingest(client, [str(staged.id)])
@@ -729,7 +758,7 @@ class TestIngestBatchPoll:
         assert payload["sources"][0]["nodes"] == []
         assert payload["retry_url"] is None
         assert "merge_decisions" not in payload
-        assert "fusion" not in payload or payload.get("fusion") is None
+        assert "fusion" not in payload
         assert "retries" not in payload
 
         missing = await client.get(platform_path(f"/admin/ingest/batches/{uuid4()}"))
@@ -741,8 +770,12 @@ class TestIngestBatchPoll:
         db_session: AsyncSession,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", MagicMock())
-        monkeypatch.setattr(celery_tasks.generate_source_thumbnail_task, "delay", MagicMock())
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", MagicMock()
+        )
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_source_thumbnail", MagicMock()
+        )
         if await db_session.get(HierarchyUser, AM_ID) is None:
             await seed_basic_hierarchy(db_session, tenant_id=1)
             await db_session.commit()
@@ -766,8 +799,12 @@ class TestIngestBatchPoll:
         db_session: AsyncSession,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", MagicMock())
-        monkeypatch.setattr(celery_tasks.generate_source_thumbnail_task, "delay", MagicMock())
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", MagicMock()
+        )
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_source_thumbnail", MagicMock()
+        )
         staged = await _seed_uploaded_source(db_session)
         start = await _start_ingest(client, [str(staged.id)])
         source_id = start.json()["sources"][0]["source_document_id"]
@@ -782,10 +819,17 @@ class TestIngestBatchRetry:
         db_session: AsyncSession,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(celery_tasks.run_ingest_batch_task, "delay", MagicMock())
-        monkeypatch.setattr(celery_tasks.generate_source_thumbnail_task, "delay", MagicMock())
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_run_ingest_batch", MagicMock()
+        )
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_source_thumbnail", MagicMock()
+        )
         pipeline_delay = MagicMock()
-        monkeypatch.setattr(celery_tasks.retry_ingest_pipeline_task, "delay", pipeline_delay)
+        monkeypatch.setattr(
+            "platform_service.services.ingest_enqueue_service.enqueue_retry_ingest_pipeline",
+            pipeline_delay,
+        )
 
         staged = await _seed_uploaded_source(db_session)
         start = await _start_ingest(client, [str(staged.id)])

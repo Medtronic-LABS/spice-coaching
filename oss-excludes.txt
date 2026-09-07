@@ -1,0 +1,41 @@
+# Project-specific excludes for coaching-platform → spice-coaching sync.
+# Used with open-source-repo-sync default_excludes.txt as --extra-excludes.
+
+# Agent / Cursor internal tooling
+.agents
+.agents/*
+*/.agents/*
+.cursor
+.cursor/*
+*/.cursor/*
+
+# Generated / local artifacts
+site
+site/*
+dist
+dist/*
+logs
+logs/*
+.coverage
+*.coverage
+.ruff_cache
+.ruff_cache/*
+.clickhouse
+.clickhouse/*
+
+# Build metadata (also in .gitignore)
+*.egg-info
+*.egg-info/*
+*/*.egg-info/*
+*/*/*.egg-info/*
+
+# MkDocs build config (GitBook markdown under docs/ still ships)
+mkdocs.yml
+
+# Local IDE
+.vscode
+.vscode/*
+
+# Local demo tooling not previously shipped to OSS
+tools
+tools/*

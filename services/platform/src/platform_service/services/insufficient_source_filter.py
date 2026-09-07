@@ -1,6 +1,6 @@
 """Stage 2 insufficient-source heuristic — advisory, not gating.
 
-Per `docs/ARCHITECTURE_RESET.md`. The function still computes an
+See `docs/content-administration/ingest-pipeline.md`. The function still computes an
 `accepted` boolean and a list of `fail_reasons` — but Stage 2's caller
 no longer rejects candidates based on `accepted`. Instead, the caller
 records `fail_reasons` on `module_candidate_draft.quality_flags_jsonb`

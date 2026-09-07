@@ -20,18 +20,17 @@ from platform_service.db.repositories.module_candidate_repository import (
 from platform_service.db.repositories.source_repository import SourceRepository
 from platform_service.services.ingest_batch_poll_presenter import _retry_targets_for_run
 from platform_service.services.ingest_enqueue_service import (
-    enqueue_fusion_retry,
+    enqueue_candidate_merge_retry,
     enqueue_pipeline_resume,
     enqueue_post_publish_step_retry,
     enqueue_thumbnail_retry,
 )
-from platform_service.services.run_state.constants import as_error_object
 from platform_service.services.run_state_service import (
     ALL_STAGES,
     POST_PUBLISH_STAGES,
     RUN_RUNNING,
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
-    STAGE_CROSS_SOURCE_FUSION,
     STAGE_EXTRACT,
     STAGE_MODULE_IDENTIFY,
     STAGE_THUMBNAIL,
@@ -176,6 +175,13 @@ class IngestRetryService:
 
         if stage not in ALL_STAGES:
             raise AppError(ErrorCode.UNKNOWN_STAGE.value, f"unknown stage: {stage!r}", status=422)
+
+        if stage == STAGE_MODULE_IDENTIFY and await self._run_state.batch_has_candidate_merge_step(batch_id):
+            raise AppError(
+                ErrorCode.IDENTIFY_RETRY_AFTER_MERGE.value,
+                "module_identify cannot be retried after candidate merge has started",
+                status=422,
+            )
 
         if stage in _CANDIDATE_SCOPED_STAGES and candidate_id is None:
             raise AppError(
@@ -342,6 +348,8 @@ class IngestRetryService:
             stage=STAGE_MODULE_IDENTIFY,
         )
         enqueue_args["identify_chunk_ids"] = [chunk_id]
+        enqueue_args["stop_after_identify"] = True
+        enqueue_args["continue_batch"] = True
         await self._run_state.reopen_run_for_retry(run_id)
         await self._run_state.refresh_batch_status(batch_id)
         await self._session.commit()
@@ -401,10 +409,9 @@ class IngestRetryService:
             await self._delete_modules(module_ids)
             return
 
-        if stage == STAGE_CROSS_SOURCE_FUSION:
+        if stage == STAGE_CANDIDATE_MERGE:
             module_ids = await self._run_state.module_ids_for_candidate_steps(run_id)
             await self._delete_modules(module_ids)
-            await self._candidates.delete_candidates_for_run(run_id)
             return
 
         # Post-publish: module stays; only the step is reset by the caller.
@@ -428,24 +435,13 @@ class IngestRetryService:
                 "run_id": run.id,
             }
 
-        if stage == STAGE_CROSS_SOURCE_FUSION:
-            source_ids = as_error_object(run.error_jsonb).get("source_document_ids") or []
-            if len(source_ids) < 2:
-                raise AppError(
-                    ErrorCode.FUSION_SOURCES_MISSING.value,
-                    "fusion run is missing source_document_ids",
-                    status=422,
-                )
-            return {
-                "source_document_ids": [UUID(str(d)) for d in source_ids],
-                "batch_id": batch_id,
-                "fusion_run_id": run.id,
-            }
+        if stage == STAGE_CANDIDATE_MERGE:
+            return {"batch_id": batch_id}
 
         doc = await self._session.get(SourceDocument, run.source_document_id)
         if doc is None:
             raise AppError(ErrorCode.SOURCE_NOT_FOUND.value, "source_document not found", status=422)
-        return {
+        args: dict[str, Any] = {
             "source_document_id": run.source_document_id,
             "source_path": doc.original_storage_path,
             "source_type": doc.source_type,
@@ -453,14 +449,18 @@ class IngestRetryService:
             "run_id": run.id,
             "batch_id": batch_id,
         }
+        if stage == STAGE_MODULE_IDENTIFY:
+            args["stop_after_identify"] = True
+            args["continue_batch"] = True
+        return args
 
     @staticmethod
     def _dispatch_enqueue(*, stage: str, args: dict[str, Any]) -> None:
         if stage == STAGE_THUMBNAIL:
             enqueue_thumbnail_retry(**args)
             return
-        if stage == STAGE_CROSS_SOURCE_FUSION:
-            enqueue_fusion_retry(**args)
+        if stage == STAGE_CANDIDATE_MERGE:
+            enqueue_candidate_merge_retry(**args)
             return
         enqueue_pipeline_resume(**args)
 

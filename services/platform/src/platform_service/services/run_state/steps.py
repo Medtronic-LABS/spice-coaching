@@ -11,19 +11,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.ingestion_run import IngestionRun, IngestionRunStep
 from platform_service.db.repositories.source_repository import SourceRepository
+from platform_service.services.ingest_run_error_summary import summarize_ingestion_run_error
+from platform_service.services.ingestion_run_generation_counts import (
+    IngestionRunGenerationCountsService,
+)
 from platform_service.services.run_state.constants import (
     _DEFAULT_CLAIM_STALE_SECONDS,
     _PIPELINE_CLAIM_KEY,
     _TERMINAL_STEP_STATUSES,
     ALL_STAGES,
-    FUSION_RUN_TYPE,
     POST_PUBLISH_STAGES,
     RUN_FAILED,
     RUN_PARTIALLY_SUCCEEDED,
     RUN_RUNNING,
     RUN_SUCCEEDED,
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
-    STAGE_CROSS_SOURCE_FUSION,
     STAGE_EXTRACT,
     STAGE_MODULE_IDENTIFY,
     STAGE_THUMBNAIL,
@@ -40,10 +43,12 @@ from platform_service.services.run_state.constants import (
 # Stages removed when retrying a given stage (the stage itself is also removed).
 _DOWNSTREAM_STAGES: dict[str, frozenset[str]] = {
     STAGE_THUMBNAIL: frozenset(),
-    STAGE_EXTRACT: frozenset({STAGE_MODULE_IDENTIFY, STAGE_CARD_DRAFT, *POST_PUBLISH_STAGES}),
-    STAGE_MODULE_IDENTIFY: frozenset({STAGE_CARD_DRAFT, *POST_PUBLISH_STAGES}),
+    STAGE_EXTRACT: frozenset(
+        {STAGE_MODULE_IDENTIFY, STAGE_CANDIDATE_MERGE, STAGE_CARD_DRAFT, *POST_PUBLISH_STAGES}
+    ),
+    STAGE_MODULE_IDENTIFY: frozenset({STAGE_CANDIDATE_MERGE, STAGE_CARD_DRAFT, *POST_PUBLISH_STAGES}),
+    STAGE_CANDIDATE_MERGE: frozenset({STAGE_CARD_DRAFT, *POST_PUBLISH_STAGES}),
     STAGE_CARD_DRAFT: frozenset(POST_PUBLISH_STAGES),
-    STAGE_CROSS_SOURCE_FUSION: frozenset({STAGE_CARD_DRAFT, *POST_PUBLISH_STAGES}),
     **{stage: frozenset() for stage in POST_PUBLISH_STAGES},
 }
 
@@ -74,9 +79,6 @@ class RunStepMixin:
         return await self._session.get(IngestionRun, run_id)
 
     async def _update_source_documents_for_run_complete(self, run: IngestionRun, *, status: str) -> None:
-        if as_error_object(run.error_jsonb).get("type") == FUSION_RUN_TYPE:
-            # Fusion runs do not mutate individual source documents' statuses.
-            return
         repo = SourceRepository(self._session)
         if status == RUN_SUCCEEDED:
             await repo.update_status(run.source_document_id, "ingested")
@@ -105,11 +107,6 @@ class RunStepMixin:
             run.error_jsonb = merged
         await self._session.flush()
         await self._update_source_documents_for_run_complete(run, status=status)
-        # Lazy import: generation-counts service ↔ run_state cycle.
-        from platform_service.services.ingestion_run_generation_counts import (
-            IngestionRunGenerationCountsService,
-        )
-
         await IngestionRunGenerationCountsService(self._session).upsert_after_run_complete(run)
         return run
 
@@ -318,11 +315,6 @@ class RunStepMixin:
 
         final_status, error_jsonb = terminal_run_status_from_steps(all_steps)
         if error_jsonb is not None:
-            # Lazy import: ingest_run_error_summary ↔ run_state.steps cycle.
-            from platform_service.services.ingest_run_error_summary import (
-                summarize_ingestion_run_error,
-            )
-
             error_jsonb = summarize_ingestion_run_error(
                 error_jsonb,
                 steps=all_steps,
@@ -369,10 +361,9 @@ class RunStepMixin:
         for key in _TERMINAL_ERROR_KEYS:
             error.pop(key, None)
         run.error_jsonb = error or None
-        if as_error_object(run.error_jsonb).get("type") != FUSION_RUN_TYPE:
-            doc = await SourceRepository(self._session).get_source_document(run.source_document_id)
-            if doc is not None and doc.status in ("failed", "partially_succeeded"):
-                await SourceRepository(self._session).update_status(run.source_document_id, "ingesting")
+        doc = await SourceRepository(self._session).get_source_document(run.source_document_id)
+        if doc is not None and doc.status in ("failed", "partially_succeeded"):
+            await SourceRepository(self._session).update_status(run.source_document_id, "ingesting")
         await self._session.flush()
         return run
 

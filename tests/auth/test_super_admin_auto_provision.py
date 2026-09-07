@@ -20,6 +20,7 @@ from platform_service.auth.spice_auth_middleware import SpiceAuthMiddleware
 from platform_service.auth.spice_context import SpiceContexts, SpiceUserContext
 from platform_service.auth.tenant_context import HEADER_TENANT_ID
 from platform_service.config import Settings, get_settings
+from platform_service.db.base import SessionLocal
 from platform_service.db.models.hierarchy_user import ROLE_SUPER_ADMIN
 from platform_service.db.models.role import Role
 from platform_service.db.repositories.hierarchy_repository import HierarchyRepository
@@ -139,8 +140,6 @@ async def test_super_admin_request_auto_provisions_and_reaches_admin_route(
     @asynccontextmanager
     async def _session_for_role_mw() -> AsyncIterator[AsyncSession]:
         # Role middleware opens its own session; reuse the test engine pool.
-        from platform_service.db.base import SessionLocal
-
         async with SessionLocal() as session:
             yield session
 

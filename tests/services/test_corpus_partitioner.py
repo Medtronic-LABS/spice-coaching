@@ -1,9 +1,8 @@
-"""Stage 2 corpus chunker + cross-chunk dedup tests."""
+"""Stage 2 corpus chunker tests."""
 
 from platform_service.config import get_settings
 from platform_service.services.corpus_partitioner import (
     chunk_by_token_budget,
-    dedup_and_flag_cross_chunk,
     estimate_corpus_tokens,
 )
 
@@ -123,89 +122,3 @@ class TestChunkByTokenBudget:
 
     def test_empty_corpus_no_chunks(self) -> None:
         assert chunk_by_token_budget([], document_outlines=[]) == []
-
-
-class TestDedupAndFlagCrossChunk:
-    def test_same_title_across_chunks_merged(self) -> None:
-        a = {
-            "proposed_title": "Hypertension",
-            "scope_summary": "from chunk 1",
-            "source_provenance": [
-                {"source_document_id": "d1", "source_page_id": "p1", "content_block_ids": ["b1"]}
-            ],
-        }
-        b = {
-            "proposed_title": "Hypertension",  # same normalised title
-            "scope_summary": "from chunk 2",
-            "source_provenance": [
-                {"source_document_id": "d1", "source_page_id": "p2", "content_block_ids": ["b2"]}
-            ],
-        }
-        out = dedup_and_flag_cross_chunk([("chunk-1", [a]), ("chunk-2", [b])])
-        assert len(out) == 1
-        # Provenance was unioned.
-        prov_blocks = sorted(
-            block for entry in out[0]["source_provenance"] for block in entry["content_block_ids"]
-        )
-        assert prov_blocks == ["b1", "b2"]
-        # Lineage tracked.
-        assert set(out[0]["_chunk_lineage"]) == {"chunk-1", "chunk-2"}
-
-    def test_normalisation_collapses_whitespace_and_case(self) -> None:
-        a = {"proposed_title": "Hypertension Management", "source_provenance": []}
-        b = {"proposed_title": "  hypertension   management  ", "source_provenance": []}
-        out = dedup_and_flag_cross_chunk([("chunk-1", [a]), ("chunk-2", [b])])
-        assert len(out) == 1
-
-    def test_distinct_titles_not_merged(self) -> None:
-        a = {"proposed_title": "Hypertension", "source_provenance": []}
-        b = {"proposed_title": "Diabetes", "source_provenance": []}
-        out = dedup_and_flag_cross_chunk([("chunk-1", [a]), ("chunk-2", [b])])
-        assert len(out) == 2
-
-    def test_near_duplicate_flagged_for_review(self, monkeypatch) -> None:
-        s = get_settings()
-        monkeypatch.setattr(s, "stage_c_cross_chunk_similarity_threshold", 0.5)
-
-        # Distinct titles but high trigram overlap.
-        a = {"proposed_title": "Antenatal Care Counselling", "source_provenance": []}
-        b = {"proposed_title": "Antenatal Care Counseling", "source_provenance": []}
-        out = dedup_and_flag_cross_chunk([("chunk-1", [a]), ("chunk-2", [b])])
-        # Two distinct titles, but cross_chunk_review flagged.
-        assert len(out) == 2
-        assert all(c.get("_cross_chunk_review") for c in out)
-
-    def test_within_chunk_pairs_not_flagged(self, monkeypatch) -> None:
-        s = get_settings()
-        monkeypatch.setattr(s, "stage_c_cross_chunk_similarity_threshold", 0.5)
-
-        a = {"proposed_title": "Antenatal Care Counselling", "source_provenance": []}
-        b = {"proposed_title": "Antenatal Care Counseling", "source_provenance": []}
-        # Both in same chunk — should NOT trigger cross-chunk flag.
-        out = dedup_and_flag_cross_chunk([("chunk-1", [a, b])])
-        assert len(out) == 2
-        assert not any(c.get("_cross_chunk_review") for c in out)
-
-    def test_empty_input(self) -> None:
-        assert dedup_and_flag_cross_chunk([]) == []
-
-    def test_default_threshold_catches_sti_substring_overlap(self) -> None:
-        """Regression: the Induction-Hindi run produced two near-duplicate
-        STI candidates (similarity 0.757) that the prior 0.80 threshold
-        missed. Default threshold lowered to 0.70 specifically so this
-        substring-overlap pattern triggers the reviewer flag."""
-        a = {
-            "proposed_title": "Reproductive Tract Infections (RTIs) and Sexually Transmitted Infections (STIs)",
-            "source_provenance": [],
-        }
-        b = {
-            "proposed_title": "Reproductive Tract Infections (RTI), Sexually Transmitted Infections (STI), and HIV/AIDS",
-            "source_provenance": [],
-        }
-        out = dedup_and_flag_cross_chunk([("chunk-2", [a]), ("chunk-3", [b])])
-        assert len(out) == 2
-        assert all(c.get("_cross_chunk_review") for c in out), (
-            "STI substring-overlap pair must flag at the default threshold "
-            "(0.70). Raising the threshold above ~0.75 will silently break "
-            "this case."
-        )

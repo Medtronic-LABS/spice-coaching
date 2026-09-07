@@ -1,4 +1,4 @@
-"""W-8 — TriggerRepository integration tests."""
+"""TriggerRepository integration tests."""
 
 from __future__ import annotations
 

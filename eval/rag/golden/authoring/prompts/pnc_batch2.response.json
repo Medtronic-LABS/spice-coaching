@@ -1,0 +1,137 @@
+{
+  "records": [
+    {
+      "question_en": "Two days after delivery, a mother is soaking one sanitary pad every hour with bright red bleeding. What should I do?",
+      "expected_answer_en": "Excessive vaginal bleeding after delivery is a dangerous sign and a complication. Refer her quickly to the nearest health center.",
+      "question_bn": "প্রসবের দুই দিন পর একজন মা প্রতি ঘন্টায় একটি প্যাড লাল রক্তে ভিজিয়ে ফেলছেন। আমি কী করব?",
+      "expected_answer_bn": "প্রসবের পর যোনিপথ দিয়ে অতিরিক্ত রক্তক্ষরণ একটি বিপদজনক লক্ষণ ও জটিলতা। তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["19f02ebc-872f-49e8-8f47-f53ec29e2a03"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Emergency Management & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "Is fever after delivery a normal postnatal symptom or a danger sign?",
+      "expected_answer_en": "Fever after delivery is a dangerous sign. If the mother develops fever after delivery, it is a complication and she must be referred quickly to the nearest health center.",
+      "question_bn": "প্রসবের পর জ্বর কি স্বাভাবিক প্রসব-পরবর্তী লক্ষণ, নাকি বিপদচিহ্ন?",
+      "expected_answer_bn": "প্রসবের পর জ্বর একটি বিপদজনক লক্ষণ। প্রসবের পর মায়ের জ্বর হলে এটি জটিলতা এবং তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করতে হবে।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["13c7f1e4-e3a8-4fec-94d6-7a87b42aaa75"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Maternal Danger Signs & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "On a home visit, the postpartum mother reports foul-smelling vaginal discharge. Should I manage this at home?",
+      "expected_answer_en": "No. Foul-smelling vaginal discharge after delivery is a dangerous sign and a complication. Refer her quickly to the nearest health center.",
+      "question_bn": "বাড়ি ভিজিটে প্রসূতি মা দুর্গন্ধযুক্ত যোনি স্রাবের কথা বলছেন। এটা বাড়িতে সামলানো যাবে?",
+      "expected_answer_bn": "না। প্রসবের পর যোনিপথে দুর্গন্ধযুক্ত স্রাব একটি বিপদজনক লক্ষণ ও জটিলতা। তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["a030c69d-1621-4ae3-abe6-e9b63e99798c"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Problem Identification & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What immediate action should I take if a postpartum mother has a seizure at home?",
+      "expected_answer_en": "Seizure or fit after delivery is a dangerous sign and a complication. Refer her quickly to the nearest health center without delay.",
+      "question_bn": "বাড়িতে প্রসূতি মায়ের খিঁচুনি হলে আমি সাথে সাথে কী করব?",
+      "expected_answer_bn": "প্রসবের পর খিঁচুনি বা ফিট একটি বিপদজনক লক্ষণ ও জটিলতা। বিলম্ব না করে তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["d3e6a17d-109f-4501-ab76-2387763363dc"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Emergency Management & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A postpartum mother complains of blurred vision. Should I refer her, and where?",
+      "expected_answer_en": "Yes, refer immediately. Blurred vision after delivery is a dangerous sign and a complication. Refer her quickly to the nearest health center.",
+      "question_bn": "প্রসূতি মা চোখে ঝাপসা দেখার অভিযোগ করছেন। রেফার করব? কোথায়?",
+      "expected_answer_bn": "হ্যাঁ, সাথে সাথে রেফার করুন। প্রসবের পর চোখে ঝাপসা দেখা একটি বিপদজনক লক্ষণ ও জটিলতা। তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["b6fa7152-708c-44b7-a580-da87985026ff"],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Referral & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What does severe headache after delivery indicate for the postpartum mother?",
+      "expected_answer_en": "Severe headache after delivery is a dangerous sign. If the mother has severe headache after delivery, it is a complication and she must be referred quickly to the nearest health center.",
+      "question_bn": "প্রসবের পর তীব্র মাথাব্যথা প্রসূতি মায়ের ক্ষেত্রে কী বোঝায়?",
+      "expected_answer_bn": "প্রসবের পর তীব্র মাথাব্যথা একটি বিপদজনক লক্ষণ। প্রসবের পর মায়ের তীব্র মাথাব্যথা হলে এটি জটিলতা এবং তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করতে হবে।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["fe9b6e01-0413-42f1-908c-d2a3352bbbf9"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Symptom Identification",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During a postnatal check, the mother is breathing with difficulty. What is the correct protocol?",
+      "expected_answer_en": "Shortness of breath after delivery is a dangerous sign and a complication. Refer her quickly to the nearest health center.",
+      "question_bn": "প্রসব-পরবর্তী পরীক্ষায় মা শ্বাস নিতে কষ্ট পাচ্ছেন। সঠিক প্রোটোকল কী?",
+      "expected_answer_bn": "প্রসবের পর শ্বাসকষ্ট একটি বিপদজনক লক্ষণ ও জটিলতা। তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["beb97eea-32a1-4ded-abe9-0a5804028904"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Clinical Protocol & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "On a home visit, the mother has severe abdominal pain and swollen painful breasts. How should I prioritize referral?",
+      "expected_answer_en": "Both severe abdominal pain and painful swollen breasts after delivery are dangerous signs and complications. Do not manage at home—refer her quickly to the nearest health center for both conditions.",
+      "question_bn": "বাড়ি ভিজিটে মায়ের প্রচণ্ড পেটে ব্যথা এবং স্তন ব্যথা ও ফোলা দেখা যাচ্ছে। রেফারের ক্ষেত্রে আমি কীভাবে অগ্রাধিকার দেব?",
+      "expected_answer_bn": "প্রসবের পর পেটে তীব্র ব্যথা এবং স্তনে ব্যথা ও ফোলা—উভয়ই বিপদজনক লক্ষণ ও জটিলতা। বাড়িতে চিকিৎসা না করে উভয় ক্ষেত্রেই তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": [
+        "68cc6c0f-5126-416b-95d1-53458109dee4",
+        "7a50059a-985c-45fc-a2ff-30c2781c8919"
+      ],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Maternal Danger Signs & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should I counsel the family when a postpartum mother develops swollen legs after delivery?",
+      "expected_answer_en": "Counsel that swollen legs after delivery is a dangerous sign and a complication—not normal postnatal swelling to wait out. Refer the mother quickly to the nearest health center without delay.",
+      "question_bn": "প্রসবের পর প্রসূতি মায়ের পা ফুলে গেলে পরিবারকে কীভাবে বোঝাব?",
+      "expected_answer_bn": "প্রসবের পর পা ফুলে যাওয়া বিপদজনক লক্ষণ ও জটিলতা—স্বাভাবিক ফোলা নয়। বিলম্ব না করে মাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করতে বলুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["6c82a5f1-7c6c-4f6a-9862-d3584f87c3b3"],
+      "query_type": "Counseling",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Clinical Escalation & Patient Counseling",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "Can I give the postpartum mother paracetamol at home for severe headache and wait to see if it improves?",
+      "expected_answer_en": "No. Severe headache after delivery is a dangerous sign and a complication. Do not delay with home medication—refer her quickly to the nearest health center.",
+      "question_bn": "প্রসূতি মায়ের তীব্র মাথাব্যথায় বাড়িতে প্যারাসিটামল দিয়ে অপেক্ষা করা যাবে?",
+      "expected_answer_bn": "না। প্রসবের পর তীব্র মাথাব্যথা একটি বিপদজনক লক্ষণ ও জটিলতা। বাড়িতে ওষুধ দিয়ে অপেক্ষা না করে তাকে দ্রুত নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["19ebc229-ee76-4706-962d-8f5a6392b838"],
+      "source_card_id": ["fe9b6e01-0413-42f1-908c-d2a3352bbbf9"],
+      "query_type": "Drug / Dosage",
+      "linguistic_variation": "Banglish",
+      "chw_pattern": "Referral & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

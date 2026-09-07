@@ -1,6 +1,6 @@
-"""v3.3 chw_behavioural_gap_state — per-CHW per-behavioural-gap state.
+"""chw_behavioural_gap_state — per-CHW per-behavioural-gap state.
 
-Per Data Model v3.3 §7.1. Named `chw_behavioural_gap_state` (not the spec's
+See `docs/concepts/modules-cards-families.md` Named `chw_behavioural_gap_state` (not the spec's
 logical name `chw_gap_profile`) because the legacy `chw_gap_profile` table
 remains populated during the deprecation window. Once the legacy code path
 is removed, this table can be renamed.

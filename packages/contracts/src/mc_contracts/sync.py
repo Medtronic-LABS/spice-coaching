@@ -148,6 +148,23 @@ class ModulesSyncBundle(BaseModel):
     server_time_utc: str
 
 
+class CardEmbeddingSyncPayload(BaseModel):
+    """One card embedding vector for on-device semantic search."""
+
+    card_id: UUID
+    module_id: UUID
+    card_family_id: UUID
+    embedding: list[float]
+
+
+class CardEmbeddingsSyncBundle(BaseModel):
+    """Delta card embedding vectors for published training modules."""
+
+    cards: list[CardEmbeddingSyncPayload] = Field(default_factory=list)
+    embedding_dimension: int
+    server_time_utc: str
+
+
 class SourceDocumentSyncDownloadPayload(BaseModel):
     """Presigned download payload for one source document on device sync.
 

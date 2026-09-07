@@ -1,0 +1,61 @@
+{
+  "records": [
+    {
+      "question_en": "How should a postnatal mother take iron and calcium tablets after delivery?",
+      "expected_answer_en": "For three months after delivery, take one iron tablet daily at noon on a full stomach. Take two calcium tablets daily—one in the morning and one at night, both on a full stomach. Iron and calcium tablets must not be taken together.",
+      "question_bn": "প্রসবের পর প্রসূতি মা আয়রন ও ক্যালসিয়াম বড়ি কীভাবে খাবেন?",
+      "expected_answer_bn": "বাচ্চা হওয়ার পর তিন মাস পর্যন্ত প্রতিদিন দুপুরে ভরা পেটে একটি করে আয়রন বড়ি খেতে হবে। প্রতিদিন সকালে ও রাতে ভরা পেটে দুটি করে ক্যালসিয়াম বড়ি খেতে হবে। আয়রন ও ক্যালসিয়াম বড়ি একসাথে খাওয়া যাবে না।",
+      "module_id": ["102da01a-b99c-44c1-8469-5f09d87639be"],
+      "source_card_id": ["20b93b58-d6cf-4ce2-9a3d-7d352c7c029f"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Treatment Protocol",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During a home visit three days after delivery, what combined advice should I give the mother about rest, hygiene, supplements, and danger signs?",
+      "expected_answer_en": "Rest fully for 7–10 days and avoid heavy work for 42 days; sleep at least 8 hours and rest 2 hours daily. Use napkins (four per day) instead of cloth, bathe daily, clean breasts, and keep perineal stitches clean and dry. Take iron tablet at noon and calcium tablets morning and night on a full stomach—not together. If any postnatal danger sign appears, refer immediately to hospital or upazila health center.",
+      "question_bn": "প্রসবের তিন দিন পর বাড়ি ভিজিটে মাকে বিশ্রাম, পরিচ্ছন্নতা, সাপ্লিমেন্ট ও বিপদচিহ্ন সম্পর্কে একসাথে কী পরামর্শ দেব?",
+      "expected_answer_bn": "সাত থেকে দশ দিন পূর্ণ বিশ্রামে থাকতে হবে এবং ৪২ দিন পর্যন্ত ভারী কাজ করা যাবে না; প্রতিদিন কমপক্ষে আট ঘন্টা ঘুম ও দুই ঘন্টা বিশ্রাম নিতে হবে। কাপড়ের বদলে দিনে চারটি ন্যাপকিন ব্যবহার করুন, প্রতিদিন গোসল করুন, স্তন পরিষ্কার রাখুন এবং পেরিনিয়ামের সেলাই পরিষ্কার ও শুকনো রাখুন। দুপুরে আয়রন বড়ি এবং সকাল-রাতে ক্যালসিয়াম বড়ি ভরা পেটে খান—একসাথে নয়। প্রসব পরবর্তী বিপদ চিহ্ন দেখা দিলে সাথে সাথে হাসপাতাল বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+      "module_id": ["102da01a-b99c-44c1-8469-5f09d87639be"],
+      "source_card_id": [
+        "20b93b58-d6cf-4ce2-9a3d-7d352c7c029f",
+        "f1c92c05-d7b4-4b76-8c7c-41c9d21cc29f",
+        "18c3171f-d17c-496d-b0fb-a2f4e4402517",
+        "b66830d4-393e-49e8-90a8-3b331729ba8b"
+      ],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Postnatal Maternal Counseling",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A mother asks when she can resume sexual relations and what family planning advice to give after delivery. What should I counsel?",
+      "expected_answer_en": "Sexual relations with husband should not resume for six weeks after delivery. Advise starting any birth control method as soon as possible after delivery. Also counsel that if any postnatal danger sign appears, she must be referred immediately to hospital or upazila health center.",
+      "question_bn": "একজন মা জিজ্ঞেস করছেন কখন স্বামী সহবাস করা যাবে এবং প্রসবের পর পরিবার পরিকল্পনার পরামর্শ কী দেব। কী বলব?",
+      "expected_answer_bn": "প্রসবের ছয় সপ্তাহ পর্যন্ত স্বামী সহবাস করা যাবে না। প্রসবের পর দ্রুততম সময়ে যেকোনো জন্ম নিয়ন্ত্রণ পদ্ধতি গ্রহণ করতে পরামর্শ দিন। প্রসব পরবর্তী বিপদ চিহ্ন দেখা দিলে সাথে সাথে হাসপাতাল বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করতে হবে—এটাও জানান।",
+      "module_id": ["102da01a-b99c-44c1-8469-5f09d87639be"],
+      "source_card_id": ["b66830d4-393e-49e8-90a8-3b331729ba8b"],
+      "query_type": "Counseling",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Counseling & Home Management",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "The mother wants to take iron and calcium tablets together after lunch to remember both. Is this correct?",
+      "expected_answer_en": "No. After delivery, take one iron tablet daily at noon on a full stomach for three months. Take two calcium tablets daily—one in the morning and one at night on a full stomach. Iron and calcium tablets must not be taken together.",
+      "question_bn": "মা দুপুরের খাবারের পর আয়রন ও ক্যালসিয়াম বড়ি একসাথে খেতে চান যাতে মনে থাকে। এটা কি ঠিক?",
+      "expected_answer_bn": "না। বাচ্চা হওয়ার পর তিন মাস পর্যন্ত প্রতিদিন দুপুরে ভরা পেটে একটি করে আয়রন বড়ি খেতে হবে। প্রতিদিন সকালে ও রাতে ভরা পেটে দুটি করে ক্যালসিয়াম বড়ি খেতে হবে। আয়রন ও ক্যালসিয়াম বড়ি একসাথে খাওয়া যাবে না।",
+      "module_id": ["102da01a-b99c-44c1-8469-5f09d87639be"],
+      "source_card_id": ["20b93b58-d6cf-4ce2-9a3d-7d352c7c029f"],
+      "query_type": "Drug / Dosage",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Treatment Protocol",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

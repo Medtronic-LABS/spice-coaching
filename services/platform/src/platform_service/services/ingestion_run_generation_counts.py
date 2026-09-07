@@ -14,7 +14,7 @@ from platform_service.db.repositories.ingestion_run_generation_counts_repository
     IngestionRunGenerationCountsRepository,
 )
 from platform_service.services.module_presenter import get_card_counts, get_quiz_counts
-from platform_service.services.run_state.constants import STAGE_CARD_DRAFT, as_error_object
+from platform_service.services.run_state.constants import STAGE_CARD_DRAFT
 
 logger = logging.getLogger(__name__)
 
@@ -162,19 +162,5 @@ class IngestionRunGenerationCountsService:
             await self.upsert_for_run(run.id)
 
     async def upsert_after_run_complete(self, run: IngestionRun) -> None:
-        """Write this run's snapshot; if fusion, refresh sibling pipeline rows."""
+        """Write this run's snapshot after it reaches a terminal status."""
         await self.upsert_for_run(run.id)
-        from platform_service.services.run_state_service import RunStateService
-
-        if not RunStateService.is_fusion_run(run) or run.ingest_batch_id is None:
-            return
-        raw_ids = as_error_object(run.error_jsonb).get("source_document_ids") or []
-        source_ids: list[UUID] = []
-        for raw in raw_ids:
-            try:
-                source_ids.append(UUID(str(raw)))
-            except (TypeError, ValueError):
-                continue
-        if not source_ids:
-            return
-        await self.refresh_for_batch_source_documents(run.ingest_batch_id, source_ids)

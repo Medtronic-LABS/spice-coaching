@@ -1,4 +1,4 @@
-"""W-8 — trigger_predicate_validator: shape + reference validation."""
+"""trigger_predicate_validator: shape + reference validation."""
 
 from __future__ import annotations
 

@@ -32,7 +32,7 @@ import argparse
 import asyncio
 from uuid import UUID
 
-from platform_service.celery_tasks import generate_module_embedding_task
+from platform_service.celery_enqueue import enqueue_module_embedding
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
 from platform_service.localized import primary_text
@@ -70,7 +70,7 @@ async def _run(*, dry_run: bool, missing_only: bool) -> int:
 
     enqueued = 0
     for module_id, title in modules:
-        generate_module_embedding_task.delay(str(module_id))
+        enqueue_module_embedding(str(module_id))
         print(f"enqueued {module_id}  {title!r}")
         enqueued += 1
     print(f"Done. enqueued={enqueued}")

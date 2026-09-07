@@ -24,6 +24,7 @@ from platform_service.services.source_path_materialize import materialize_local_
 from platform_service.workers.pipeline.types import PipelineResult
 
 if TYPE_CHECKING:
+    # Circular: pipeline_orchestrator imports drive_pipeline from this module.
     from platform_service.workers.pipeline_orchestrator import PipelineOrchestrator
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ async def drive_pipeline(
     result_box: list[PipelineResult],
     run_id: UUID | None = None,
     identify_chunk_ids: list[str] | None = None,
+    stop_after_identify: bool = False,
 ) -> None:
     """Single A→identify→draft state machine."""
     claim_token = str(uuid.uuid4())
@@ -177,6 +179,14 @@ async def drive_pipeline(
             result.final_status = RUN_PARTIALLY_SUCCEEDED
             return
         result.candidates_emitted = candidates_emitted
+
+        if stop_after_identify:
+            logger.info(
+                "Stopping after module_identify for run_id=%s (batch candidate merge next)",
+                resolved_run_id,
+            )
+            result.final_status = RUN_RUNNING
+            return
 
         async with orchestrator._stage_context(staged_sessions) as orch:
             await orch._run_state.refresh_run_claim(resolved_run_id, claim_token=claim_token)

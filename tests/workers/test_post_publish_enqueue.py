@@ -87,9 +87,12 @@ class TestEnqueuePostPublishSteps:
         mock_trigger = MagicMock()
 
         with (
-            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
-            patch("platform_service.celery_tasks.bind_assessment_triggers_task", mock_trigger),
+            patch("platform_service.services.draft_pipeline.enqueue_module_quiz", mock_quiz),
+            patch("platform_service.services.draft_pipeline.enqueue_classify_module_gaps", mock_gap),
+            patch(
+                "platform_service.services.draft_pipeline.enqueue_bind_assessment_triggers",
+                mock_trigger,
+            ),
         ):
             await stage_d._enqueue_post_publish(
                 module_id,
@@ -110,9 +113,9 @@ class TestEnqueuePostPublishSteps:
         assert STAGE_GAP_CLASSIFICATION in stages
         assert STAGE_TRIGGER_BINDING not in stages
         assert stages[STAGE_QUIZ_GENERATION].status == "running"
-        mock_quiz.delay.assert_called_once()
-        mock_gap.delay.assert_called_once()
-        mock_trigger.delay.assert_not_called()
+        mock_quiz.assert_called_once()
+        mock_gap.assert_called_once()
+        mock_trigger.assert_not_called()
 
     async def test_passes_quiz_size_when_batch_has_target(
         self,
@@ -129,8 +132,8 @@ class TestEnqueuePostPublishSteps:
         mock_gap = MagicMock()
 
         with (
-            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
+            patch("platform_service.services.draft_pipeline.enqueue_module_quiz", mock_quiz),
+            patch("platform_service.services.draft_pipeline.enqueue_classify_module_gaps", mock_gap),
         ):
             await stage_d._enqueue_post_publish(
                 module_id,
@@ -139,8 +142,8 @@ class TestEnqueuePostPublishSteps:
                 candidate_id=cand.id,
             )
 
-        mock_quiz.delay.assert_called_once()
-        assert mock_quiz.delay.call_args.kwargs.get("quiz_size") == 6
+        mock_quiz.assert_called_once()
+        assert mock_quiz.call_args.kwargs.get("quiz_size") == 6
 
         run_row = await db_session.get(IngestionRun, run.id)
         assert run_row is not None
@@ -153,8 +156,8 @@ class TestEnqueuePostPublishSteps:
         mock_gap = MagicMock()
 
         with (
-            patch("platform_service.celery_tasks.generate_module_quiz_task", mock_quiz),
-            patch("platform_service.celery_tasks.classify_module_gaps_task", mock_gap),
+            patch("platform_service.services.draft_pipeline.enqueue_module_quiz", mock_quiz),
+            patch("platform_service.services.draft_pipeline.enqueue_classify_module_gaps", mock_gap),
         ):
             await stage_d._enqueue_post_publish(
                 module_id,
@@ -173,5 +176,5 @@ class TestEnqueuePostPublishSteps:
         quiz_steps = [s for s in steps if s.stage == STAGE_QUIZ_GENERATION]
         assert len(quiz_steps) == 1
         assert quiz_steps[0].status == STEP_SKIPPED
-        mock_quiz.delay.assert_not_called()
-        mock_gap.delay.assert_called_once()
+        mock_quiz.assert_not_called()
+        mock_gap.assert_called_once()

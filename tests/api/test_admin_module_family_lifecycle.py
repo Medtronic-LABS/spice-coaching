@@ -23,6 +23,9 @@ from platform_service.api.sync import router as sync_router
 from platform_service.config import get_settings
 from platform_service.db.models.chw_module_completion import CHWModuleCompletion
 from platform_service.db.models.module import Module
+from platform_service.db.repositories.module_lifecycle_repository import (
+    ModuleLifecycleRepository,
+)
 from platform_service.deps import get_ai_client, get_db, get_object_storage_client
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -292,10 +295,6 @@ class TestDeactivatedExcludedFromRuntime:
 
 class TestModuleLifecycleRepository:
     async def test_reactivate_preserves_completion_rows(self, db_session: AsyncSession) -> None:
-        from platform_service.db.repositories.module_lifecycle_repository import (
-            ModuleLifecycleRepository,
-        )
-
         mod = await _seed_module(db_session, title_localized=loc("persist"))
         family_id = mod.module_family_id
         db_session.add(

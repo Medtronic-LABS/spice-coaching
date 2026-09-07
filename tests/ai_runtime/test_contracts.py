@@ -1,6 +1,6 @@
-"""W-AI-RUNTIME unit tests — contract additions for v3.3.
+"""AI-runtime contract unit tests.
 
-Verifies the GenerationType enum carries the new v3.3 task types and that
+Verifies the GenerationType enum carries the content-pipeline task types and that
 InferenceRequest accepts optional image_attachments.
 """
 
@@ -25,9 +25,10 @@ from pydantic import ValidationError
 
 
 class TestGenerationTypeEnum:
-    def test_v33_pipeline_types_present(self) -> None:
+    def test_pipeline_generation_types_present(self) -> None:
         assert GenerationType.OUTLINE_INFERENCE.value == "outline_inference"
         assert GenerationType.MODULE_IDENTIFICATION.value == "module_identification"
+        assert GenerationType.CANDIDATE_MERGE.value == "candidate_merge"
         assert GenerationType.CARD_DRAFTING.value == "card_drafting"
         assert GenerationType.MODULE_PUBLISHED_MERGE.value == "module_published_merge"
         assert GenerationType.QUIZ_DRAFTING.value == "quiz_drafting"
@@ -142,7 +143,7 @@ class TestInferenceRequestImages:
         assert rebuilt.image_attachments == []
 
 
-# ── TraceContext v3.3 fields ────────────────────────────────────────────
+# ── TraceContext fields ────────────────────────────────────────────
 
 
 class TestTraceContextV33:
@@ -185,7 +186,7 @@ class TestInferenceResponseParsedJson:
         assert isinstance(resp.parsed_json, dict)
 
     def test_parsed_json_accepts_list(self) -> None:
-        """v3.3 widening: module_identification etc. return top-level arrays."""
+        """Widening: module_identification etc. return top-level arrays."""
         resp = InferenceResponse(
             request_id="r",
             generation_type=GenerationType.MODULE_IDENTIFICATION,

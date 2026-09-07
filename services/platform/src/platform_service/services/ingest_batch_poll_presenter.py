@@ -28,7 +28,6 @@ from platform_service.services.ingest_run_error_summary import (
     summarize_ingestion_run_error,
 )
 from platform_service.services.ingestion_run_presenter import IngestionRunPresenter
-from platform_service.services.run_state.constants import as_error_object
 from platform_service.services.run_state.steps import is_module_identify_chunk_step
 from platform_service.services.run_state_service import (
     POST_PUBLISH_STAGES,
@@ -96,8 +95,6 @@ def _step_node(step: IngestionRunStep) -> dict[str, Any]:
     }
     if activity:
         node["activity"] = activity
-    if poll.get("fusion") is True:
-        node["fusion"] = True
     if "published_module_merge" in poll:
         node["published_module_merge"] = poll["published_module_merge"]
     if step.input_summary_jsonb is not None:
@@ -152,43 +149,65 @@ def _chunk_node(step: IngestionRunStep) -> dict[str, Any]:
     return node
 
 
-def _home_chunk_id(cand: ModuleCandidateDraft | None) -> str | None:
-    """Pipeline provenance home: first source_chunk_ids entry, if any."""
-    if cand is None:
-        return None
-    ids = cand.source_chunk_ids
-    if not ids:
-        return None
-    first = ids[0]
-    if first is None or first == "":
-        return None
-    return str(first)
+def _chunk_ids_for_source(cand: ModuleCandidateDraft, source_document_id: UUID) -> list[str]:
+    """Chunk ids on this source that should show ``cand`` in the poll tree."""
+    flags = cand.quality_flags_jsonb or {}
+    lineage = flags.get("merge_lineage") or {}
+    refs = lineage.get("chunk_refs") or []
+    if isinstance(refs, list) and refs:
+        source_str = str(source_document_id)
+        out: list[str] = []
+        for ref in refs:
+            if not isinstance(ref, dict):
+                continue
+            if str(ref.get("source_document_id")) != source_str:
+                continue
+            chunk_id = ref.get("chunk_id")
+            if chunk_id:
+                out.append(str(chunk_id))
+        return out
+    return [str(x) for x in (cand.source_chunk_ids or []) if x]
+
+
+def _candidate_visible_on_source(cand: ModuleCandidateDraft, source_document_id: UUID) -> bool:
+    if _chunk_ids_for_source(cand, source_document_id):
+        return True
+    for entry in cand.source_provenance_jsonb or []:
+        if isinstance(entry, dict) and str(entry.get("source_document_id")) == str(source_document_id):
+            return True
+    return False
 
 
 def build_run_tree(
     *,
     steps: list[IngestionRunStep],
     candidates: list[ModuleCandidateDraft],
+    source_document_id: UUID,
+    candidate_steps: dict[str, list[IngestionRunStep]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Assemble progressed-only nodes for one pipeline (or fusion) run."""
+    """Assemble progressed-only nodes for one pipeline run."""
     prefix = [s for s in steps if s.stage in _PREFIX_STAGE_ORDER]
     nodes = [_step_node(s) for s in _sort_steps(prefix, _PREFIX_STAGE_ORDER)]
 
-    by_candidate: dict[str, list[IngestionRunStep]] = {}
-    for step in steps:
-        if step.stage not in _CANDIDATE_STAGE_ORDER:
-            continue
-        cand_id = _candidate_id_from_step(step)
-        if cand_id is None:
-            continue
-        by_candidate.setdefault(cand_id, []).append(step)
+    by_candidate: dict[str, list[IngestionRunStep]] = dict(candidate_steps or {})
+    if not by_candidate:
+        for step in steps:
+            if step.stage not in _CANDIDATE_STAGE_ORDER:
+                continue
+            cand_id = _candidate_id_from_step(step)
+            if cand_id is None:
+                continue
+            by_candidate.setdefault(cand_id, []).append(step)
 
-    candidates_by_id = {str(c.id): c for c in candidates}
-    # Preserve candidate emission order; append orphan candidate_ids from steps.
-    ordered_ids = [str(c.id) for c in candidates if str(c.id) in by_candidate]
+    visible = [c for c in candidates if _candidate_visible_on_source(c, source_document_id)]
+    candidates_by_id = {str(c.id): c for c in visible}
+    ordered_ids = [str(c.id) for c in visible]
     for cand_id in by_candidate:
-        if cand_id not in ordered_ids:
-            ordered_ids.append(cand_id)
+        if cand_id not in ordered_ids and cand_id in {str(c.id) for c in candidates}:
+            cand = next((c for c in candidates if str(c.id) == cand_id), None)
+            if cand is not None and _candidate_visible_on_source(cand, source_document_id):
+                ordered_ids.append(cand_id)
+                candidates_by_id[cand_id] = cand
 
     identify_all = [s for s in steps if s.stage == STAGE_MODULE_IDENTIFY]
     parent_steps = [s for s in identify_all if not is_module_identify_chunk_step(s)]
@@ -198,30 +217,36 @@ def build_run_tree(
 
     for cand_id in ordered_ids:
         cand = candidates_by_id.get(cand_id)
-        home = _home_chunk_id(cand)
-        chunk_node = chunks_by_id.get(home) if home is not None else None
-        if chunk_node is None:
-            # Missing lineage or unknown chunk: omit from the tree.
+        if cand is None:
+            continue
+        chunk_ids = _chunk_ids_for_source(cand, source_document_id)
+        if not chunk_ids:
             continue
         proposed = cand.proposed_title if cand is not None else ""
         title, description = candidate_catalog_entry(proposed)
-        child_steps = _sort_steps(by_candidate[cand_id], _CANDIDATE_STAGE_ORDER)
+        child_steps = _sort_steps(by_candidate.get(cand_id, []), _CANDIDATE_STAGE_ORDER)
         child_nodes = [_step_node(s) for s in child_steps]
-        branch = {
+        status = _candidate_branch_status(child_steps) if child_steps else STEP_PENDING
+        started = child_steps[0].started_at.isoformat() if child_steps and child_steps[0].started_at else None
+        branch_base = {
             "key": "candidate",
             "title": title,
             "description": description,
-            "status": _candidate_branch_status(child_steps),
+            "status": status,
             "candidate_id": cand_id,
             "proposed_title": proposed or None,
-            "started_at": child_steps[0].started_at.isoformat() if child_steps[0].started_at else None,
+            "started_at": started,
             "completed_at": None,
             "error": None,
             "children": child_nodes,
         }
-        if branch["status"] == "partially_succeeded" and not branch.get("error"):
-            branch["error"] = summarize_error_from_failed_children(child_nodes)
-        chunk_node["children"].append(branch)
+        if branch_base["status"] == "partially_succeeded" and not branch_base.get("error"):
+            branch_base["error"] = summarize_error_from_failed_children(child_nodes)
+        for chunk_id in chunk_ids:
+            chunk_node = chunks_by_id.get(chunk_id)
+            if chunk_node is None:
+                continue
+            chunk_node["children"].append(dict(branch_base))
 
     for chunk_node in chunk_nodes:
         identify_status = str(chunk_node["status"])
@@ -254,7 +279,6 @@ def build_run_tree(
                 identify_node["error"] = summarize_error_from_failed_children(chunk_nodes)
         nodes.append(identify_node)
 
-    # Fusion / other non-shared stages without candidate_id (e.g. cross_source_fusion).
     covered = set(_SHARED_STAGE_ORDER) | set(_CANDIDATE_STAGE_ORDER)
     extras = [s for s in steps if s.stage not in covered]
     for step in sorted(
@@ -332,10 +356,8 @@ class IngestBatchPollPresenter:
             return None
 
         runs = await self._state.list_runs_for_batch(batch_id)
-        pipeline_runs = [r for r in runs if not RunStateService.is_fusion_run(r)]
-        fusion_runs = [r for r in runs if RunStateService.is_fusion_run(r)]
 
-        doc_ids = list({r.source_document_id for r in pipeline_runs})
+        doc_ids = list({r.source_document_id for r in runs})
         docs_by_id: dict[UUID, SourceDocument] = {}
         if doc_ids:
             docs_result = await self._session.execute(
@@ -343,13 +365,26 @@ class IngestBatchPollPresenter:
             )
             docs_by_id = {d.id: d for d in docs_result.scalars().all()}
 
+        all_candidates = await self._candidate_repo.list_candidates_for_runs([r.id for r in runs])
+        steps_by_run: dict[UUID, list[IngestionRunStep]] = {}
+        candidate_steps: dict[str, list[IngestionRunStep]] = {}
+        for run in runs:
+            steps = await self._state.list_steps(run.id)
+            steps_by_run[run.id] = steps
+            for step in steps:
+                if step.stage not in _CANDIDATE_STAGE_ORDER:
+                    continue
+                cand_id = _candidate_id_from_step(step)
+                if cand_id is None:
+                    continue
+                candidate_steps.setdefault(cand_id, []).append(step)
+
         sources: list[dict[str, Any]] = []
         retries: list[dict[str, Any]] = []
         source_errors: list[dict[str, Any] | None] = []
         document_labels: list[str] = []
-        for run in pipeline_runs:
-            steps = await self._state.list_steps(run.id)
-            candidates = await self._candidate_repo.list_candidates_for_run(run.id)
+        for run in runs:
+            steps = steps_by_run[run.id]
             blocked = run.status == RUN_RUNNING and self._state.has_active_pipeline_claim(run)
             label = _document_label(docs_by_id.get(run.source_document_id))
             run_error = summarize_ingestion_run_error(
@@ -366,10 +401,14 @@ class IngestBatchPollPresenter:
                     "started_at": run.started_at.isoformat() if run.started_at else None,
                     "completed_at": run.completed_at.isoformat() if run.completed_at else None,
                     "error": run_error,
-                    "nodes": build_run_tree(steps=steps, candidates=candidates),
+                    "nodes": build_run_tree(
+                        steps=steps,
+                        candidates=all_candidates,
+                        source_document_id=run.source_document_id,
+                        candidate_steps=candidate_steps,
+                    ),
                 }
             )
-            # Include any non-succeeded terminal run in batch causes.
             if run.status in (RUN_PARTIALLY_SUCCEEDED, RUN_FAILED):
                 source_errors.append(run_error)
             else:
@@ -383,48 +422,6 @@ class IngestBatchPollPresenter:
                     blocked_by_active_claim=blocked,
                 )
             )
-
-        if fusion_runs:
-            fusion_run = fusion_runs[-1]
-            steps = await self._state.list_steps(fusion_run.id)
-            candidates = await self._candidate_repo.list_candidates_for_run(fusion_run.id)
-            fusion_title, fusion_description = catalog_entry("fusion")
-            fusion_error = summarize_ingestion_run_error(
-                fusion_run.error_jsonb,
-                steps=steps,
-                status=fusion_run.status,
-            )
-            fusion_payload: dict[str, Any] = {
-                "key": "fusion",
-                "title": fusion_title,
-                "description": fusion_description,
-                "run_id": str(fusion_run.id),
-                "status": fusion_run.status,
-                "started_at": fusion_run.started_at.isoformat() if fusion_run.started_at else None,
-                "completed_at": fusion_run.completed_at.isoformat() if fusion_run.completed_at else None,
-                "error": fusion_error,
-                "source_document_ids": as_error_object(fusion_run.error_jsonb).get("source_document_ids"),
-                "nodes": build_run_tree(steps=steps, candidates=candidates),
-            }
-            retries.extend(
-                _retry_targets_for_run(
-                    batch_id=batch_id,
-                    run=fusion_run,
-                    steps=steps,
-                    blocked_by_active_claim=(
-                        fusion_run.status == RUN_RUNNING and self._state.has_active_pipeline_claim(fusion_run)
-                    ),
-                )
-            )
-            if fusion_run.status in (RUN_PARTIALLY_SUCCEEDED, RUN_FAILED):
-                fusion_cause = {
-                    k: v for k, v in (fusion_error or {}).items() if k not in ("type", "source_document_ids")
-                }
-                if fusion_cause:
-                    source_errors.append(fusion_cause)
-                    document_labels.append("fusion")
-        else:
-            fusion_payload = None
 
         users_by_id: dict[int, HierarchyUser] = {}
         if batch.ingested_by is not None:
@@ -450,6 +447,4 @@ class IngestBatchPollPresenter:
                 get_settings().api_path(f"/admin/ingest/batches/{batch_id}/retry") if retries else None
             ),
         }
-        if fusion_payload is not None:
-            payload["fusion"] = fusion_payload
         return payload

@@ -1,4 +1,4 @@
-"""W-2 Stage A — quality_heuristic unit tests.
+"""Stage A — quality_heuristic unit tests.
 
 Pure-function tests of the per-page text-extraction quality scorer.
 """

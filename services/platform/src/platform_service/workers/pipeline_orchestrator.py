@@ -1,4 +1,4 @@
-"""W-7 — pipeline orchestrator.
+"""Pipeline orchestrator.
 
 Drives one source_document through Stages A → B → C → D, persisting
 ingestion_run + ingestion_run_step state at every transition. Designed to
@@ -145,6 +145,7 @@ class PipelineOrchestrator:
         staged_sessions: bool = False,
         run_id: UUID | None = None,
         identify_chunk_ids: list[str] | None = None,
+        stop_after_identify: bool = False,
     ) -> PipelineResult:
         """Execute the full A→B→C→D pipeline for one source document.
 
@@ -156,6 +157,9 @@ class PipelineOrchestrator:
 
         When ``identify_chunk_ids`` is set, Stage C only re-identifies those
         chunks (admin per-chunk retry).
+
+        When ``stop_after_identify`` is True, the pipeline returns after Stage C
+        without drafting or finalizing so the batch job can merge candidates.
 
         When ``staged_sessions=True``, each pipeline stage uses its own DB
         session so long-running LLM work does not hold a connection for hours.
@@ -174,6 +178,7 @@ class PipelineOrchestrator:
             result_box=result_box,
             run_id=run_id,
             identify_chunk_ids=identify_chunk_ids,
+            stop_after_identify=stop_after_identify,
         )
         return result_box[0]
 

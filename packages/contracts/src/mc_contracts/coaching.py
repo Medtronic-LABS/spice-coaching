@@ -20,6 +20,39 @@ class CoachingRagRequest(BaseModel):
             "Must be the deployment primary locale or a code listed in DEPLOYMENT_ADDITIONAL_LOCALES."
         ),
     )
+    include_generation_context: bool = Field(
+        False,
+        description=(
+            "When true, echo the exact retrieval context string sent to the LLM in "
+            "`generation_context` on the response. Intended for offline RAG evaluation."
+        ),
+    )
+    use_local: bool = Field(
+        False,
+        description=(
+            "When true, embed the query and generate the answer via ai-runtime local "
+            "models (EmbeddingGemma + Qwen3) and retrieve modules from "
+            "module.local_embedding instead of module.embedding."
+        ),
+    )
+
+
+class CoachingLocalRagRequest(BaseModel):
+    question: str = Field(..., min_length=3, max_length=4000)
+    response_language: str = Field(
+        "",
+        description=(
+            "Preferred language for the `answer` field. When empty, the deployment primary locale is used. "
+            "Must be the deployment primary locale or a code listed in DEPLOYMENT_ADDITIONAL_LOCALES."
+        ),
+    )
+    include_generation_context: bool = Field(
+        False,
+        description=(
+            "When true, echo the exact retrieval context string sent to the LLM in "
+            "`generation_context` on the response. Intended for offline RAG evaluation."
+        ),
+    )
 
 
 class RetrievedModuleHit(BaseModel):
@@ -94,5 +127,12 @@ class CoachingRagResponse(BaseModel):
         description=(
             "Follow-up questions answerable from retrieved module content; "
             "language matches request response_language."
+        ),
+    )
+    generation_context: str | None = Field(
+        default=None,
+        description=(
+            "Exact retrieval context passed to the answer LLM when "
+            "`include_generation_context` was true on the request; null otherwise."
         ),
     )

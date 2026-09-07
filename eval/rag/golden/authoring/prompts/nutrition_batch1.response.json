@@ -1,0 +1,82 @@
+{
+  "records": [
+    {
+      "question_en": "For a child with mild to moderate malnutrition on the growth chart, from what age should micronutrient powder (পুষ্টিকণা) be given alongside family food, and until what age?",
+      "expected_answer_en": "From after six months complete until five years of age, give micronutrient powder with the child's family food.",
+      "question_bn": "গ্রোথ চার্টে স্বল্প বা মাঝারি অপুষ্টির শিশুর জন্য পারিবারিক খাবারের সঙ্গে 'পুষ্টিকণা' কত বয়স থেকে এবং কত বয়স পর্যন্ত দিতে হবে?",
+      "expected_answer_bn": "৬ মাস পূর্ণ হওয়ার পর থেকে ৫ বছর বয়স পর্যন্ত শিশুদের পারিবারিক খাবারের সাথে 'পুষ্টিকণা' খাওয়াতে হবে।",
+      "module_id": ["519a4bfc-2c2d-458c-93d6-e117cc4df8cd"],
+      "source_card_id": ["af1d5340-b054-436b-9cf5-bfc281e0fa16"],
+      "query_type": "Drug / Dosage",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Treatment Protocol",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During today's visit I plotted the child's weight and the line falls in the light yellow zone of the growth chart. What does this mean and what should I advise the mother?",
+      "expected_answer_en": "A line in the light yellow zone indicates mild malnutrition. Advise the mother that until six months the child should receive only breast milk. From seven months, give family food as complementary feeding alongside breast milk. Daily feed fish/meat/egg, vegetables, thick lentil, and rice, plus nutritious snacks (dairy foods and seasonal fruits). Continue breastfeeding until two years. Also give micronutrient powder with family food from after six months until five years.",
+      "question_bn": "আজ ভিজিটে শিশুর ওজন গ্রোথ চার্টে দাগ দিলাম, দাগটি হালকা হলুদ রঙের ঘরে পড়েছে। এর মানে কী এবং মাকে কী পরামর্শ দেব?",
+      "expected_answer_bn": "হালকা হলুদ রঙের ঘরে দাগ থাকলে শিশুর স্বল্প অপুষ্টি। মাকে পরামর্শ দিন যে ৬ মাস বয়স পর্যন্ত শিশুকে শুধুমাত্র বুকের দুধ খাওয়াতে হবে। ৭ মাস বয়স থেকে বুকের দুধের পাশাপাশি পারিবারিক খাবার বাড়তি খাবার হিসেবে দিতে হবে। প্রতিদিন মাছ/মাংস/ডিম, শাক-সবজি, ঘন ডাল ও ভাত, সঙ্গে পুষ্টিকর নাশতা (দুধের তৈরি খাবার ও মৌসুমি ফল) দিন। ২ বছর বয়স পর্যন্ত বুকের দুধ চালিয়ে যান। ৬ মাস পূর্ণ হওয়ার পর থেকে ৫ বছর বয়স পর্যন্ত পুষ্টিকণাও দিন।",
+      "module_id": ["519a4bfc-2c2d-458c-93d6-e117cc4df8cd"],
+      "source_card_id": ["f261e2f1-781a-4be0-ad80-1957757d17c7", "af1d5340-b054-436b-9cf5-bfc281e0fa16"],
+      "query_type": "Situational",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is a growth chart or weight-gain chart, and what is it used for?",
+      "expected_answer_en": "A growth chart (also called a weight-gain chart) is used to monitor a child's growth. Through this chart, the child's nutritional status is observed.",
+      "question_bn": "গ্রোথ চার্ট বা ওজন বৃদ্ধির চার্ট কী, এবং এটি কিসের জন্য ব্যবহার করা হয়?",
+      "expected_answer_bn": "যে চার্ট দিয়ে শিশুর বৃদ্ধি পর্যবেক্ষণ করা হয়, তাকে গ্রোথ চার্ট বা 'ওজন বৃদ্ধির চার্ট' বলা হয়। এই চার্টের মাধ্যমে শিশুর পুষ্টি অবস্থা পর্যবেক্ষণ করা হয়।",
+      "module_id": ["519a4bfc-2c2d-458c-93d6-e117cc4df8cd"],
+      "source_card_id": ["62455d97-43c8-4df5-b56b-c202fe94cd26"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "An 8-month-old's growth line has dropped into the dark yellow zone. The mother says she gives only breast milk because the baby refuses family food. What counseling should I provide?",
+      "expected_answer_en": "A line in the dark yellow zone indicates moderate malnutrition. Counsel that from seven months onward the child needs family food alongside breast milk — breast milk alone is insufficient after six months. Feed daily fish/meat/egg, vegetables, thick lentil, and rice, plus nutritious snacks. Continue breastfeeding until two years and give micronutrient powder with family food until five years. Encourage repeated gentle attempts with age-appropriate food texture.",
+      "question_bn": "৮ মাসের শিশুর গ্রোথ চার্টের দাগ গাঢ় হলুদ ঘরে নেমে এসেছে। মা বলছেন শিশু পারিবারিক খাবার খায় না, তাই শুধু বুকের দুধ দেন। আমি কী পরামর্শ দেব?",
+      "expected_answer_bn": "গাঢ় হলুদ রঙের ঘরে দাগ থাকলে শিশুর মাঝারি অপুষ্টি। পরামর্শ দিন যে ৭ মাস থেকে বুকের দুধের পাশাপাশি পারিবারিক খাবার দিতে হবে — ছয় মাসের পর শুধু দুধ যথেষ্ট নয়। প্রতিদিন মাছ/মাংস/ডিম, শাক-সবজি, ঘন ডাল ও ভাত, সঙ্গে পুষ্টিকর নাশতা দিন। ২ বছর পর্যন্ত বুকের দুধ ও ৫ বছর পর্যন্ত পুষ্টিকণা চালিয়ে যান। বয়স অনুযায়ী খাবারের গঠনে বারবার সহজ চেষ্টা করতে উৎসাহ দিন।",
+      "module_id": ["519a4bfc-2c2d-458c-93d6-e117cc4df8cd"],
+      "source_card_id": ["f261e2f1-781a-4be0-ad80-1957757d17c7", "af1d5340-b054-436b-9cf5-bfc281e0fa16"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Motivational Counseling & Overcoming Reluctance",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is the correct procedure for filling in a child's growth chart during a home visit?",
+      "expected_answer_en": "First write the child's date of birth in the 'date of birth' field and birth weight in the 'birth weight (kg)' field if the mother knows it. Write the service date in the age row at the bottom of the chart. Weigh the child and mark a dot on the chart at the corresponding weight for that age. At each subsequent visit, weigh again, mark a dot, and connect consecutive dots with a line using a scale.",
+      "question_bn": "হোম ভিজিটে শিশুর গ্রোথ চার্ট পূরণ করার সঠিক পদ্ধতি কী?",
+      "expected_answer_bn": "প্রথমে 'শিশুর জন্মতারিখ' ঘরে জন্মতারিখ এবং 'শিশুর জন্ম ওজন (কেজি)' ঘরে জন্মের সময়ের ওজন লিখুন (মা জানালে)। চার্টের নিচে বয়সের ঘরে সেবা গ্রহণের তারিখ লিখুন। শিশুর ওজন মেপে চার্টে সেই ওজন থেকে বয়স বরাবর ফোটা দিন। পরবর্তী প্রতিটি ভিজিটে ওজন মেপে ফোটা দিন এবং পরপর দুইটি ফোটা স্কেল দিয়ে সংযুক্ত করে দাগ দিন।",
+      "module_id": ["519a4bfc-2c2d-458c-93d6-e117cc4df8cd"],
+      "source_card_id": ["378e6e49-9680-4dbc-b0c3-29f51eb849bb", "2031c3d1-8fd5-4d96-92f8-f27d10854893"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Diagnostic Procedure",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "The growth chart line for a 14-month-old boy falls in the red zone. What does this indicate and what is my immediate action?",
+      "expected_answer_en": "A line in the red zone indicates severe malnutrition. Refer the child immediately to the nearest hospital for care by a doctor.",
+      "question_bn": "১৪ মাসের এক ছেলে শিশুর গ্রোথ চার্টের দাগ লাল রঙের ঘরে পড়েছে। এর মানে কী এবং আমার তাৎক্ষণিক করণীয় কী?",
+      "expected_answer_bn": "লাল রঙের ঘরে দাগ থাকলে শিশুর মারাত্মক অপুষ্টি। শিশুকে অবিলম্বে নিকটবর্তী হাসপাতালে চিকিৎসকের কাছে রেফার করতে হবে।",
+      "module_id": ["519a4bfc-2c2d-458c-93d6-e117cc4df8cd"],
+      "source_card_id": ["f261e2f1-781a-4be0-ad80-1957757d17c7", "af1d5340-b054-436b-9cf5-bfc281e0fa16"],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Emergency Management & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

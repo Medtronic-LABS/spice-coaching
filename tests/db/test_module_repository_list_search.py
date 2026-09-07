@@ -9,10 +9,13 @@ from uuid import uuid4
 import pytest
 from asyncpg import Range
 from platform_service.db.models.module_assignment import ModuleAssignment
+from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_quiz_question import ModuleQuizQuestion
 from platform_service.db.repositories.module_repository import (
     ModuleRepository,
 )
+from platform_service.vectorstore import CARDS_LOCAL_COLLECTION, PgVectorStore
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import requires_db
@@ -762,6 +765,82 @@ class TestSearchByEmbedding:
         repo = ModuleRepository(db_session)
         results = await repo.search_by_embedding(query_vector=_unit_basis_vector(0), limit=2)
         assert len(results) <= 2
+
+    async def test_use_local_searches_local_embedding_column(self, db_session: AsyncSession) -> None:
+        with_local = await _make_module(
+            db_session,
+            family=await _make_family(db_session),
+            title_localized={"bn": "local only"},
+            embedding=None,
+        )
+        with_local.local_embedding = _unit_basis_vector(0)
+        await db_session.flush()
+
+        with_cloud_only = await _make_module(
+            db_session,
+            family=await _make_family(db_session),
+            title_localized={"bn": "cloud only"},
+            embedding=_unit_basis_vector(0),
+        )
+
+        repo = ModuleRepository(db_session)
+        results = await repo.search_by_embedding(
+            query_vector=_unit_basis_vector(0),
+            limit=10,
+            use_local=True,
+        )
+        ids = {m.id for m, _ in results}
+        assert with_local.id in ids
+        assert with_cloud_only.id not in ids
+
+
+class TestSearchCardsByLocalEmbedding:
+    async def test_searches_card_local_embedding_column(self, db_session: AsyncSession) -> None:
+        module = await _make_module(
+            db_session,
+            family=await _make_family(db_session),
+            title_localized={"bn": "Card module"},
+            embedding=None,
+            module_json={
+                "cards": [
+                    {"title": {"bn": "Local card"}, "body": {"bn": "Body"}},
+                    {"title": {"bn": "Cloud card"}, "body": {"bn": "Body"}},
+                ]
+            },
+        )
+        cards = (
+            (
+                await db_session.execute(
+                    select(ModuleCard)
+                    .where(ModuleCard.module_id == module.id)
+                    .order_by(ModuleCard.card_order)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        card_with_local, card_without = cards
+
+        store = PgVectorStore(db_session)
+        await store.upsert(
+            [
+                {
+                    "collection": CARDS_LOCAL_COLLECTION,
+                    "id": str(card_with_local.id),
+                    "vector": _unit_basis_vector(0),
+                },
+            ]
+        )
+        await db_session.commit()
+
+        repo = ModuleRepository(db_session)
+        results = await repo.search_cards_by_local_embedding(
+            query_vector=_unit_basis_vector(0),
+            limit=10,
+        )
+        ids = {card.id for card, _ in results}
+        assert card_with_local.id in ids
+        assert card_without.id not in ids
 
 
 class TestListModulesAssignmentGeographyFilter:

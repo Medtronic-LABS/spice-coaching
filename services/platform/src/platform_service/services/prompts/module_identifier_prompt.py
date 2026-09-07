@@ -1,6 +1,6 @@
 """Stage 2 — module-identification prompt (per-content-domain variants).
 
-Per `docs/ARCHITECTURE_RESET.md`. The prompt instructs the LLM to identify
+See `docs/content-administration/ingest-pipeline.md`. The prompt instructs the LLM to identify
 behavioural-TOPIC modules from a corpus, with branch logic per
 source_document.content_domain:
 
@@ -29,6 +29,7 @@ from mc_foundation.locale import get_locale_metadata, locale_display_name
 from platform_service.config import get_settings
 from platform_service.module_domains import module_domain_catalog_for_prompt
 from platform_service.services.prompt_id_codec import PromptIdCodec
+from platform_service.services.prompts.module_topic_definition import MODULE_TOPIC_DEFINITION
 from platform_service.services.prompts.symbol_verbalization import render_locale_map_field_schema
 
 _INGESTION_GUIDANCE_SYSTEM_SECTION = """\
@@ -68,55 +69,14 @@ INGEST CARDINALITY TARGET (admin requested fixed quiz count):
 - Set `estimated_quiz_count` to exactly {target_quizzes} for EVERY candidate.
 """
 
-_SYSTEM_PROMPT_BASE = """\
+_SYSTEM_PROMPT_BASE = (
+    """\
 You are drafting BEHAVIOURAL TOPIC modules for community health workers (CHWs)
 in {deployment_region_context}.
 
-A module covers ONE actionable behavioural topic the CHW must internalise correctly. Examples:
-- "Correct ANC referral by risk category"
-- "Recognising postpartum danger signs"
-- "Hypertension identification and management" (when the source has a dedicated HTN chapter)
-- "Dengue fever recognition, prevention, and referral"
-- "Effective communication and counselling skills" (when the source has a dedicated chapter)
-- "BRAC field activities and follow-up workflow" (when the source has an operational chapter)
-- "SPICE form submission failure recovery"
-
-GROUPING RULES — do NOT over-fragment, do NOT under-emit:
-
-1. Do NOT create modules per individual test, vital sign, lab value, or
-   measurement threshold (e.g. don't make separate modules for "BP measurement",
-   "Hb measurement", "blood-glucose threshold"). Group related measurements
-   into a parent procedural unit (e.g. "Performing antenatal physical and
-   pathological examinations").
-
-2. DO create a standalone module per NAMED DISEASE or DEDICATED CHAPTER
-   the source treats as its own learning unit. If the source corpus has a
-   chapter on Hypertension, Diabetes, Tuberculosis, Malaria, Cancer, Dengue,
-   Diarrhoea, ARI/Pneumonia, etc., emit a dedicated module for it — even
-   when the chapter overlaps with an adjacent screening or measurement
-   chapter. The CHW's ongoing-management knowledge for the disease is
-   distinct from the one-shot screening procedure.
-
-3. DO create a module for non-clinical CHW skill chapters: communication,
-   counselling skills, field activities, reporting workflow, safeguarding.
-   These are CHW practice topics even though they are not disease-management.
-   Don't deprioritise them just because they aren't clinical.
-
-4. DO NOT propose modules from annexures, appendices, or reference
-   sections. Forms, checklists, reporting templates, consent forms, and
-   reference tables (e.g. "Healthcare Services by Facility Level") are
-   JOB AIDS — the CHW fills them out or looks at them on the job, not
-   topics they internalise through training. Detection cues:
-   - Page or section heading begins with {annexure_terms}
-     or similar.
-   - Content is dominated by blank fields, tick-box rows, signature
-     lines, or columnar reference data the user fills in or looks up.
-   The training-content equivalent (e.g. "How to fill the NCD reporting
-   form" as a procedural lesson) IS a valid module — the line is between
-   the form itself (job aid) and the procedure of using it (trainable).
-
-DO NOT invent topics. Only group and label content present in the source corpus.
-
+"""
+    + MODULE_TOPIC_DEFINITION
+    + """
 For `domain`, pick the single best topical label for admin filtering — the
 disease, program area, or skill the module primarily teaches (e.g. ANC module
 → "anc", hypertension chapter → "hypertension", digital app workflow →
@@ -175,6 +135,7 @@ Return STRICT JSON. The output must be a single JSON object with this top-level 
 
 Do not include markdown fences or commentary. Only the JSON object.
 """
+)
 
 
 _BRANCH_CLINICAL = """\

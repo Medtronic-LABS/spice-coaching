@@ -333,6 +333,15 @@ def test_load_canonical_golden_dataset() -> None:
     assert sum(1 for record in records if record.answerable == "partial") == 0
 
 
+def test_load_golden_dataset_json_english() -> None:
+    path = Path("eval/rag/golden/Golden_Dataset.json")
+    records = load_rag_golden_dataset(path, language="en")
+    assert len(records) == 249
+    assert all(record.language == "en" for record in records)
+    assert records[0].query.startswith("During today's visit")
+    assert "pre-eclampsia" in records[0].expected_answer
+
+
 def test_missing_expected_module_id_is_out_of_scope(tmp_path: Path) -> None:
     dataset = tmp_path / "missing_module.json"
     dataset.write_text(

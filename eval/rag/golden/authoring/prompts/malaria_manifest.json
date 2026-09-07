@@ -1,0 +1,13 @@
+{
+  "domain": "malaria",
+  "batch_count": 1,
+  "total_expected_records": 12,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "malaria_batch0.prompt.json",
+      "prompt_md": "malaria_batch0.prompt.md",
+      "expected_record_count": 12
+    }
+  ]
+}

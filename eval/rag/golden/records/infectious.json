@@ -1,0 +1,808 @@
+[
+  {
+    "question_en": "Before opening a dengue rapid diagnostic test (RDT) kit at the clinic, what preparations should I check?",
+    "expected_answer_en": "Ensure the kit is at room temperature. If it was stored in the refrigerator, remove it at least 30 minutes before use and bring it to room temperature. Check the expiry date on the packet before opening — do not use expired kits. After opening, use the kit as quickly as possible.",
+    "question_bn": "ক্লিনিকে ডেঙ্গু র‍্যাপিড ডায়াগনস্টিক টেস্ট (RDT) কিট খোলার আগে আমি কী কী প্রস্তুতি যাচাই করব?",
+    "expected_answer_bn": "কিটটি ঘরের তাপমাত্রায় আছে কিনা নিশ্চিত করুন। ফ্রিজে রাখা থাকলে ব্যবহারের কমপক্ষে ৩০ মিনিট আগে বের করে ঘরের তাপমাত্রায় আনুন। খোলার আগে প্যাকেটের মেয়াদ উত্তীর্ণের তারিখ পরীক্ষা করুন — মেয়াদ উত্তীর্ণ কিট ব্যবহার করবেন না। খোলার পর যত দ্রুত সম্ভব কিটটি ব্যবহার করুন।",
+    "module_id": [
+      "cd582b9e-f7e0-48fe-baaf-af0a8b74a162"
+    ],
+    "source_card_id": [
+      "036086d7-3020-4398-b7de-dcf7a869ffcc"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q293"
+  },
+  {
+    "question_en": "I took a dengue RDT kit straight from the refrigerator because a patient with fever just arrived. Can I use it immediately?",
+    "expected_answer_en": "No. If the kit was stored in the refrigerator, remove it at least 30 minutes before use and allow it to reach room temperature. Also check the expiry date before opening. After opening, use the kit as quickly as possible.",
+    "question_bn": "জ্বর নিয়ে একজন রোগী এসে পড়ায় আমি সরাসরি ফ্রিজ থেকে ডেঙ্গু RDT কিট নিয়ে এলাম। এখনই ব্যবহার করা যাবে?",
+    "expected_answer_bn": "না। কিট ফ্রিজে রাখা থাকলে ব্যবহারের কমপক্ষে ৩০ মিনিট আগে বের করে ঘরের তাপমাত্রায় আনতে হবে। খোলার আগে মেয়াদ উত্তীর্ণের তারিখও পরীক্ষা করুন। খোলার পর যত দ্রুত সম্ভব কিটটি ব্যবহার করুন।",
+    "module_id": [
+      "cd582b9e-f7e0-48fe-baaf-af0a8b74a162"
+    ],
+    "source_card_id": [
+      "036086d7-3020-4398-b7de-dcf7a869ffcc"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q294"
+  },
+  {
+    "question_en": "What are the step-by-step instructions to perform a dengue RDT after collecting blood from the patient's finger?",
+    "expected_answer_en": "Place one drop of collected blood into the round sample well of the kit. Then add two drops of buffer solution into the same round well. Wait 15 to 20 minutes for the result to appear. Do not read the result after more than 20 minutes, as it may not be accurate.",
+    "question_bn": "রোগীর আঙুল থেকে রক্ত সংগ্রহের পর ডেঙ্গু RDT করার ধাপে ধাপে নির্দেশনা কী?",
+    "expected_answer_bn": "সংগৃহীত রক্তের এক ফোঁটা কিটের গোলাকার গর্তে (স্যাম্পল ওয়েল) দিন। এরপর বাফার সলিউশনের দুই ফোঁটা একই গোলাকার গর্তে দিন। ১৫ থেকে ২০ মিনিট অপেক্ষা করুন — এই সময়ের মধ্যে ফলাফল দেখা যাবে। ২০ মিনিটের বেশি সময় ধরে ফলাফল দেখলে তা সঠিক নাও হতে পারে।",
+    "module_id": [
+      "cd582b9e-f7e0-48fe-baaf-af0a8b74a162"
+    ],
+    "source_card_id": [
+      "fc5b8d54-21c1-4ad1-8f52-f81c8c9032dc"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q295"
+  },
+  {
+    "question_en": "After performing a dengue RDT, I see no line at the control (C) position. What should I do next?",
+    "expected_answer_en": "If no line appears at the control line (C), the test is invalid and must be repeated. Prepare a new kit properly — ensure it is at room temperature, check the expiry date, collect blood again, add buffer solution, and read the result within 15 to 20 minutes.",
+    "question_bn": "ডেঙ্গু RDT করার পর কন্ট্রোল (C) স্থানে কোনো রেখা দেখা যাচ্ছে না। পরবর্তীতে আমি কী করব?",
+    "expected_answer_bn": "কন্ট্রোল লাইন (C) স্থানে কোনো রেখা না দেখা গেলে পরীক্ষাটি অকার্যকর হয়েছে এবং পুনরায় পরীক্ষা করতে হবে। নতুন কিট প্রস্তুত করুন — ঘরের তাপমাত্রায় রাখুন, মেয়াদ পরীক্ষা করুন, আবার রক্ত সংগ্রহ করে বাফার দিন এবং ১৫–২০ মিনিটের মধ্যে ফলাফল পড়ুন।",
+    "module_id": [
+      "cd582b9e-f7e0-48fe-baaf-af0a8b74a162"
+    ],
+    "source_card_id": [
+      "0e9076bf-6d24-4365-9175-907cbecdce56",
+      "036086d7-3020-4398-b7de-dcf7a869ffcc",
+      "fc5b8d54-21c1-4ad1-8f52-f81c8c9032dc"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Problem Identification & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q296"
+  },
+  {
+    "question_en": "How do I interpret a dengue RDT result — what does positive, negative, and invalid mean?",
+    "expected_answer_en": "If lines appear at both the control line (C) and the test line (T), the result is positive. If a line appears only at the control line (C), the result is negative. If no line appears at the control line (C), the test is invalid and must be repeated.",
+    "question_bn": "ডেঙ্গু RDT ফলাফল কীভাবে বুঝব — পজিটিভ, নেগেটিভ এবং অকার্যকর মানে কী?",
+    "expected_answer_bn": "কন্ট্রোল লাইন (C) এবং টেস্ট লাইন (T) উভয় স্থানেই রেখা দেখা গেলে ফলাফল পজিটিভ। শুধুমাত্র কন্ট্রোল লাইন (C) স্থানে রেখা দেখা গেলে ফলাফল নেগেটিভ। কন্ট্রোল লাইন (C) স্থানে কোনো রেখা না দেখা গেলে পরীক্ষাটি অকার্যকর এবং পুনরায় পরীক্ষা করতে হবে।",
+    "module_id": [
+      "cd582b9e-f7e0-48fe-baaf-af0a8b74a162"
+    ],
+    "source_card_id": [
+      "0e9076bf-6d24-4365-9175-907cbecdce56"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q297"
+  },
+  {
+    "question_en": "During a home visit in a dengue-prone area, what prevention advice should I give the family?",
+    "expected_answer_en": "Destroy mosquito breeding sites. Use mosquito nets, including during the day because dengue mosquitoes bite in daylight. Use mosquito repellent spray or lotion. Do not allow water to accumulate around the house and keep the surroundings clean regularly.",
+    "question_bn": "ডেঙ্গুপ্রবণ এলাকায় বাড়ি ভিজিটের সময় পরিবারকে কী কী প্রতিরোধমূলক পরামর্শ দেব?",
+    "expected_answer_bn": "মশার প্রজনন স্থান ধ্বংস করতে হবে। মশারি ব্যবহার করুন — দিনের বেলায়ও, কারণ ডেঙ্গু মশা দিনের বেলায় কামড়ায়। মশা তাড়ানোর স্প্রে বা লোশন ব্যবহার করুন। বাড়ির আশেপাশে পানি জমতে দেবেন না এবং নিয়মিত পরিষ্কার রাখুন।",
+    "module_id": [
+      "cd582b9e-f7e0-48fe-baaf-af0a8b74a162"
+    ],
+    "source_card_id": [
+      "b2040cef-e132-49f0-baa7-1bb12d93afab"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Prevention & Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q298"
+  },
+  {
+    "question_en": "A colleague asked me what a dengue RDT is and what supplies are needed to run the test. How should I explain it?",
+    "expected_answer_en": "A rapid diagnostic test (RDT) is a quick detection test through which dengue NS-1 antigen, IgG, and IgM can be identified. To perform the test you need a cassette, needle or lancet, lancing device, cotton, hexisol, and dengue antigen buffer solution.",
+    "question_bn": "একজন সহকর্মী জানতে চাইলেন ডেঙ্গু RDT কী এবং পরীক্ষা করতে কী কী সামগ্রী লাগে। আমি কীভাবে ব্যাখ্যা করব?",
+    "expected_answer_bn": "র‍্যাপিড ডায়াগনস্টিক টেস্ট বা আরডিটি হলো দ্রুত সনাক্তকরণ পরীক্ষা, যার মাধ্যমে ডেঙ্গু এনএস-১ এন্টিজেন, আইজিজি এবং আইজিএম সনাক্ত করা যায়। পরীক্ষার জন্য ক্যাসেট, সুঁই বা লেনসেট, ল্যানসিং যন্ত্র, তুলা, হেক্সিসল এবং ডেঙ্গু এন্টিজেন বাফার সলুশন প্রয়োজন।",
+    "module_id": [
+      "3225755c-2c2a-405c-b043-8690a0b9975e"
+    ],
+    "source_card_id": [
+      "3eecdf33-3fb5-4a1f-9ce7-d6f9916f4651",
+      "938fc837-22de-4294-ab35-0087ad2f36d1"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q299"
+  },
+  {
+    "question_en": "A mother in my area is worried about dengue during the rainy season. What counseling should I provide on preventing dengue at home?",
+    "expected_answer_en": "Advise keeping the area around the house clean. Discard stagnant water every three days. Do not allow water to collect in broken pots, tires, flower tubs, coconut shells, plastic containers, broken buckets, earthen pots, or under the refrigerator. Destroy unused containers or keep them upside down so water cannot collect. Sleep under a mosquito net. Wear full-sleeve clothing when going outside and apply repellent lotion on hands and feet. Use mosquito coils or spray indoors.",
+    "question_bn": "আমার এলাকায় একজন মা বর্ষাকালে ডেঙ্গু নিয়ে চিন্তিত। বাড়িতে ডেঙ্গু প্রতিরোধে আমি কী পরামর্শ দেব?",
+    "expected_answer_bn": "বাড়ির চারপাশ পরিষ্কার রাখতে বলুন। তিন দিনে এক দিন জমা পানি ফেলে দিন। ভাঙা হাড়ি, টায়ার, ফুলের টব, ডাবের খোসা, প্লাস্টিকের পাত্র, ভাঙা বালতি, মাটির পাত্র, ফ্রিজের তলায় ইত্যাদিতে পানি জমিয়ে রাখবেন না। অব্যবহৃত পাত্র নষ্ট করুন বা উপুর করে রাখুন যাতে পানি জমতে না পারে। মশারি টেনে ঘুমান। বাইরে যাওয়ার সময় ফুলহাতা জামা পরুন ও হাতে-পায়ে রেপিলেন্ট লাগান। ঘরে মশা মারার ওষুধ বা কয়েল ব্যবহার করুন।",
+    "module_id": [
+      "3225755c-2c2a-405c-b043-8690a0b9975e"
+    ],
+    "source_card_id": [
+      "7c5122e3-ca93-4175-89fa-23603a844984"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Prevention & Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q300"
+  },
+  {
+    "question_en": "When performing the dengue RDT using the cassette method, how many drops of blood and buffer solution should I use, and how long should I wait?",
+    "expected_answer_en": "After collecting blood with the dropper, place three drops of blood sample in the blood absorption area of the cassette and add one drop of dengue antigen buffer solution. Then wait 10 minutes for the result.",
+    "question_bn": "ক্যাসেট পদ্ধতিতে ডেঙ্গু RDT করার সময় কত ফোঁটা রক্ত ও বাফার সলুশন দিতে হবে এবং কতক্ষণ অপেক্ষা করতে হবে?",
+    "expected_answer_bn": "ড্রপারে রক্ত সংগ্রহের পর ক্যাসেটের রক্ত শোষণের স্থানে তিন ফোঁটা রক্তের নমুনা রাখুন এবং এক ফোঁটা ডেঙ্গু এন্টিজেন বাফার সলুশন দিন। এরপর দশ মিনিট অপেক্ষা করুন।",
+    "module_id": [
+      "3225755c-2c2a-405c-b043-8690a0b9975e"
+    ],
+    "source_card_id": [
+      "c04f4186-1c01-4458-bf7d-8bf5e868b0b3"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q301"
+  },
+  {
+    "question_en": "I performed a dengue RDT on a patient and see a red mark only in the control area of the cassette, with no mark in the test area. What does this mean?",
+    "expected_answer_en": "A red mark in the control area means the test is working. If there is a red mark in the control area but no red mark in the test area, the result is dengue negative.",
+    "question_bn": "একজন রোগীর ডেঙ্গু RDT করেছি — ক্যাসেটের কন্ট্রোল অংশে লাল দাগ আছে কিন্তু টেস্ট অংশে কোনো দাগ নেই। এর মানে কী?",
+    "expected_answer_bn": "কন্ট্রোল অংশে লাল দাগ দেখা দিলে বুঝতে হবে পরীক্ষাটি কাজ করছে। কন্ট্রোল অংশে লাল দাগ থাকলে কিন্তু টেস্ট অংশে দাগ না থাকলে ডেঙ্গু নেগেটিভ।",
+    "module_id": [
+      "3225755c-2c2a-405c-b043-8690a0b9975e"
+    ],
+    "source_card_id": [
+      "405c0231-bdca-4a61-a117-8e908d70b061"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q302"
+  },
+  {
+    "question_en": "What can a dengue rapid diagnostic test detect?",
+    "expected_answer_en": "Through the rapid diagnostic test (RDT), dengue NS-1 antigen, IgG, and IgM can be identified. It is a quick detection test used for early diagnosis of dengue.",
+    "question_bn": "ডেঙ্গু র‍্যাপিড ডায়াগনস্টিক টেস্ট দিয়ে কী সনাক্ত করা যায়?",
+    "expected_answer_bn": "র‍্যাপিড ডায়াগনস্টিক টেস্ট বা আরডিটির মাধ্যমে ডেঙ্গু এনএস-১ এন্টিজেন, আইজিজি এবং আইজিএম সনাক্ত করা যায়। এটি দ্রুত সনাক্তকরণ পরীক্ষা।",
+    "module_id": [
+      "3225755c-2c2a-405c-b043-8690a0b9975e"
+    ],
+    "source_card_id": [
+      "3eecdf33-3fb5-4a1f-9ce7-d6f9916f4651"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Etiology Understanding",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q303"
+  },
+  {
+    "question_en": "A patient with fever needs a dengue RDT. I have the cassette ready — what is the correct finger-prick and blood collection procedure before applying samples to the cassette?",
+    "expected_answer_en": "Clean the designated finger with hexisol using cotton and wait one minute for the finger to dry. Set the lancet in the lancet holder and set the depth to 4 on the depth gauge. Pull the cocking barrel to set the lancet. Hold the index finger with four fingers behind and thumb in front. Hold the lancing device vertically and touch the finger skin. Press the release button and squeeze the finger to collect exactly five drops of blood in the dropper. Then place three drops on the cassette blood absorption area and add one drop of dengue antigen buffer solution. Wait 10 minutes.",
+    "question_bn": "জ্বরে আক্রান্ত একজন রোগীর ডেঙ্গু RDT করতে হবে। ক্যাসেট প্রস্তুত — ক্যাসেটে নমুনা দেওয়ার আগে আঙুল ফোটানো ও রক্ত সংগ্রহের সঠিক পদ্ধতি কী?",
+    "expected_answer_bn": "হেক্সিসল দিয়ে নির্ধারিত আঙুলটি তুলা দিয়ে মুছে এক মিনিট শুকাতে দিন। লেনসেট হোল্ডারে লেনসেট সেট করুন এবং গভীরতা নির্ণায়ক চার এ নির্ধারণ করুন। কুকিং ব্যারেল টেনে লেনসেট সেট করুন। পিছনে চার আঙুল ও সামনে বৃদ্ধাঙ্গুল দিয়ে তর্জনী ধরুন। লেনসিং যন্ত্র খাড়া করে আঙুলের চামড়ায় স্পর্শ করুন। রিলিজ বাটন চাপুন এবং পাঁচ ফোঁটা রক্ত ড্রপারে সংগ্রহ করুন। ক্যাসেটের রক্ত শোষণের স্থানে তিন ফোঁটা রক্ত দিন ও এক ফোঁটা বাফার সলুশন দিন। দশ মিনিট অপেক্ষা করুন।",
+    "module_id": [
+      "3225755c-2c2a-405c-b043-8690a0b9975e"
+    ],
+    "source_card_id": [
+      "c04f4186-1c01-4458-bf7d-8bf5e868b0b3",
+      "938fc837-22de-4294-ab35-0087ad2f36d1"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q304"
+  },
+  {
+    "question_en": "What causes malaria and how is it transmitted in Bangladesh?",
+    "expected_answer_en": "Malaria is an infectious disease caused by Plasmodium parasites, transmitted through the bite of female Anopheles mosquitoes. In Bangladesh, Plasmodium falciparum and Plasmodium vivax are the main types found. Plasmodium falciparum is responsible for most malaria deaths.",
+    "question_bn": "ম্যালেরিয়ার কারণ কী এবং বাংলাদেশে এটি কীভাবে ছড়ায়?",
+    "expected_answer_bn": "ম্যালেরিয়া প্লাজমোডিয়াম প্রজাতির পরজীবী দ্বারা সংঘটিত সংক্রামক রোগ, যা স্ত্রী অ্যানোফিলিস মশার কামড়ের মাধ্যমে হয়। বাংলাদেশে মূলত প্লাজমোডিয়াম ফ্যালসিপেরাম ও প্লাজমোডিয়াম ভাইভেক্স দেখা যায়। প্লাজমোডিয়াম ফ্যালসিপেরাম অধিকাংশ ম্যালেরিয়া মৃত্যুর জন্য দায়ী।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "6fa44741-a196-4f8c-a1a5-46d4510cecb7"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Etiology Understanding",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q344"
+  },
+  {
+    "question_en": "In a malaria-endemic village, a 4-year-old child has had fever within the last 48 hours with no cough, sore throat, or ear discharge. Should I suspect malaria?",
+    "expected_answer_en": "Yes. In a malaria-prone area, if a patient has fever or a history of fever in the past 48 hours and no symptoms of other illnesses such as cough, sore throat, ear discharge, or burning urination, suspect malaria. Children under five in endemic areas are at high risk.",
+    "question_bn": "ম্যালেরিয়াপ্রবণ গ্রামে ৪ বছরের এক শিশুর গত ৪৮ ঘণ্টায় জ্বর ছিল, কিন্তু কাশি, গলাব্যথা বা কান থেকে পুঁজ নেই। ম্যালেরিয়া সন্দেহ করব?",
+    "expected_answer_bn": "হ্যাঁ। ম্যালেরিয়া প্রবণ এলাকায় রোগীর জ্বর থাকলে বা গত ৪৮ ঘণ্টার মধ্যে জ্বরের ইতিহাস থাকলে এবং সর্দিকাশি, গলাব্যথা, কানপাকা বা প্রস্রাবে জ্বালাপোড়ার মতো অন্য রোগের লক্ষণ না থাকলে ম্যালেরিয়া সন্দেহ করতে হবে। প্রবণ এলাকার পাঁচ বছরের কম বয়সী শিশু ঝুঁকিতে আছে।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "a90ab753-7a28-4ee1-a0df-b584293a59c3",
+      "e913229c-bdfe-4c65-af80-be947012af50"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Symptom Identification",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q345"
+  },
+  {
+    "question_en": "What blood tests are used to confirm a malaria diagnosis?",
+    "expected_answer_en": "To confirm malaria, blood from the patient's body must be tested. Two types of blood tests are performed: blood slide (microscopy) examination and rapid diagnostic test (RDT).",
+    "question_bn": "ম্যালেরিয়া নিশ্চিত করতে কী কী রক্ত পরীক্ষা করা হয়?",
+    "expected_answer_bn": "ম্যালেরিয়া রোগ নিশ্চিত হওয়ার জন্য মানুষের শরীরের রক্ত পরীক্ষা করতে হয়। ম্যালেরিয়া জীবাণু নিশ্চিত হওয়ার জন্য দুই ধরণের রক্ত পরীক্ষা করা হয়: রক্ত কাচ পরীক্ষা এবং দ্রুত সনাক্তকরণ পরীক্ষা বা আর.ডি.টি।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "83968078-f54d-4652-a517-224142ee0c04"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q346"
+  },
+  {
+    "question_en": "A patient in a malaria-endemic area has fever along with vomiting and convulsions. Where should I refer this patient?",
+    "expected_answer_en": "Fever with complications such as vomiting, convulsions, unconsciousness, or inability to stand or walk indicates severe malaria. Refer immediately to Upazila Health Complex, district headquarters hospital, or government hospital.",
+    "question_bn": "ম্যালেরিয়াপ্রবণ এলাকায় একজন রোগীর জ্বরের সঙ্গে বমি ও খিঁচুনি হচ্ছে। এই রোগীকে কোথায় রেফার করব?",
+    "expected_answer_bn": "জ্বরের সঙ্গে বমি, খিঁচুনী, অজ্ঞান হওয়া বা দাঁড়ানো-হাঁটার অক্ষমতার মতো জটিলতার উপসর্গ থাকলে তা মারাত্মক ম্যালেরিয়া। উপজেলা স্বাস্থ্য কেন্দ্র, জেলা সদর হাসপাতাল বা সরকারি হাসপাতালে রেফার করতে হবে।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "81f8a19e-9e8d-43be-9ab5-1cc9e804bbdf",
+      "5f3c3659-d3b0-4ace-b4ed-0fd2b133c791"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Emergency Management & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q347"
+  },
+  {
+    "question_en": "Which districts in Bangladesh have higher malaria prevalence?",
+    "expected_answer_en": "Malaria is more common in 13 districts: Cox's Bazar, Chattogram, the three hill districts of Bandarban, Rangamati, and Khagrachhari, Sylhet, Habiganj, Moulvibazar, Sunamganj, Kurigram, Netrokona, Sherpur, and Mymensingh.",
+    "question_bn": "বাংলাদেশের কোন কোন জেলায় ম্যালেরিয়া বেশি হয়?",
+    "expected_answer_bn": "কক্সবাজার, চট্টগ্রাম, পার্বত্য চট্টগ্রাম (বান্দরবান, রাঙ্গামাটি, খাগড়াছড়ি), সিলেট, হবিগঞ্জ, মৌলভীবাজার, সুনামগঞ্জ, কুড়িগ্রাম, নেত্রকোণা, শেরপুর ও ময়মনসিংহ সহ মোট ১৩টি জেলায় ম্যালেরিয়া বেশি হয়।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "eff2e0ec-5c72-41b5-ab9b-0bb6d6fd0c55"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q348"
+  },
+  {
+    "question_en": "As a health worker, what should I do when a patient presents with symptoms suggestive of malaria?",
+    "expected_answer_en": "Health assistants, health workers, and project assistants should perform a confirmatory test on patients with any malaria symptoms and start treatment. If any signs of severe malaria appear, refer to Upazila Health Complex, district headquarters hospital, or government hospital.",
+    "question_bn": "স্বাস্থ্যকর্মী হিসেবে ম্যালেরিয়ার লক্ষণ দেখা দিলে আমার করণীয় কী?",
+    "expected_answer_bn": "স্বাস্থ্যসেবিকা, স্বাস্থ্যকর্মী ও প্রজেক্ট এসিসট্যান্ট ম্যালেরিয়ার যেকোন লক্ষণ আছে এমন রোগীদের নিশ্চিতকরণ পরীক্ষা করে চিকিৎসা শুরু করবেন। মারাত্মক ম্যালেরিয়ার যেকোন লক্ষণ দেখা দিলে উপজেলা স্বাস্থ্য কেন্দ্র, জেলা সদর হাসপাতাল বা সরকারি হাসপাতালে রেফার করতে হবে।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "5f3c3659-d3b0-4ace-b4ed-0fd2b133c791"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q349"
+  },
+  {
+    "question_en": "How does malaria spread from one person to another, and when do malaria mosquitoes typically bite?",
+    "expected_answer_en": "When a mosquito bites a malaria patient, the parasite enters the mosquito's stomach. When that mosquito later bites a healthy person, the parasite enters through the mosquito's saliva and the person becomes infected. Malaria mosquitoes usually bite humans from sunset to sunrise. Female Anopheles mosquitoes breed in still or slow-moving clean water.",
+    "question_bn": "ম্যালেরিয়া একজন থেকে অন্যজনে কীভাবে ছড়ায়, এবং ম্যালেরিয়ার মশা সাধারণত কখন কামড়ায়?",
+    "expected_answer_bn": "ম্যালেরিয়া রোগীকে মশা কামড় দিলে জীবাণু মশার পেটে যায়। পরে সেই মশা সুস্থ মানুষকে কামড়ালে মশার লালার মাধ্যমে জীবাণু শরীরে প্রবেশ করে। ম্যালেরিয়ার মশা সাধারণত সূর্যাস্ত থেকে সূর্যোদয় পর্যন্ত কামড়ায়। অ্যানোফিলিস স্ত্রী মশা স্থির বা ধীরগতির পরিষ্কার পানিতে ডিম পাড়ে।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "87fad262-44e6-4495-962e-0e7633eb3666"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Etiology Understanding",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q350"
+  },
+  {
+    "question_en": "A jhum cultivator in my area sleeps outdoors in the forest during harvest season. What counseling should I give to protect against mosquito bites?",
+    "expected_answer_en": "When staying or sleeping outdoors away from home for work such as jhum cultivation, bamboo cutting, or rubber or tea garden work, use an insecticide-treated net (ITN) while sleeping. Also use mosquito repellent smoke or spray, cover the body as much as possible with full-sleeve clothing, apply mosquito repellent cream or lotion on exposed skin, and use mosquito-proof nets on doors and windows where possible.",
+    "question_bn": "আমার এলাকায় একজন জুম চাষী ফসল কাটার সময় বনে খোলা জায়গায় ঘুমায়। মশার কামড় থেকে বাঁচতে কী পরামর্শ দেব?",
+    "expected_answer_bn": "জুম চাষ, বনে বাঁশ বা কাঠ কাটা বা চা-রাবার বাগানে কাজ করে বাড়ির বাইরে রাত্রিযাপন করতে হলে ঘুমানোর সময় কীটনাশকযুক্ত মশারি (ITN) ব্যবহার করুন। মশা তাড়ানোর ধোঁয়া বা স্প্রে ব্যবহার করুন, শরীর যতটুক সম্ভব ঢেকে রাখুন, অনাবৃত অংশে মশা বিতারক ক্রীম বা লোশন লাগান এবং সম্ভব হলে দরজা-জানালায় মশা প্রতিবন্ধক জাল ব্যবহার করুন।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "6ac5fbdc-494d-4d3e-87a2-bbbd61c7c590",
+      "e913229c-bdfe-4c65-af80-be947012af50"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Prevention & Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q351"
+  },
+  {
+    "question_en": "Before starting malaria treatment, which confirmatory tests must be performed on the patient?",
+    "expected_answer_en": "Malaria must be confirmed by testing the patient's blood. Two types of blood tests are used: blood slide (microscopy) examination and rapid diagnostic test (RDT). Health workers should perform confirmatory testing before starting treatment.",
+    "question_bn": "ম্যালেরিয়ার চিকিৎসা শুরু করার আগে রোগীর কোন নিশ্চিতকরণ পরীক্ষা করতে হবে?",
+    "expected_answer_bn": "ম্যালেরিয়া রোগ নিশ্চিত হওয়ার জন্য রোগীর রক্ত পরীক্ষা করতে হয়। দুই ধরণের রক্ত পরীক্ষা করা হয়: রক্ত কাচ পরীক্ষা এবং দ্রুত সনাক্তকরণ পরীক্ষা বা আর.ডি.টি। চিকিৎসা শুরু করার আগে নিশ্চিতকরণ পরীক্ষা করতে হবে।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "83968078-f54d-4652-a517-224142ee0c04",
+      "5f3c3659-d3b0-4ace-b4ed-0fd2b133c791"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q352"
+  },
+  {
+    "question_en": "A resident of a malaria-endemic area suddenly loses consciousness without any history of injury. Should I consider malaria as a possible cause?",
+    "expected_answer_en": "Yes. In a malaria-prone area, if a person suddenly becomes unconscious, or develops severe headache, abdominal pain, or diarrhea, suspect malaria even if fever is not currently present. Check for fever history in the past 48 hours and perform confirmatory blood testing.",
+    "question_bn": "ম্যালেরিয়াপ্রবণ এলাকার একজন হঠাৎ অজ্ঞান হয়ে পড়লেন, কোনো আঘাতের ইতিহাস নেই। ম্যালেরিয়া সম্ভাব্য কারণ হিসেবে বিবেচনা করব?",
+    "expected_answer_bn": "হ্যাঁ। ম্যালেরিয়াপ্রবণ এলাকায় কারো প্রচন্ড মাথাব্যথা, পেট ব্যথা বা ডায়রিয়া শুরু হলে বা হঠাৎ অজ্ঞান হয়ে পড়লে ম্যালেরিয়া সন্দেহ করতে হবে। গত ৪৮ ঘণ্টায় জ্বরের ইতিহাস আছে কিনা যাচাই করুন এবং নিশ্চিতকরণ রক্ত পরীক্ষা করুন।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "a90ab753-7a28-4ee1-a0df-b584293a59c3"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Differential Diagnosis & Complication Recognition",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q353"
+  },
+  {
+    "question_en": "What are the danger signs that distinguish severe malaria from uncomplicated malaria?",
+    "expected_answer_en": "Uncomplicated malaria fever does not have complication symptoms such as vomiting, convulsions, or unconsciousness. Severe malaria presents with fever plus at least one of: unconsciousness, vomiting, convulsions, abnormal behavior, inability to stand or walk due to extreme weakness, jaundice, breathing difficulty, severe anemia, reduced urination, or a child unable to suck or pull at the breast.",
+    "question_bn": "সাধারণ ম্যালেরিয়া থেকে মারাত্মক ম্যালেরিয়া আলাদা করার বিপদচিহ্নগুলো কী?",
+    "expected_answer_bn": "সাধারণ ম্যালেরিয়া জ্বরের সাথে বমি, খিঁচুনী বা অজ্ঞান হওয়ার মতো জটিলতার উপসর্গ থাকে না। মারাত্মক ম্যালেরিয়ায় জ্বরের সঙ্গে অন্তত একটি উপসর্গ থাকে: অজ্ঞান হওয়া, বমি, খিঁচুনী, অস্বাভাবিক আচরণ, অত্যাধিক দুর্বলতায় দাঁড়ানো-হাঁটার অক্ষমতা, জন্ডিস, শ্বাসকষ্ট, মারাত্মক রক্তস্বল্পতা, প্রস্রাব কমে যাওয়া, বা শিশু মায়ের দুধ চুষতে না পারা।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "81f8a19e-9e8d-43be-9ab5-1cc9e804bbdf"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Danger Signs & Referral Criteria",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q354"
+  },
+  {
+    "question_en": "There is stagnant water in ditches and overgrown bushes around houses in my work area. What measures should I advise to prevent mosquito breeding?",
+    "expected_answer_en": "Fill in enclosed water bodies such as unnecessary ponds, pits, and drains where mosquitoes lay eggs. In permanent water bodies, stock larvivorous fish (such as tilapia, nilotica, carp, guppy) and clear grass along water edges. In special cases, apply larvicidal insecticide. Cut and clear unnecessary bushes around dwellings.",
+    "question_bn": "আমার কর্মএলাকায় বাড়ির চারপাশে খাল-নর্দমায় জমা পানি ও ঝোপঝাড় বেড়েছে। মশার বংশবিস্তার রোধে কী ব্যবস্থা নেওয়ার পরামর্শ দেব?",
+    "expected_answer_bn": "অপ্রয়োজনীয় ডোবা, গর্ত, নর্দমা ইত্যাদি আবদ্ধ জলাশয় ভরাট করুন। স্থায়ী আবদ্ধ জলাশয়ে শুককীট খেকো মাছ (তেলাপিয়া, নাইলোটিকা, কার্প, গাপ্পী) চাষ করুন ও পানির কিনারায় ঘাস পরিষ্কার করুন। বিশেষ ক্ষেত্রে মশা ধ্বংসকারী কীটনাশক ছিটান। বসতবাড়ী ও চারপাশের অপ্রয়োজনীয় ঝোপঝাড় কেটে পরিষ্কার করুন।",
+    "module_id": [
+      "eefe9cbd-a89e-4c61-a1da-bb54fd091571"
+    ],
+    "source_card_id": [
+      "bda7e012-24f5-45d7-b583-eaa64a81b833"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Prevention & Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q355"
+  },
+  {
+    "question_en": "What organs make up the respiratory system?",
+    "expected_answer_en": "The organs through which breathing occurs — such as the nose, mouth, throat, and lungs — together form the respiratory system.",
+    "question_bn": "শ্বাসতন্ত্র গঠন করে এমন কোন কোন অঙ্গ?",
+    "expected_answer_bn": "যে সকল অঙ্গ দিয়ে শ্বাস নেওয়া হয় যেমন নাক, মুখ, গলা, ফুসফুস — এগুলোকে একসাথে শ্বাসতন্ত্র বলে।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "9ef4e6c3-ae2a-4c4f-a0c9-9060621242d1"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Etiology Understanding",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q438"
+  },
+  {
+    "question_en": "A child has a runny nose, cough, sore throat, and fever. Could this be a respiratory tract infection?",
+    "expected_answer_en": "Yes. Symptoms of respiratory tract infection include runny nose, cough, sore throat, difficulty breathing, ear problems, and fever. Sudden infection of any part of the respiratory tract is called ARI (Acute Respiratory tract Infection).",
+    "question_bn": "একটি শিশুর নাক দিয়ে পানি পড়ছে, কাশি, গলা ব্যথা ও জ্বর আছে। এটি কি শ্বাসতন্ত্রের সংক্রমণ হতে পারে?",
+    "expected_answer_bn": "হ্যাঁ। শ্বাসতন্ত্রের সংক্রমণের লক্ষণগুলো হলো নাক দিয়ে পানি পড়া, কাশি, গলা ব্যাথা, বাধাগ্রস্থ শ্বাসপ্রশ্বাস, কানের সমস্যা এবং জ্বর। শ্বাসতন্ত্রের যে কোন অংশের হঠাৎ সংক্রমণকে এআরআই বা শ্বাসতন্ত্রের তীব্র সংক্রমণ বলে।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "610320ac-c1d7-43a3-a084-bbe76637ca52",
+      "9636d88f-1b81-4da3-9e27-858c6417cd22"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Symptom Identification",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q439"
+  },
+  {
+    "question_en": "How do I count a child's respiratory rate correctly during a home visit?",
+    "expected_answer_en": "Keep the child calm and ensure adequate light in the room. Place a watch or timer with a second hand on the child's chest. Look at the watch first, then count breaths. Observe the rise and fall of the chest or abdomen. One inhalation and exhalation counts as one breath; the number of breaths per minute is the respiratory rate.",
+    "question_bn": "বাড়ি ভিজিটে শিশুর শ্বাস-প্রশ্বাসের হার সঠিকভাবে কীভাবে গণনা করব?",
+    "expected_answer_bn": "শিশুকে শান্ত অবস্থায় রাখুন এবং ঘরে যথেষ্ট আলোর ব্যবস্থা করুন। সেকেন্ডের কাঁটাযুক্ত ঘড়ি বা টাইমার শিশুর বুকের উপর রাখুন। আগে ঘড়ি দেখুন, পরে শ্বাস গণনা করুন। বুক বা পেটের উঠানামা লক্ষ্য করুন। একবার শ্বাস নেওয়া ও ছাড়াকে এক শ্বাস-প্রশ্বাস বলা হয়; এক মিনিটে যতবার হয় সেই সংখ্যাই শ্বাস-প্রশ্বাসের হার।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "d90a791b-9192-4afa-ab4c-382a4e252035"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q440"
+  },
+  {
+    "question_en": "A child has fast breathing with chest indrawing and cannot be fed. Should I refer to the hospital?",
+    "expected_answer_en": "Yes. Refer the child to the hospital if there is fast breathing with chest indrawing, inability to feed, abnormal sleepiness, grunting or wheezing sounds during breathing, convulsions, very high fever or abnormally low body temperature, or excessive vomiting.",
+    "question_bn": "একটি শিশুর দ্রুত শ্বাস হচ্ছে, বুকের পাঁজর ডেবে যাচ্ছে এবং খাওয়ানো যাচ্ছে না। হাসপাতালে রেফার করতে হবে?",
+    "expected_answer_bn": "হ্যাঁ। দ্রুত শ্বাসের সাথে বুকের পাঁজর ডেবে যাওয়া, খাওয়ানো না যাওয়া, অস্বাভাবিক ঘুমঘাম, শ্বাসের সময় সাঁই সাঁই বা গড় গড় শব্দ, খিঁচুনি, অতিরিক্ত জ্বর বা তাপমাত্রা কমে যাওয়া, অথবা অতিরিক্ত বমি হলে শিশুকে হাসপাতালে রেফার করতে হবে।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "0df837e5-15c8-459d-866d-abe6c9bf7e5b"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Emergency Management & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q441"
+  },
+  {
+    "question_en": "What is pneumonia and what are its main symptoms?",
+    "expected_answer_en": "Infection of the lungs only is called pneumonia. Symptoms include rapid breathing, chest indrawing, fever, cough, and difficulty breathing.",
+    "question_bn": "নিউমোনিয়া কী এবং এর প্রধান লক্ষণগুলো কী?",
+    "expected_answer_bn": "শুধুমাত্র ফুসফুসের সংক্রমণকে নিউমোনিয়া বলা হয়। লক্ষণগুলো হলো দ্রুত শ্বাস, বুকের খাঁচা ডেবে যাওয়া, জ্বর, কাশি এবং শ্বাসকষ্ট।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "606ee3d0-17da-41f3-8c41-275e60350154"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Symptom Identification",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q442"
+  },
+  {
+    "question_en": "When counting breaths, the child's breathing rate seems faster than normal. What does this indicate?",
+    "expected_answer_en": "When the breathing rate is higher than normal, it is called rapid breathing (fast breathing). Count how many times the child breathes in and out in one minute while calm — that number is the respiratory rate.",
+    "question_bn": "শ্বাস গণনা করতে গিয়ে দেখলাম শিশুর শ্বাসের গতি স্বাভাবিকের চেয়ে বেশি। এর মানে কী?",
+    "expected_answer_bn": "শ্বাসের গতি স্বাভাবিকের চেয়ে বেড়ে গেলে তাকে দ্রুত শ্বাস বলে। শিশুকে শান্ত অবস্থায় রেখে এক মিনিটে যতবার শ্বাস নেওয়া ও ছাড়া হয় সেই সংখ্যাকে শ্বাস-প্রশ্বাসের হার বলা হয়।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "d90a791b-9192-4afa-ab4c-382a4e252035"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q443"
+  },
+  {
+    "question_en": "A low-birth-weight infant in a crowded, damp home develops cough and rapid breathing. What risk factors and illness might explain this?",
+    "expected_answer_en": "Indirect risk factors include birth weight below 2.5 kg, bathing the baby immediately after birth, malnutrition, not feeding colostrum or exclusive breastfeeding for six months, missing vaccinations, vitamin A deficiency, damp/cold indoor environment, and overcrowding. Rapid breathing with cough may indicate pneumonia — infection of the lungs with symptoms including chest indrawing and difficulty breathing.",
+    "question_bn": "দুই দশমিক পাঁচ কেজির কম ওজনের একটি শিশু ঘনবসতি ও স্যাঁতস্যাঁতে ঘরে কাশি ও দ্রুত শ্বাসে ভুগছে। কোন ঝুঁকির কারণ ও রোগ এটি ব্যাখ্যা করতে পারে?",
+    "expected_answer_bn": "পরোক্ষ কারণগুলোর মধ্যে জন্মকালীন ওজন ২.৫ কেজির কম, জন্মের পর পর গোসল, পুষ্টিহীনতা, শাল দুধ না খাওয়ানো, ছয় মাস পর্যন্ত শুধুমাত্র বুকের দুধ না খাওয়ানো, টিকা না দেওয়া, ভিটামিন এ এর অভাব, বদ্ধ-ঠান্ডা-ভেজা ঘর এবং ঘন বসতি। কাশি ও দ্রুত শ্বাস নিউমোনিয়ার লক্ষণ হতে পারে — ফুসফুসের সংক্রমণ, যার লক্ষণে বুকের খাঁচা ডেবে যাওয়া ও শ্বাসকষ্ট অন্তর্ভুক্ত।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "0baa3edc-fcc5-4d39-a3c0-65c2c9a74db8",
+      "606ee3d0-17da-41f3-8c41-275e60350154"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Differential Diagnosis & Complication Recognition",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q444"
+  },
+  {
+    "question_en": "What advice should I give parents to help prevent respiratory infections in their child?",
+    "expected_answer_en": "Advise exclusive breastfeeding for six months, timely vaccinations, adequate nutrition including vitamin A, keeping the home warm and dry rather than damp and cold, avoiding overcrowding, and not bathing the newborn immediately after birth.",
+    "question_bn": "শিশুর শ্বাসতন্ত্রের সংক্রমণ প্রতিরোধে বাবা-মাকে কী পরামর্শ দেব?",
+    "expected_answer_bn": "ছয় মাস পর্যন্ত শুধুমাত্র বুকের দুধ খাওয়ানো, সময়মতো টিকা দেওয়া, পুষ্টিকর খাবার ও ভিটামিন এ নিশ্চিত করা, ঘর শুকনো ও উষ্ণ রাখা (স্যাঁতস্যাঁতে না), ঘনবসতি এড়ানো এবং নবজাতককে জন্মের পর পর গোসল না করানোর পরামর্শ দিন।",
+    "module_id": [
+      "944d2b28-d0df-4f69-8ec9-ea4354c50fd5"
+    ],
+    "source_card_id": [
+      "0baa3edc-fcc5-4d39-a3c0-65c2c9a74db8"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Prevention & Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q445"
+  },
+  {
+    "question_en": "What is tuberculosis and what are its main types based on location in the body?",
+    "expected_answer_en": "Tuberculosis is a serious infectious bacterial disease caused by Mycobacterium tuberculosis that spreads from an infected person to a healthy person. Based on body location, TB is divided into pulmonary TB and extra-pulmonary TB. Pulmonary TB is further divided into smear-positive pulmonary TB (bacteria found in sputum, infectious) and smear-negative pulmonary TB (bacteria not found in sputum, usually non-infectious, identified later by X-ray). Extra-pulmonary TB outside the lungs is usually not infectious.",
+    "question_bn": "যক্ষ্মা কী এবং শরীরের অবস্থান অনুযায়ী এর প্রধান প্রকারভেদ কী?",
+    "expected_answer_bn": "যক্ষ্মা মাইকোব্যাকটেরিয়াম টিউবারকুলোসিস জীবাণুঘটিত মারাত্মক সংক্রামক রোগ, যা আক্রান্ত ব্যক্তির শরীর থেকে সুস্থ ব্যক্তির শরীরে যায়। শরীরের অবস্থান অনুযায়ী যক্ষ্মাকে ফুসফুসের যক্ষ্মা ও ফুসফুস বহির্ভূত যক্ষ্মায় ভাগ করা হয়। ফুসফুসের যক্ষ্মা দুই প্রকার: কফে জীবাণুযুক্ত (সংক্রামক) ও কফে জীবাণুমুক্ত (সাধারণত অ-সংক্রামক, এক্স-রে দ্বারা চিহ্নিত)। ফুসফুস বহির্ভূত যক্ষ্মা সাধারণত সংক্রামক নয়।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "a99a2a76-f3fd-46dc-94a8-237e1756f9fd"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Etiology Understanding",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q446"
+  },
+  {
+    "question_en": "A man in my area has been coughing continuously for three weeks with evening fever and night sweats. Should I suspect tuberculosis?",
+    "expected_answer_en": "Yes. The main symptom of TB is cough for two weeks or more (with or without blood). Other symptoms include weight loss and progressive weakness, low-grade fever in the afternoon with night sweats, loss of appetite, and shortness of breath or chest or upper back pain. TB bacteria spread through cough and sneeze into the air and enter healthy lungs through breathing.",
+    "question_bn": "আমার এলাকায় একজন লোক তিন সপ্তাহ ধরে কাশছেন, বিকালে জ্বর ও রাতে ঘাম হয়। যক্ষ্মা সন্দেহ করব?",
+    "expected_answer_bn": "হ্যাঁ। যক্ষ্মার প্রধান লক্ষণ একনাগাড়ে দুই সপ্তাহ বা তার বেশি সময় ধরে কাশি (রক্ত থাকুক বা না থাকুক)। এছাড়া ওজন কমে যাওয়া, দুর্বলতা, বিকালে জ্বর ও রাতে ঘাম, খাবারে অরুচি, শ্বাসকষ্ট ও বুকে ব্যথা দেখা যেতে পারে। হাঁচি-কাশির মাধ্যমে জীবাণু বাতাসে ছড়ায়।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "bdd7a381-ba4e-4cd0-90ff-ce4ce07386b6"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Symptom Identification",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q447"
+  },
+  {
+    "question_en": "What is the correct procedure for collecting sputum from a suspected TB patient?",
+    "expected_answer_en": "A suspected patient must provide sputum twice: first, an early morning sputum sample before washing the mouth after waking up; second, a spot sputum sample at the laboratory or smearing center. The patient should place hands behind the back, breathe deeply, and cough up sputum from deep in the chest — not saliva from the mouth. Cough facing away from wind in an open area, at a safe distance from others, into a designated container.",
+    "question_bn": "সন্দেহজনক যক্ষ্মা রোগীর কফ সংগ্রহের সঠিক পদ্ধতি কী?",
+    "expected_answer_bn": "সন্দেহজনক রোগীকে মোট দুই বার কফ দিতে হবে: প্রথমে সকালে ঘুম থেকে উঠে মুখ ধোয়ার আগে সকালের কফ; দ্বিতীয়ত ল্যাবরেটরি বা স্মিয়ারিং সেন্টারে স্পট কফ। রোগী পেছনে হাত রেখে গভীর শ্বাস নিয়ে বুকের গভীর থেকে কফ বের করবে — মুখের থুতু নয়। খোলা জায়গায় বাতাসের বিপরীতে মুখ করে, লোকজন থেকে নিরাপদ দূরত্বে নির্দিষ্ট পাত্রে কফ দেবে।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "1ec4f954-51f8-4580-9a4e-489437eaadee"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q448"
+  },
+  {
+    "question_en": "I collected sputum from a suspected TB patient during a home visit. Where should I refer the patient for testing?",
+    "expected_answer_en": "Refer the patient for sputum testing at any Upazila Health Complex, chest disease clinic or hospital, district headquarters hospital, specialized hospital, community clinic, designated NGO clinic, combined military hospital, all EPI centers, factories, BGMEA, BKMEA, or prisons. If a Tuberculosis Diagnosis Center (TDC) is available, refer there; otherwise refer to a smearing center.",
+    "question_bn": "বাড়ি ভিজিটে সন্দেহজনক যক্ষ্মা রোগীর কফ সংগ্রহ করেছি। পরীক্ষার জন্য রোগীকে কোথায় রেফার করব?",
+    "expected_answer_bn": "কফ পরীক্ষার জন্য উপজেলা স্বাস্থ্যকেন্দ্র, বক্ষব্যাধি ক্লিনিক ও হাসপাতাল, জেলা সদর হাসপাতাল, বিশেষায়িত হাসপাতাল, কমিউনিটি ক্লিনিক, নির্দিষ্ট এনজিও ক্লিনিক, সম্মিলিত সামরিক হাসপাতাল, ইপিজেড, ফ্যাক্টরি, বিজিএমআই, বিকেএমআই বা কারাগারে রেফার করুন। TDC থাকলে সেখানে, না থাকলে স্মেয়ারিং সেন্টারে রেফার করুন।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "edf3c5ca-2a08-4581-a940-769f38b4d5af",
+      "3cadd84e-5c56-4c4b-acdd-7ee9a9c8e141"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Referral & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q449"
+  },
+  {
+    "question_en": "How are TB patients classified as new versus old (retreatment) patients?",
+    "expected_answer_en": "New patients include smear-positive new patients who have never received TB treatment or received it for less than one month, smear-negative patients identified by X-ray, and new extra-pulmonary TB patients. Old patients are those who were cured but later diagnosed again, those with bacteria in sputum after 2–5 months of prior treatment, treatment failure patients, treatment-after-lost-to-follow-up patients, and others who previously took TB medicine for more than one month.",
+    "question_bn": "যক্ষ্মা রোগীকে নতুন ও পুরাতন (পুনঃচিকিৎসা) শ্রেণীতে কীভাবে ভাগ করা হয়?",
+    "expected_answer_bn": "নতুন রোগী হলো কফে জীবাণুযুক্ত যিনি কখনো চিকিৎসা নেননি বা এক মাসের কম চিকিৎসা করেছেন, এক্স-রে দ্বারা চিহ্নিত নেগেটিভ নতুন রোগী ও ফুসফুস বহির্ভূত নতুন রোগী। পুরাতন রোগী হলো যারা সুস্থ হয়ে আবার রোগী হয়েছেন, আগে এক মাসের বেশি ওষুধ খেয়ে ২–৫ মাস চিকিৎসার পর কফে জীবাণু পাওয়া গেছে এমন রোগী, চিকিৎসা ব্যর্থতা বা হারিয়ে যাওয়ার পর চিকিৎসার রোগী।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "a11942a3-a808-4126-83e8-294e5eb7760e"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q450"
+  },
+  {
+    "question_en": "What should a health worker do if a DOT patient misses coming to the health worker's home on a scheduled day?",
+    "expected_answer_en": "If a patient does not come to the health worker's home on a specific day, the health worker must immediately go to the patient's home, find out the reason for absence, resolve the problem, and give that day's medicine according to administration guidelines. During both intensive and continuation phases, medicine is given daily on an empty stomach in the morning when the patient visits.",
+    "question_bn": "ডট রোগী নির্ধারিত দিনে সেবিকার বাড়িতে না এলে স্বাস্থ্যকর্মীর করণীয় কী?",
+    "expected_answer_bn": "নির্দিষ্ট দিনে রোগী সেবিকার বাড়িতে না আসলে সেবিকা সঙ্গে সঙ্গে রোগীর বাড়িতে গিয়ে অনুপস্থিতির কারণ জেনে সমস্যা সমাধান করে ঐ দিনের ওষুধ সেবন বিধি মোতাবেক খাইয়ে দেবেন। ইনটেনসিভ ও কন্টিনিউয়েশন উভয় ফেজে প্রতিদিন সকালে খালি পেটে ওষুধ দিতে হয়।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "45b4890d-1df6-413e-bccb-9ca6570b39c7"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q451"
+  },
+  {
+    "question_en": "A TB patient has been diagnosed and started on DOT treatment. What should the patient and family do regarding infection control and follow-up testing?",
+    "expected_answer_en": "Start treatment quickly and take medicine regularly for the full course in front of the health worker. Repeat sputum tests during treatment to monitor disease status. Do not spit sputum anywhere — collect it in a designated container and bury or burn it later. Cover the mouth with a cloth during cough and sneeze. If any family member develops cough, they must also have sputum tested. Give BCG vaccine to newborns immediately after birth.",
+    "question_bn": "যক্ষ্মা রোগী শনাক্ত হয়ে ডট চিকিৎসা শুরু করেছেন। সংক্রমণ নিয়ন্ত্রণ ও ফলো-আপ পরীক্ষায় রোগী ও পরিবারের করণীয় কী?",
+    "expected_answer_bn": "দ্রুত চিকিৎসা শুরু করুন এবং সেবিকার সামনে নিয়মিত পূর্ণ মেয়াদে ওষুধ সেবন করুন। চিকিৎসা চলাকালে অবস্থা বোঝার জন্য কফ পরীক্ষা করান। যেখানে-সেখানে কফ ফেলবেন না — নির্দিষ্ট পাত্রে ফেলে পরে পুঁতে বা পুড়িয়ে ফেলুন। হাঁচি-কাশির সময় মুখে রুমাল ব্যবহার করুন। পরিবারের কারও কাশি হলে কফ পরীক্ষা করাতে হবে। জন্মের পরপর শিশুকে বিসিজি টিকা দিন।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "edf3c5ca-2a08-4581-a940-769f38b4d5af",
+      "92a66443-4992-4948-bbe0-26281287ef44"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Prevention & Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q452"
+  },
+  {
+    "question_en": "A TB patient's family asks whether they can live normally with the patient during treatment. What counseling should I provide?",
+    "expected_answer_en": "During treatment the patient can live normally with family members. TB spreads through cough and sneeze, so cover the mouth with cloth when coughing or sneezing. Do not spit sputum anywhere — use a designated container and bury it in the ground. If any family member develops cough, get sputum tested. Inform the health worker of any problems or go to hospital quickly. A mother on regular TB treatment can continue breastfeeding.",
+    "question_bn": "যক্ষ্মা রোগীর পরিবার জানতে চায় চিকিৎসাকালে রোগীর সঙ্গে স্বাভাবিকভাবে থাকা যাবে কিনা। কী পরামর্শ দেব?",
+    "expected_answer_bn": "চিকিৎসা চলাকালে রোগী পরিবারের সঙ্গে স্বাভাবিক জীবনযাপন করতে পারে। হাঁচি-কাশির মাধ্যমে ছড়ায়, তাই মুখ কাপড়ে ঢেকে হাঁচি-কাশি দিতে হবে। যেখানে-সেখানে কফ না ফেলে নির্দিষ্ট পাত্রে ফেলে মাটিতে পুঁতে ফেলুন। পরিবারের কারও কাশি হলে কফ পরীক্ষা করান। সমস্যা হলে সেবিকাকে জানান বা দ্রুত হাসপাতালে যান। নিয়মিত চিকিৎসায় থাকা মা শিশুকে বুকের দুধ খাওয়াতে পারবেন।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "92a66443-4992-4948-bbe0-26281287ef44"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Chronic Disease Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q453"
+  },
+  {
+    "question_en": "A DOT patient reports that their urine has turned orange-red after starting TB medicine. Should they stop the medicine?",
+    "expected_answer_en": "No, there is no need to worry if urine turns orange or red after taking TB medicine — urine will return to normal after the medicine course ends. However, seek hospital care immediately for serious side effects such as blurred vision, ringing in ears, yellowing of eyes, inability to eat, vomiting (jaundice), abnormal behavior, severe abdominal pain, stopped urination, or red patches under the skin.",
+    "question_bn": "ডট রোগী যক্ষ্মার ওষুধ খাওয়ার পর প্রস্রাব কমলা বা লাল হয়ে গেছে বলে জানালেন। ওষুধ বন্ধ করব?",
+    "expected_answer_bn": "না, যক্ষ্মার ওষুধ খেলে প্রস্রাবের রং কমলা বা লাল হলে ভয়ের কোন কারণ নেই — ওষুধ শেষ হলে প্রস্রাব আগের মতো হয়ে যাবে। তবে চোখে ঝাপসা দেখা, কানে ভোঁভোঁ, চোখ হলুদ হওয়া, খেতে না পারা, বমি (জন্ডিস), অস্বাভাবিক আচরণ, পেটে তীব্র ব্যথা, প্রস্রাব বন্ধ বা চামড়ার নিচে লাল চাকা হলে সঙ্গে সঙ্গে হাসপাতালে যেতে হবে।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "8395d8be-770a-40fa-82f0-521b7e2e2a24"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Clinical Escalation & Patient Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q454"
+  },
+  {
+    "question_en": "During my morning field visit today, I found a man with a persistent cough of more than two weeks. As a CHW, what are my immediate responsibilities?",
+    "expected_answer_en": "Arrive in the designated work area by 8:30 AM daily and visit households with the health worker to collect sputum from suspected TB patients. Refer patients to the Tuberculosis Diagnosis Center (TDC), or to a smearing center where no TDC is available.",
+    "question_bn": "আজ সকালের মাঠ পরিদর্শনে দুই সপ্তাহের বেশি কাশি থাকা একজন লোক পেলাম। CHW হিসেবে আমার তাৎক্ষণিক দায়িত্ব কী?",
+    "expected_answer_bn": "প্রতিদিন সকাল আটটা ত্রিশ মিনিটের মধ্যে নির্দিষ্ট কর্ম এলাকায় উপস্থিত হয়ে সেবিকার সঙ্গে খানা পরিদর্শন করে সম্ভাব্য যক্ষ্মা রোগীর কফ সংগ্রহ করুন। টিউবারকুলোসিস ডায়াগনোসিস সেন্টার (TDC) তে রেফার করুন; TDC না থাকলে স্মেয়ারিং সেন্টারে রেফার করুন।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "3cadd84e-5c56-4c4b-acdd-7ee9a9c8e141",
+      "bdd7a381-ba4e-4cd0-90ff-ce4ce07386b6"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q455"
+  },
+  {
+    "question_en": "How should a health worker record medicine adherence on a DOT treatment card?",
+    "expected_answer_en": "After the patient takes medicine on schedule, mark a tick (√) in the date box on the treatment card. If the patient misses medicine on any day for any reason, mark zero (0) in that date's box. Remember that recording information on the card is extremely important.",
+    "question_bn": "ডট চিকিৎসা কার্ডে ওষুধ গ্রহণের তথ্য কীভাবে সংরক্ষণ করব?",
+    "expected_answer_bn": "রোগী নিয়মমাফিক ওষুধ খাওয়ার পর কার্ডের নির্দিষ্ট তারিখের ঘরে টিক চিহ্ন (√) দেবেন। কোনো দিন ওষুধ না খেলে ঐ তারিখের ঘরে শূন্য (০) চিহ্ন দেবেন। কার্ডে তথ্য সংরক্ষণ অত্যন্ত জরুরী।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "5a0c8af9-3c8e-4af2-8734-5979ce7966a7"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Tracking & Reporting Defaulters",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q456"
+  },
+  {
+    "question_en": "A DOT patient reports severe abdominal pain and yellowing of the eyes after taking TB medicine. What should I do immediately?",
+    "expected_answer_en": "These are serious side effects requiring immediate hospital referral. Refer the patient to the nearest health center right away, or inform BRAC PO. Other serious side effects requiring urgent hospital care include blurred vision, ringing in ears, inability to eat, vomiting (jaundice), abnormal behavior, stopped urination, and red patches under the skin.",
+    "question_bn": "ডট রোগী যক্ষ্মার ওষুধ খাওয়ার পর পেটে তীব্র ব্যথা ও চোখ হলুদ হয়ে গেছে বলে জানালেন। তাৎক্ষণিক কী করব?",
+    "expected_answer_bn": "এগুলো গুরুতর পার্শ্বপ্রতিক্রিয়া — সঙ্গে সঙ্গে নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন অথবা ব্র্যাক পিওকে জানান। চোখে ঝাপসা দেখা, কানে ভোঁভোঁ, খেতে না পারা, বমি (জন্ডিস), অস্বাভাবিক আচরণ, প্রস্রাব বন্ধ বা চামড়ার নিচে লাল চাকা হলেও সঙ্গে সঙ্গে হাসপাতালে যেতে হবে।",
+    "module_id": [
+      "0e8bfcef-699b-4900-8814-0516ab815dae"
+    ],
+    "source_card_id": [
+      "8395d8be-770a-40fa-82f0-521b7e2e2a24",
+      "45b4890d-1df6-413e-bccb-9ca6570b39c7"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Emergency Management & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q457"
+  }
+]

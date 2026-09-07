@@ -1,4 +1,4 @@
-"""W-2 Stage A — text_extractor unit tests using programmatic fixtures."""
+"""Stage A — text_extractor unit tests using programmatic fixtures."""
 
 from pathlib import Path
 

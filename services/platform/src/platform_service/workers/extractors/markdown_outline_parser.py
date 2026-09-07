@@ -1,6 +1,6 @@
-"""W-3 Stage B — deterministic markdown-headings outline parser.
+"""Stage B — deterministic markdown-headings outline parser.
 
-Per Pipeline v3.3 §5. Walks all source_page.markdown_content concatenated,
+See `docs/content-administration/ingest-pipeline.md` Walks all source_page.markdown_content concatenated,
 tracks per-page heading occurrences, and builds a section tree with
 page_range covering each section's span.
 

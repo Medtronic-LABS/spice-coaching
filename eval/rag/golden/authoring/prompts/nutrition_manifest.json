@@ -1,0 +1,25 @@
+{
+  "domain": "nutrition",
+  "batch_count": 3,
+  "total_expected_records": 25,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "nutrition_batch0.prompt.json",
+      "prompt_md": "nutrition_batch0.prompt.md",
+      "expected_record_count": 8
+    },
+    {
+      "batch_index": 1,
+      "prompt_json": "nutrition_batch1.prompt.json",
+      "prompt_md": "nutrition_batch1.prompt.md",
+      "expected_record_count": 6
+    },
+    {
+      "batch_index": 2,
+      "prompt_json": "nutrition_batch2.prompt.json",
+      "prompt_md": "nutrition_batch2.prompt.md",
+      "expected_record_count": 11
+    }
+  ]
+}

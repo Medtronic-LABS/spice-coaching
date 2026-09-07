@@ -1,6 +1,6 @@
-"""W-5 — Stage D card drafter via ai-runtime.
+"""Stage D card drafter via ai-runtime.
 
-Per Pipeline v3.3 §7. Calls ai-runtime with GenerationType.CARD_DRAFTING and
+See `docs/content-administration/ingest-pipeline.md` Calls ai-runtime with GenerationType.CARD_DRAFTING and
 parses the response into draft card dicts ready for snippet resolution and
 persistence. When an image catalog is provided, the drafter passes available
 images to the LLM and resolves returned short ids into CardMediaItem JSON on
@@ -38,7 +38,7 @@ from platform_service.services.prompt_variables.card_drafter_variables import bu
 logger = logging.getLogger(__name__)
 
 
-# Refusal reason vocabulary (per Pipeline v3.3 §7).
+# Refusal reason vocabulary (see `docs/content-administration/ingest-pipeline.md`).
 INSUFFICIENT_REASONS = (
     "no_actionable_content",
     "single_concept_only",

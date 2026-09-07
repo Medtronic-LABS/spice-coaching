@@ -1,11 +1,17 @@
-"""Unit tests for LLM-as-judge parsing."""
+"""Unit tests for LLM-as-judge parsing and rubric selection."""
 
 from __future__ import annotations
 
 from uuid import UUID
 
 from eval.rag.corpus import CardCorpusDoc
-from eval.rag.llm_judge import build_judge_context, parse_judge_response
+from eval.rag.llm_judge import (
+    JudgeInput,
+    build_judge_context,
+    build_judge_human_message,
+    judge_rubric_for_record,
+    parse_judge_response,
+)
 from mc_contracts.enums import GenerationType
 from mc_contracts.internal_ai import InferenceResponse, TokenUsage
 
@@ -37,13 +43,15 @@ def test_parse_judge_response_from_parsed_json() -> None:
         generation_type=GenerationType.RAG_EVAL_JUDGE,
         provider="google",
         model="test-model",
-        max_tokens=256,
+        max_tokens=512,
         temperature=0.0,
         raw_text="",
         parsed_json={
             "faithfulness": 0.9,
             "answer_relevance": 1.1,
             "groundedness": -0.2,
+            "reference_correctness": 0.75,
+            "abstention_appropriateness": None,
         },
         latency_ms=10,
         token_usage=TokenUsage(input=1, output=1),
@@ -53,7 +61,10 @@ def test_parse_judge_response_from_parsed_json() -> None:
     assert scores.faithfulness == 0.9
     assert scores.answer_relevance == 1.0
     assert scores.groundedness == 0.0
+    assert scores.reference_correctness == 0.75
+    assert scores.abstention_appropriateness is None
     assert scores.judge_error is None
+    assert scores.judge_model == "test-model"
 
 
 def test_parse_judge_response_handles_invalid_json() -> None:
@@ -62,7 +73,7 @@ def test_parse_judge_response_handles_invalid_json() -> None:
         generation_type=GenerationType.RAG_EVAL_JUDGE,
         provider="google",
         model="test-model",
-        max_tokens=256,
+        max_tokens=512,
         temperature=0.0,
         raw_text="not json",
         parsed_json=None,
@@ -73,3 +84,34 @@ def test_parse_judge_response_handles_invalid_json() -> None:
     scores = parse_judge_response(response)
     assert scores.faithfulness is None
     assert scores.judge_error is not None
+
+
+def test_judge_rubric_stratifies_by_record_type() -> None:
+    out_of_scope = judge_rubric_for_record(answerable="no", is_out_of_scope=True, category="out-of-scope")
+    partial = judge_rubric_for_record(answerable="partial", is_out_of_scope=False, category="ANC")
+    adversarial = judge_rubric_for_record(
+        answerable="yes",
+        is_out_of_scope=False,
+        category="edge / adversarial",
+    )
+    assert "out-of-scope" in out_of_scope
+    assert "partial" in partial.casefold()
+    assert "adversarial" in adversarial.casefold()
+
+
+def test_build_judge_human_message_includes_reference_and_context() -> None:
+    message = build_judge_human_message(
+        JudgeInput(
+            question="What is DOT?",
+            answer="DOT means directly observed treatment.",
+            expected_answer="Directly Observed Treatment short course.",
+            generation_context="[[[ MODULE_BLOCK module_id=abc ]]]",
+            answerable="yes",
+            is_out_of_scope=False,
+            category="TB",
+            language="en",
+        )
+    )
+    assert "EXPECTED_ANSWER" in message
+    assert "GENERATION_CONTEXT" in message
+    assert "Directly Observed Treatment" in message

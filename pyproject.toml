@@ -16,12 +16,34 @@ members = [
 [tool.uv]
 package = false
 
+[[tool.uv.index]]
+name = "llama-cpp-python-cpu"
+url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "llama-cpp-python-metal"
+url = "https://abetlen.github.io/llama-cpp-python/whl/metal"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv.sources]
 mc-contracts = { workspace = true }
 mc-foundation = { workspace = true }
 microcoaching-platform = { workspace = true }
 ai-runtime = { workspace = true }
 rag-eval = { workspace = true }
+llama-cpp-python = [
+    { index = "llama-cpp-python-cpu", marker = "sys_platform == 'linux'" },
+    { index = "llama-cpp-python-metal", marker = "sys_platform == 'darwin'" },
+]
+torch = [
+    { index = "pytorch-cpu" },
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -50,6 +72,10 @@ dev = [
     "pyright>=1.1.400,<2.0.0",
     "pytest-cov>=6.0.0,<7.0.0",
 ]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.5,<10",
+]
 
 [tool.coverage.run]
 source = ["services/platform/src/platform_service", "services/ai-runtime/src/ai_runtime"]
@@ -67,8 +93,16 @@ select = [
     "F",   # pyflakes
     "I",   # isort
     "UP",  # pyupgrade (modern syntax)
+    "PLC0415",  # import-outside-top-level
 ]
 ignore = [
     "E501", # line length handled by formatter
     "UP042", # StrEnum migration — stylistic, opt in later
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Native libs must not load at import time (prompt_executor imports these modules).
+"services/ai-runtime/src/ai_runtime/services/local_generation_llama_cpp.py" = ["PLC0415"]
+"services/ai-runtime/src/ai_runtime/services/local_embedding.py" = ["PLC0415"]
+# importlib.reload requires a post-reload import of the fresh module.
+"tests/workers/test_stage_d_draft.py" = ["PLC0415"]

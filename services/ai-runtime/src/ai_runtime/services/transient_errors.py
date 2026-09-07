@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
+try:
+    from google.api_core import exceptions as google_exceptions
+except ImportError:
+    google_exceptions = None
+
 # String markers for exceptions without typed SDK wrappers (fallback only).
 _PERMANENT_ERROR_MARKERS = (
     "INVALID_ARGUMENT",
@@ -46,9 +51,7 @@ def is_transient_provider_error(exc: Exception) -> bool:
     if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError, OSError)):
         return True
 
-    try:
-        from google.api_core import exceptions as google_exceptions
-
+    if google_exceptions is not None:
         if isinstance(exc, google_exceptions.InvalidArgument):
             return False
         if isinstance(exc, google_exceptions.PermissionDenied):
@@ -71,8 +74,6 @@ def is_transient_provider_error(exc: Exception) -> bool:
                 return False
             if code in _TRANSIENT_HTTP_STATUS_CODES:
                 return True
-    except ImportError:
-        pass
 
     status = _status_code_from_exc(exc)
     if status is not None:

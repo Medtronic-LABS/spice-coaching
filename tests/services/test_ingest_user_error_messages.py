@@ -5,6 +5,7 @@ from __future__ import annotations
 from mc_contracts.errors import ErrorCode
 from platform_service.services.ingest_step_errors import build_step_failure
 from platform_service.services.ingest_user_error_messages import user_message_for_step
+from platform_service.workers.stage_a_types import Stage1DocumentEmptyError
 
 
 class TestUserMessageForStep:
@@ -59,8 +60,6 @@ class TestBuildStepFailure:
         assert "message" not in error
 
     def test_document_empty_exception(self) -> None:
-        from platform_service.workers.stage_a_types import Stage1DocumentEmptyError
-
         exc = Stage1DocumentEmptyError()
         user_message, error = build_step_failure(
             error_code=ErrorCode.EXTRACT_FAILED.value,

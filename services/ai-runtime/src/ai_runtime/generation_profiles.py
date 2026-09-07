@@ -38,7 +38,7 @@ def _profile(
 GENERATION_PROFILES: dict[GenerationType, GenerationProfile] = {
     GenerationType.OUTLINE_INFERENCE: _profile(),
     GenerationType.MODULE_IDENTIFICATION: _profile(max_tokens=12_000),
-    GenerationType.CROSS_SOURCE_FUSION: _profile(max_tokens=8192),
+    GenerationType.CANDIDATE_MERGE: _profile(max_tokens=8192),
     GenerationType.CARD_DRAFTING: _profile(),
     GenerationType.MODULE_PUBLISHED_MERGE: _profile(max_tokens=4_000),
     GenerationType.QUIZ_DRAFTING: _profile(),
@@ -47,7 +47,10 @@ GENERATION_PROFILES: dict[GenerationType, GenerationProfile] = {
     GenerationType.VISION_EXTRACTION: _profile(),
     GenerationType.COACHING_RAG: _profile(max_tokens=2048),
     GenerationType.COACHING_CHAT_ROUTE: _profile(max_tokens=512, temperature=0.1),
-    GenerationType.RAG_EVAL_JUDGE: _profile(max_tokens=256, temperature=0.0),
+    GenerationType.COACHING_LOCAL_CARD_RAG: _profile(max_tokens=512, temperature=0.0),
+    GenerationType.COACHING_LOCAL_CARD_CHAT_ROUTE: _profile(max_tokens=128, temperature=0.0),
+    GenerationType.RAG_EVAL_JUDGE: _profile(max_tokens=512, temperature=0.0),
+    GenerationType.GOLDEN_EXPANSION: _profile(max_tokens=8192, temperature=0.2),
     GenerationType.MODULE_GAP_CLASSIFICATION: _profile(),
     GenerationType.MODULE_ASSESSMENT_TOPIC_CLASSIFICATION: _profile(),
     GenerationType.MODULE_SEARCH_METADATA: _profile(),
@@ -56,6 +59,24 @@ GENERATION_PROFILES: dict[GenerationType, GenerationProfile] = {
     GenerationType.CHAT_FEEDBACK_SUMMARY: _profile(),
     GenerationType.MODULE_CREATION_SUGGESTION: _profile(),
 }
+
+
+_LOCAL_PROFILE_OVERRIDES: dict[GenerationType, tuple[int, float]] = {
+    GenerationType.COACHING_RAG: (512, 0.0),
+    GenerationType.COACHING_CHAT_ROUTE: (128, 0.0),
+    GenerationType.COACHING_LOCAL_CARD_RAG: (512, 0.0),
+    GenerationType.COACHING_LOCAL_CARD_CHAT_ROUTE: (128, 0.0),
+}
+
+
+def resolve_local_profile(generation_type: GenerationType, settings: Settings) -> GenerationProfile:
+    """Tighter token/temperature budgets for ``use_local`` CPU inference."""
+    profile = resolve_profile(generation_type, settings)
+    override = _LOCAL_PROFILE_OVERRIDES.get(generation_type)
+    if override is None:
+        return profile
+    max_tokens, temperature = override
+    return GenerationProfile(model=profile.model, max_tokens=max_tokens, temperature=temperature)
 
 
 def resolve_profile(generation_type: GenerationType, settings: Settings) -> GenerationProfile:

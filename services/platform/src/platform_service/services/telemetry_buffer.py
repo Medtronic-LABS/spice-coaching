@@ -1,4 +1,4 @@
-"""W-10 — Redis-backed retry buffer for ClickHouse insert failures.
+"""Redis-backed retry buffer for ClickHouse insert failures.
 
 When ClickHouse is unreachable (network blip, restart, capacity), the
 existing telemetry handler raises and the SDK sees a 500 — costing the

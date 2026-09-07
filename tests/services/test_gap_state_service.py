@@ -1,4 +1,4 @@
-"""W-8 — gap_state_service integration tests.
+"""gap_state_service integration tests.
 
 Covers the telemetry → state → trigger evaluation flow plus the
 supervisor-escalation rule (Pipeline §12A: ≥3 failed attempts within 30 days).

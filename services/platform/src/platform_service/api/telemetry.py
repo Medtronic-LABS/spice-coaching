@@ -7,7 +7,7 @@ Routing:
 - `telemetry_behavioural_gap_state_enabled` (default false) selects operational state:
   - **false (quiz mode):** only `MODULE_QUIZ_ATTEMPTED` → `process_module_event_task`
     (per-quiz-question state in `chw_quiz_question_state`).
-  - **true (gap mode):** `event_type` ∈ MODULE_* pipeline set (W-10 v3.3) →
+  - **true (gap mode):** `event_type` in the MODULE_* pipeline set →
     enqueue `process_module_event_task` (module completion + gap state); plus
     `event_type` == SPICE_ACTION_OBSERVED (gap observation from
     `payload_json.behavioural_gap_id`).
@@ -20,7 +20,7 @@ Routing:
 - `DOCUMENT_VIEWED` → ClickHouse only (``document_view_daily`` MV); no Celery
   side-effects and no learning points.
 
-W-10 hardening (additive on top of the original handler):
+Ingest hardening (additive on top of the original handler):
 1. Dedup by event_id via Redis SET-NX with 24h TTL — duplicates from SDK
    retries are dropped before write and reported in `duplicates`.
 2. ClickHouse insert failures are caught and the rows are pushed to a
@@ -42,10 +42,10 @@ from mc_contracts.telemetry import TelemetryAckResponse, TelemetryBatch, Telemet
 
 from platform_service.auth.spice_identity import require_chw_id_for_telemetry
 from platform_service.auth.spice_user import get_selected_tenant_id
-from platform_service.celery_tasks import (
-    process_module_event_task,
-    process_training_request_event_task,
-    process_video_progress_event_task,
+from platform_service.celery_enqueue import (
+    enqueue_process_module_event,
+    enqueue_process_training_request_event,
+    enqueue_process_video_progress_event,
 )
 from platform_service.config import get_settings
 from platform_service.deps import get_clickhouse_client, get_redis_client
@@ -62,7 +62,7 @@ def _resolve_telemetry_chw_id(request: Request, batch: TelemetryBatch) -> int:
     return require_chw_id_for_telemetry(request, batch.chw_id)
 
 
-# v3.3 module-pipeline event types (W-10). Anything in this set is routed
+# Module-pipeline event types. Anything in this set is routed
 # to `process_module_event_task` instead of the scenario-level path.
 # MODULE_REQUESTED is intentionally excluded (dedicated training-request task).
 _MODULE_EVENT_TYPES: frozenset[str] = frozenset(
@@ -129,7 +129,7 @@ def _event_to_row(
 ) -> list:
     """Convert TelemetryEvent to ClickHouse coaching_events column order.
 
-    W-10 added three columns at the end (module_family_id, module_version,
+    Added three columns at the end (module_family_id, module_version,
     quiz_score_pct). Legacy events leave them NULL.
     """
     return [
@@ -195,7 +195,7 @@ async def ingest_events(
     _ch_client = get_clickhouse_client()
     gap_state_enabled = get_settings().telemetry_behavioural_gap_state_enabled
 
-    # ── W-10 idempotency: drop duplicates BEFORE any side-effects ──
+    # ── idempotency: drop duplicates BEFORE any side-effects ──
     redis = get_redis_client()
     first_seen, duplicate_ids = await partition_for_dedup(redis, batch.events)
 
@@ -255,9 +255,9 @@ async def ingest_events(
                         event.id,
                     )
             elif gap_state_enabled:
-                # W-10 module-pipeline path (gap mode). The legacy v3.0 scenario-level
-                # gap-update path was deleted in the architecture reset (the
-                # underlying scenario / chw_gap_profile tables are gone).
+                # Module-pipeline path (gap mode). The scenario-level
+                # gap-update path was removed (the scenario / chw_gap_profile
+                # tables are gone).
                 if event_type_value in _MODULE_EVENT_TYPES and event.module_id is not None:
                     job: dict = {
                         "chw_id": chw_id,
@@ -317,7 +317,7 @@ async def ingest_events(
             errors.append(f"event_id={event.id}: {exc}")
             logger.warning("Telemetry event rejected event_id=%s: %s", event.id, exc)
 
-    # ── ClickHouse writes with retry-buffer fallback (W-10) ──
+    # ── ClickHouse writes with retry-buffer fallback ──
     if coaching_events:
         await _insert_or_buffer(
             table="coaching_events",
@@ -332,11 +332,11 @@ async def ingest_events(
     # is for analytics; operational state shouldn't be held hostage to a
     # ClickHouse outage.
     for j in module_jobs:
-        process_module_event_task.delay(j)
+        enqueue_process_module_event(j)
     for j in training_request_jobs:
-        process_training_request_event_task.delay(j)
+        enqueue_process_training_request_event(j)
     for j in video_progress_jobs:
-        process_video_progress_event_task.delay(j)
+        enqueue_process_video_progress_event(j)
 
     return TelemetryAckResponse(
         accepted=accepted,

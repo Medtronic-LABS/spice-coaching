@@ -14,7 +14,6 @@ from platform_service.db.models.source_document import SourceDocument
 from platform_service.services.ingestion_run_generation_counts import (
     IngestionRunGenerationCountsService,
 )
-from platform_service.services.run_state.constants import FUSION_RUN_TYPE
 from platform_service.services.run_state_service import STAGE_CARD_DRAFT
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -699,7 +698,7 @@ class TestIngestionRunEndpoints:
         assert row["generated_card_count"] == 2
         assert row["generated_quiz_count"] == 1
 
-    async def test_fusion_shared_module_refreshes_sibling_pipeline_rows(
+    async def test_shared_module_refreshes_sibling_pipeline_rows(
         self, client: AsyncClient, db_session: AsyncSession
     ) -> None:
         batch = IngestBatch(status="running", assessment_mode="with_quiz", tenant_id=1)
@@ -723,7 +722,7 @@ class TestIngestionRunEndpoints:
             module_json={"cards": [{"title": {"bn": "a1"}, "body": {"bn": "x"}}]},
         )
         own_a.source_document_ids = [run_a.source_document_id]
-        fused = await _seed_module(
+        merged = await _seed_module(
             db_session,
             module_json={
                 "cards": [
@@ -732,48 +731,24 @@ class TestIngestionRunEndpoints:
                 ]
             },
         )
-        fused.source_document_ids = [run_a.source_document_id, run_b.source_document_id]
+        merged.source_document_ids = [run_a.source_document_id, run_b.source_document_id]
         await db_session.commit()
 
         await self._add_card_draft_step(db_session, run_a, module_id=str(own_a.id))
+        await self._add_card_draft_step(db_session, run_a, module_id=str(merged.id))
         await self._freeze_counts(db_session, run_a)
         await self._freeze_counts(db_session, run_b)
 
-        list_before = await client.get(platform_path("/admin/ingestion-runs"))
-        by_id = {row["id"]: row for row in list_before.json()["runs"]}
-        assert by_id[str(run_a.id)]["generated_module_count"] == 1
-        assert by_id[str(run_a.id)]["generated_card_count"] == 1
-        assert by_id[str(run_b.id)]["generated_module_count"] == 0
-
-        fusion_run = await self._seed_run(
-            db_session,
-            original_filename="fusion-anchor.pdf",
-            source_document_id=run_a.source_document_id,
-            ingest_batch_id=batch.id,
-            started_offset_seconds=20,
-            error_jsonb={
-                "type": FUSION_RUN_TYPE,
-                "source_document_ids": [
-                    str(run_a.source_document_id),
-                    str(run_b.source_document_id),
-                ],
-            },
-        )
-        await self._add_card_draft_step(db_session, fusion_run, module_id=str(fused.id))
-        await IngestionRunGenerationCountsService(db_session).upsert_after_run_complete(fusion_run)
-        await db_session.commit()
-
-        list_after = await client.get(platform_path("/admin/ingestion-runs"))
-        by_id = {row["id"]: row for row in list_after.json()["runs"]}
-        # Latest-per-document list hides the older pipeline run for doc A.
-        assert str(run_a.id) not in by_id
-        assert str(fusion_run.id) in by_id
+        list_resp = await client.get(platform_path("/admin/ingestion-runs"))
+        by_id = {row["id"]: row for row in list_resp.json()["runs"]}
+        assert by_id[str(run_a.id)]["generated_module_count"] == 2
+        assert by_id[str(run_a.id)]["generated_card_count"] == 3
         assert by_id[str(run_b.id)]["generated_module_count"] == 1
         assert by_id[str(run_b.id)]["generated_card_count"] == 2
 
-        detail_a = await client.get(platform_path(f"/admin/ingestion-runs/{run_a.id}"))
-        assert detail_a.json()["generated_module_count"] == 2
-        assert detail_a.json()["generated_card_count"] == 3
+        detail_b = await client.get(platform_path(f"/admin/ingestion-runs/{run_b.id}"))
+        assert detail_b.json()["generated_module_count"] == 1
+        assert detail_b.json()["generated_card_count"] == 2
 
     async def test_list_and_detail_include_ingested_by_actor(
         self, client: AsyncClient, db_session: AsyncSession

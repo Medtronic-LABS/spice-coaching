@@ -78,8 +78,10 @@ class AIRuntimeClient:
         await self._client.aclose()
         await self._transcribe_client.aclose()
 
-    async def generate(self, request: InferenceRequest) -> InferenceResponse:
+    async def generate(self, request: InferenceRequest, *, use_local: bool = False) -> InferenceResponse:
         """Post a fully-resolved InferenceRequest to ai-runtime and return the response."""
+        if use_local:
+            request = request.model_copy(update={"use_local": True})
         url = f"{self._base_url}/internal/generate/{request.generation_type.value}"
         headers = _internal_headers(self._token)
         payload = request.model_dump(mode="json")
@@ -111,15 +113,16 @@ class AIRuntimeClient:
             ) from exc
         raise AssertionError("unreachable")
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
+    async def embed(self, texts: list[str], *, use_local: bool = False) -> list[list[float]]:
         """Request text embeddings from ai-runtime.
 
         Returns a list of embedding vectors (one per input text), in the same order.
+        When ``use_local`` is true, ai-runtime runs EmbeddingGemma locally.
         """
         url = f"{self._base_url}/internal/embed"
         headers = _internal_headers(self._token)
 
-        payload = EmbedRequest(texts=texts)
+        payload = EmbedRequest(texts=texts, use_local=use_local)
         try:
             resp = await self._client.post(url, json=payload.model_dump(), headers=headers)
             resp.raise_for_status()

@@ -1,4 +1,4 @@
-"""Programmatic test-fixture builders for W-2 Stage A.
+"""Programmatic test-fixture builders for Stage A extract.
 
 Generates synthetic PDFs, PPTXs, and DOCXs in a tmp_path so tests don't have
 to commit binary fixtures. The legacy-Bijoy Bangla case is harder to fake

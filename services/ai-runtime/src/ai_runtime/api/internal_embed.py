@@ -30,5 +30,5 @@ async def embed(body: EmbedRequest, _: None = Depends(require_internal_token)) -
         return EmbedResponse(embeddings=[])
     if len(body.texts) > 100:
         raise AppError(ErrorCode.BAD_REQUEST.value, "Maximum 100 texts per request", status=400)
-    embeddings = await _executor.embed(body.texts)
+    embeddings = await _executor.embed(body.texts, use_local=body.use_local)
     return EmbedResponse(embeddings=embeddings)

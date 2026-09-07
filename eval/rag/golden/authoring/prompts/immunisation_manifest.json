@@ -1,0 +1,13 @@
+{
+  "domain": "immunisation",
+  "batch_count": 1,
+  "total_expected_records": 3,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "immunisation_batch0.prompt.json",
+      "prompt_md": "immunisation_batch0.prompt.md",
+      "expected_record_count": 3
+    }
+  ]
+}

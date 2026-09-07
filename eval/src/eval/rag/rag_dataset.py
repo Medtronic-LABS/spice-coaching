@@ -10,6 +10,8 @@ from uuid import UUID
 
 from eval.rag.corpus import CardCorpusDoc, lookup_card_by_id
 from eval.rag.dataset import (
+    QuestionLang,
+    _canonical_localized_text,
     _is_canonical_golden_item,
     _parse_golden_answerable,
     _parse_golden_module_ids,
@@ -17,7 +19,6 @@ from eval.rag.dataset import (
     load_golden_json_array,
 )
 
-QuestionLang = Literal["en", "bn"]
 Answerable = Literal["yes", "no", "partial"]
 
 _OUT_OF_SCOPE_CATEGORY = "out-of-scope"
@@ -84,15 +85,25 @@ def category_slug(category: str) -> str:
     return slug.strip("_")
 
 
-def _load_canonical_rag_record(idx: int, item: dict[str, object]) -> RagGoldenRecord:
-    question_bn = item.get("question_bn")
-    expected_answer_bn = item.get("expected_answer_bn")
-    if not question_bn:
-        raise ValueError(f"Record {idx} must include question_bn")
-    if not expected_answer_bn:
-        raise ValueError(f"Record {idx} must include expected_answer_bn")
-
+def _load_canonical_rag_record(
+    idx: int,
+    item: dict[str, object],
+    *,
+    language: QuestionLang = "bn",
+) -> RagGoldenRecord:
     record_id = str(item.get("id") or f"q_{idx + 1:03d}")
+    query = _canonical_localized_text(
+        item,
+        language=language,
+        record_id=record_id,
+        field="question",
+    )
+    expected_answer = _canonical_localized_text(
+        item,
+        language=language,
+        record_id=record_id,
+        field="expected_answer",
+    )
     module_ids = _parse_golden_module_ids(item.get("module_id"), record_id=record_id)
     _is_answerable, is_out_of_scope = _parse_golden_answerable(
         item.get("answerable"),
@@ -103,9 +114,9 @@ def _load_canonical_rag_record(idx: int, item: dict[str, object]) -> RagGoldenRe
     return RagGoldenRecord(
         id=record_id,
         category=str(item.get("query_type", "")),
-        language="bn",
-        query=str(question_bn),
-        expected_answer=str(expected_answer_bn),
+        language=language,
+        query=query,
+        expected_answer=expected_answer,
         expected_module_ids=tuple(module_ids),
         is_out_of_scope=is_out_of_scope,
         answerable=_parse_answerable_literal(item.get("answerable"), module_ids=module_ids),
@@ -113,7 +124,7 @@ def _load_canonical_rag_record(idx: int, item: dict[str, object]) -> RagGoldenRe
     )
 
 
-def load_rag_golden_dataset(path: Path) -> list[RagGoldenRecord]:
+def load_rag_golden_dataset(path: Path, *, language: QuestionLang = "bn") -> list[RagGoldenRecord]:
     if not path.is_file():
         raise FileNotFoundError(f"RAG golden dataset not found: {path}")
 
@@ -125,7 +136,7 @@ def load_rag_golden_dataset(path: Path) -> list[RagGoldenRecord]:
             raise ValueError(f"Record {idx} must be an object")
 
         if _is_canonical_golden_item(item):
-            records.append(_load_canonical_rag_record(idx, item))
+            records.append(_load_canonical_rag_record(idx, item, language=language))
             continue
 
         query = item.get("query")

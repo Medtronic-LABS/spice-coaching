@@ -24,6 +24,7 @@ from platform_service.workers.extractors.text_extractor import ExtractedPage
 from platform_service.workers.stage_a_types import StageAResult
 
 if TYPE_CHECKING:
+    # Circular: stage_a_extract imports run_document_path from this module.
     from platform_service.workers.stage_a_extract import StageAExtractor
 
 logger = logging.getLogger(__name__)

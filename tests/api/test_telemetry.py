@@ -127,7 +127,7 @@ class TestTelemetryIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_module_event_task") as celery_mock,
+            patch("platform_service.api.telemetry.enqueue_process_module_event") as celery_mock,
             patch.object(
                 get_settings(),
                 "telemetry_behavioural_gap_state_enabled",
@@ -139,7 +139,7 @@ class TestTelemetryIngest:
         assert resp.status_code == 200
         data = resp.json()
         assert data["accepted"] == [body["events"][0]["id"]]
-        celery_mock.delay.assert_called_once()
+        celery_mock.assert_called_once()
         ch_mock.insert_coaching_events.assert_awaited_once()
         rows = ch_mock.insert_coaching_events.await_args.args[0]
         assert rows[0][_TIMESTAMP_UTC_COLUMN_INDEX] == body["events"][0]["timestamp_local"]
@@ -179,17 +179,17 @@ class TestTelemetryIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_module_event_task") as module_celery,
-            patch("platform_service.api.telemetry.process_video_progress_event_task") as video_celery,
-            patch("platform_service.api.telemetry.process_training_request_event_task") as train_celery,
+            patch("platform_service.api.telemetry.enqueue_process_module_event") as module_celery,
+            patch("platform_service.api.telemetry.enqueue_process_video_progress_event") as video_celery,
+            patch("platform_service.api.telemetry.enqueue_process_training_request_event") as train_celery,
         ):
             resp = await client.post(platform_path("/telemetry/events"), json=body)
 
         assert resp.status_code == 200
         assert resp.json()["accepted"] == [event_id]
-        module_celery.delay.assert_not_called()
-        video_celery.delay.assert_not_called()
-        train_celery.delay.assert_not_called()
+        module_celery.assert_not_called()
+        video_celery.assert_not_called()
+        train_celery.assert_not_called()
         ch_mock.insert_coaching_events.assert_awaited_once()
 
     async def test_quiz_mode_only_enqueues_module_quiz_attempted(self, client: AsyncClient) -> None:
@@ -233,7 +233,7 @@ class TestTelemetryIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_module_event_task") as celery_mock,
+            patch("platform_service.api.telemetry.enqueue_process_module_event") as celery_mock,
             patch.object(
                 get_settings(),
                 "telemetry_behavioural_gap_state_enabled",
@@ -243,8 +243,8 @@ class TestTelemetryIngest:
             resp = await client.post(platform_path("/telemetry/events"), json=body)
 
         assert resp.status_code == 200
-        assert celery_mock.delay.call_count == 1
-        job = celery_mock.delay.call_args.args[0]
+        assert celery_mock.call_count == 1
+        job = celery_mock.call_args.args[0]
         assert job["event_id"] == quiz_event_id
         assert job["event_type"] == CoachingEventType.MODULE_QUIZ_ATTEMPTED.value
 
@@ -258,7 +258,7 @@ class TestTelemetryIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 new=AsyncMock(return_value=([], [dup_id])),
             ),
-            patch("platform_service.api.telemetry.process_module_event_task"),
+            patch("platform_service.api.telemetry.enqueue_process_module_event"),
         ):
             resp = await client.post(
                 platform_path("/telemetry/events"),
@@ -304,8 +304,8 @@ class TestModuleRequestedIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_module_event_task") as module_celery,
-            patch("platform_service.api.telemetry.process_training_request_event_task") as training_celery,
+            patch("platform_service.api.telemetry.enqueue_process_module_event") as module_celery,
+            patch("platform_service.api.telemetry.enqueue_process_training_request_event") as training_celery,
             patch.object(
                 get_settings(),
                 "telemetry_behavioural_gap_state_enabled",
@@ -316,9 +316,9 @@ class TestModuleRequestedIngest:
 
         assert resp.status_code == 200
         assert resp.json()["accepted"] == [event_id]
-        module_celery.delay.assert_not_called()
-        training_celery.delay.assert_called_once()
-        job = training_celery.delay.call_args.args[0]
+        module_celery.assert_not_called()
+        training_celery.assert_called_once()
+        job = training_celery.call_args.args[0]
         assert job["event_id"] == event_id
         assert job["event_type"] == CoachingEventType.MODULE_REQUESTED.value
         assert job["module_id"] == module_id
@@ -355,15 +355,15 @@ class TestModuleRequestedIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_module_event_task") as module_celery,
-            patch("platform_service.api.telemetry.process_training_request_event_task") as training_celery,
+            patch("platform_service.api.telemetry.enqueue_process_module_event") as module_celery,
+            patch("platform_service.api.telemetry.enqueue_process_training_request_event") as training_celery,
         ):
             resp = await client.post(platform_path("/telemetry/events"), json=body)
 
         assert resp.status_code == 200
-        module_celery.delay.assert_not_called()
-        training_celery.delay.assert_called_once()
-        job = training_celery.delay.call_args.args[0]
+        module_celery.assert_not_called()
+        training_celery.assert_called_once()
+        job = training_celery.call_args.args[0]
         assert job["module_id"] is None
         assert job["requested_module_name"] == "Custom Module"
 
@@ -395,15 +395,15 @@ class TestModuleRequestedIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_module_event_task") as module_celery,
-            patch("platform_service.api.telemetry.process_training_request_event_task") as training_celery,
+            patch("platform_service.api.telemetry.enqueue_process_module_event") as module_celery,
+            patch("platform_service.api.telemetry.enqueue_process_training_request_event") as training_celery,
         ):
             resp = await client.post(platform_path("/telemetry/events"), json=body)
 
         assert resp.status_code == 200
         assert resp.json()["accepted"] == [event_id]
-        module_celery.delay.assert_not_called()
-        training_celery.delay.assert_not_called()
+        module_celery.assert_not_called()
+        training_celery.assert_not_called()
 
 
 class TestVideoProgressUpdatedIngest:
@@ -444,18 +444,18 @@ class TestVideoProgressUpdatedIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_module_event_task") as module_celery,
-            patch("platform_service.api.telemetry.process_training_request_event_task") as training_celery,
-            patch("platform_service.api.telemetry.process_video_progress_event_task") as video_celery,
+            patch("platform_service.api.telemetry.enqueue_process_module_event") as module_celery,
+            patch("platform_service.api.telemetry.enqueue_process_training_request_event") as training_celery,
+            patch("platform_service.api.telemetry.enqueue_process_video_progress_event") as video_celery,
         ):
             resp = await client.post(platform_path("/telemetry/events"), json=body)
 
         assert resp.status_code == 200
         assert resp.json()["accepted"] == [event_id]
-        module_celery.delay.assert_not_called()
-        training_celery.delay.assert_not_called()
-        video_celery.delay.assert_called_once()
-        job = video_celery.delay.call_args.args[0]
+        module_celery.assert_not_called()
+        training_celery.assert_not_called()
+        video_celery.assert_called_once()
+        job = video_celery.call_args.args[0]
         assert job["event_id"] == event_id
         assert job["event_type"] == CoachingEventType.VIDEO_PROGRESS_UPDATED.value
         assert job["chw_id"] == 42
@@ -496,10 +496,10 @@ class TestVideoProgressUpdatedIngest:
                 "platform_service.api.telemetry.partition_for_dedup",
                 side_effect=_pass_through_dedup,
             ),
-            patch("platform_service.api.telemetry.process_video_progress_event_task") as video_celery,
+            patch("platform_service.api.telemetry.enqueue_process_video_progress_event") as video_celery,
         ):
             resp = await client.post(platform_path("/telemetry/events"), json=body)
 
         assert resp.status_code == 200
         assert resp.json()["accepted"] == [event_id]
-        video_celery.delay.assert_not_called()
+        video_celery.assert_not_called()

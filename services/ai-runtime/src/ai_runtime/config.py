@@ -52,6 +52,25 @@ class Settings(BaseAppSettings):
     google_embedding_model: str = "gemini-embedding-001"
     google_embedding_dimension: int = 768
 
+    # Local EmbeddingGemma (sentence-transformers) — used when embed request sets use_local.
+    local_embedding_model: str = "google/embeddinggemma-300m"
+    local_embedding_device: str = "cpu"
+    huggingface_token: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("huggingface_token", "hf_token"),
+    )
+    local_embedding_cache_dir: str | None = None
+
+    # Local generation — used when generate request sets use_local (GGUF via llama-cpp-python).
+    local_generation_gguf_path: str | None = None
+    local_generation_gguf_repo: str | None = "Qwen/Qwen3-0.6B-GGUF"
+    local_generation_gguf_file: str | None = "Qwen3-0.6B-Instruct-Q4_K_M.gguf"
+    local_generation_n_ctx: int = Field(default=32_768, ge=512, le=131_072)
+    local_generation_n_threads: int | None = None
+    local_generation_n_batch: int = Field(default=512, ge=8, le=4096)
+    local_generation_max_input_tokens: int = Field(default=20_000, ge=256, le=131_072)
+    local_preload_on_startup: bool = True
+
     google_transcription_model: str = "gemini-2.5-flash"
 
     # Target pgvector corpus dimension; the canonical truncation point lives in
@@ -68,6 +87,7 @@ class Settings(BaseAppSettings):
     default_max_tokens: int = 8192
     default_temperature: float = 0.2
     json_parse_retries: int = 1
+    json_parse_retries_local: int = 0
     # Log every successful LLM response body at INFO when true. Parse failures
     # are always logged at WARNING regardless of this flag.
     log_llm_responses: bool = True
@@ -77,6 +97,34 @@ class Settings(BaseAppSettings):
     # Per-provider SDK HTTP timeout (seconds). Keep below platform httpx timeout
     # so ai-runtime fails fast instead of holding the upstream connection.
     provider_timeout_seconds: float = 590.0
+
+    @property
+    def local_generation_model_id(self) -> str:
+        if self.local_generation_gguf_path:
+            return self.local_generation_gguf_path
+        if self.local_generation_gguf_repo and self.local_generation_gguf_file:
+            return f"{self.local_generation_gguf_repo}/{self.local_generation_gguf_file}"
+        return "llama_cpp"
+
+    @model_validator(mode="after")
+    def _validate_local_generation_context_budget(self) -> Self:
+        if self.local_generation_max_input_tokens >= self.local_generation_n_ctx:
+            raise ValueError(
+                "LOCAL_GENERATION_MAX_INPUT_TOKENS must be less than "
+                "LOCAL_GENERATION_N_CTX (output tokens need space in the context window)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_local_generation_gguf(self) -> Self:
+        has_path = bool(self.local_generation_gguf_path)
+        has_repo = bool(self.local_generation_gguf_repo and self.local_generation_gguf_file)
+        if not has_path and not has_repo:
+            raise ValueError(
+                "Local generation requires LOCAL_GENERATION_GGUF_PATH or "
+                "LOCAL_GENERATION_GGUF_REPO + LOCAL_GENERATION_GGUF_FILE"
+            )
+        return self
 
     @model_validator(mode="after")
     def _validate_production_safety(self) -> Self:

@@ -32,6 +32,12 @@ from mc_foundation.logging import reset_logging, setup_logging
 from platform_service.config import get_settings
 from platform_service.db.base import dispose_all_engines, reset_engine_caches
 from platform_service.deps import shutdown_clients
+from platform_service.task_names import (
+    AGGREGATE_CHAT_FAQS,
+    AGGREGATE_CHAT_FEEDBACK_SUMMARY,
+    DRAIN_TELEMETRY_BUFFER,
+    REFRESH_MODULE_CREATION_SUGGESTIONS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +68,11 @@ def create_celery_app() -> Celery:
         worker_redirect_stdouts=False,
         beat_schedule={
             "drain-telemetry-buffer": {
-                "task": "platform.drain_telemetry_buffer",
+                "task": DRAIN_TELEMETRY_BUFFER,
                 "schedule": float(settings.telemetry_buffer_drain_interval_seconds),
             },
             "aggregate-chat-faqs": {
-                "task": "platform.aggregate_chat_faqs",
+                "task": AGGREGATE_CHAT_FAQS,
                 "schedule": crontab(
                     hour=settings.chat_faq_weekly_hour_utc,
                     minute=0,
@@ -74,7 +80,7 @@ def create_celery_app() -> Celery:
                 ),
             },
             "aggregate-chat-feedback-summary": {
-                "task": "platform.aggregate_chat_feedback_summary",
+                "task": AGGREGATE_CHAT_FEEDBACK_SUMMARY,
                 "schedule": crontab(
                     hour=settings.chat_feedback_summary_weekly_hour_utc,
                     minute=0,
@@ -82,7 +88,7 @@ def create_celery_app() -> Celery:
                 ),
             },
             "refresh-module-creation-suggestions": {
-                "task": "platform.refresh_module_creation_suggestions",
+                "task": REFRESH_MODULE_CREATION_SUGGESTIONS,
                 "schedule": crontab(
                     hour=settings.module_creation_suggestions_daily_hour_utc,
                     minute=0,

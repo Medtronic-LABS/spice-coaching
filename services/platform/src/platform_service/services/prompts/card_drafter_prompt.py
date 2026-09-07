@@ -1,6 +1,6 @@
-"""W-5 — Stage D card-drafter prompt (per-module-type variants).
+"""Stage D card-drafter prompt (per-module-type variants).
 
-Per Pipeline v3.3 §7 (with the architecture-reset adjustments). The drafter
+See `docs/content-administration/ingest-pipeline.md` (with the architecture-reset adjustments). The drafter
 takes a Stage C candidate plus its cited content_blocks and produces N
 bilingual cards (3-7). The branching by module_type controls which fields
 the LLM is asked to populate:
@@ -14,7 +14,7 @@ the LLM is asked to populate:
   rationale_for_change, next_action locale maps (the delta-specific framing).
 
 Snippet plumbing (registered fragments + `snippet_links`) was deleted with
-the W-6 reviewer surface — it has no runtime resolver to back it. We do
+the reviewer surface — it has no runtime resolver to back it. We do
 NOT mention snippets in the prompt anymore: that wastes output tokens and
 risks the LLM hallucinating `snippet_family_id` UUIDs that no validator
 would catch.

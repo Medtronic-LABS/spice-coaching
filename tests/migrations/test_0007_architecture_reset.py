@@ -5,7 +5,7 @@ head` before any tests, so by the time these tests execute the schema is
 already at revision 0007. We use information_schema introspection to
 verify the migration's effects:
 
-- Dropped tables (per-card pile + legacy v3.0).
+- Dropped tables (per-card pile and scenario tables).
 - Added columns on `module` (module_json, embedding, visibility_window,
   clinically_reviewed*, quality_flags_jsonb).
 - pgvector `vector(N)` type with N = settings.embedding_dimension.
@@ -115,7 +115,7 @@ class TestPerCardTablesDropped:
         )
 
 
-# ─── Legacy v3.0 tables dropped ──────────────────────────────────────────
+# ─── Dropped tables ──────────────────────────────────────────
 
 
 class TestLegacyTablesDropped:
@@ -134,8 +134,8 @@ class TestLegacyTablesDropped:
     async def test_legacy_table_not_present(self, db_session: AsyncSession, table: str) -> None:
         exists = await _table_exists(db_session, table)
         assert not exists, (
-            f"Legacy v3.0 table `{table}` survived migration 0007. The code "
-            f"that read/wrote it has been deleted; resurrecting the table "
+            f"Dropped table `{table}` survived migration 0007. The code "
+            f"that read or wrote it has been deleted; resurrecting the table "
             f"requires reviving that code path too."
         )
 
@@ -238,9 +238,8 @@ class TestCandidateWorkflowColumnsStripped:
         cols = await _columns_for(db_session, "module_candidate_draft")
         assert stripped_column not in cols, (
             f"Reviewer-queue workflow column `{stripped_column}` survived "
-            f"migration 0007. The architecture-reset deleted the W-6 "
-            f"reviewer queue; re-adding this column requires reviving the "
-            f"queue endpoints + UI."
+            f"migration 0007. The reviewer queue was removed; re-adding this "
+            f"column requires reviving the queue endpoints and UI."
         )
 
     async def test_quality_flags_jsonb_added_on_candidate(self, db_session: AsyncSession) -> None:

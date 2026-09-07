@@ -1,0 +1,857 @@
+[
+  {
+    "id": "Q001",
+    "question_en": "During today's visit, I found swelling (edema) in the mother's feet/face, and upon checking blood pressure, I noticed it has increased compared to last month's record. As a health worker, what should be my next step in this situation?",
+    "expected_answer_en": "Some swelling in the feet is normal during pregnancy. However, swelling in the face or hands, or swelling combined with increased blood pressure (≥140/90 mmHg) may indicate a risk of pre-eclampsia. Assess for danger signs, check blood pressure and urinary protein, and immediately refer the mother to the nearest hospital or Upazila Health Complex if criteria are met. Advise the mother to rest in the left lateral position and monitor fetal movement.",
+    "question_bn": "আজ ভিজিটে মায়ের পা/মুখ ফোলা (ইডিমা) পাওয়া গেছে, এবং রক্তচাপ মেপে দেখলাম গত মাসের রেকর্ডের তুলনায় এই মাসে বেড়েছে। এই অবস্থায় আমি স্বাস্থ্যকর্মী হিসেবে পরবর্তী পদক্ষেপ কী হওয়া উচিত?",
+    "expected_answer_bn": "গর্ভাবস্থায় পায়ে সাধারণ ফোলা থাকা স্বাভাবিক হতে পারে। কিন্তু মুখ বা হাতে ফোলা, অথবা ফোলার সঙ্গে রক্তচাপ বৃদ্ধি (≥১৪০/৯০ mmHg) থাকলে প্রি-এক্ল্যাম্পসিয়ার ঝুঁকি থাকতে পারে। বিপদচিহ্ন যাচাই করুন, রক্তচাপ ও প্রস্রাবে প্রোটিন পরীক্ষা করুন এবং প্রয়োজনে তাৎক্ষণিক নিকটস্থ হাসপাতাল বা উপজেলা স্বাস্থ্য কমপ্লেক্সে রেফার করুন। রোগীকে বাম কাত হয়ে বিশ্রাম নিতে এবং বাচ্চার নড়াচড়ার দিকে খেয়াল রাখতে বলুন।",
+    "source_card_id": [
+      "1f5fb32d-13d7-4ebb-beb7-d60b6fbfab26",
+      "2504fd7f-e3e5-42b3-924f-51c75d754231",
+      "d687a96e-ed56-4035-9e14-315b21de05ad",
+      "74aece78-688f-40ee-895c-25ba4693df30"
+    ],
+    "query_type": "Scenario-based",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Clinical Protocol & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396",
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ]
+  },
+  {
+    "id": "Q002",
+    "question_en": "The mother has edema and slightly increased blood pressure, but it is below 140/90, urinary protein is negative, and there are no danger signs. What advice should I give the mother in this situation?",
+    "expected_answer_en": "Reassure the mother but advise her to remain cautious. Advise adequate rest, at least 8 hours of sleep at night, sleeping on the left side, reducing salt intake, and drinking enough water. Instruct her to go to the hospital immediately if any danger signs appear and to schedule the next ANC visit sooner. Do not prescribe any medication.",
+    "question_bn": "মায়ের ইডিমা আছে এবং রক্তচাপ সামান্য বেড়েছে, কিন্তু তা ১৪০/৯০-এর নিচে, প্রস্রাবে প্রোটিন নেগেটিভ এবং কোনো বিপদচিহ্ন নেই — এই অবস্থায় আমি মাকে কী পরামর্শ দেব?",
+    "expected_answer_bn": "মাকে আশ্বস্ত করুন কিন্তু সতর্ক থাকতে বলুন। পর্যাপ্ত বিশ্রাম, রাতে ৮ ঘণ্টা ঘুম, বাম কাত হয়ে শোয়া, লবণ কম খাওয়া এবং পর্যাপ্ত পানি পানের পরামর্শ দিন। বাসায় কোনো বিপদচিহ্ন দেখা দিলে সঙ্গে সঙ্গে হাসপাতালে যেতে বলুন এবং পরবর্তী এএনসি (ANC) ভিজিট দ্রুত করার পরামর্শ দিন। নিজে থেকে কোনো ওষুধ দেবেন না।",
+    "source_card_id": [
+      "fabcfe06-262b-4bea-ab5e-7cfd05ddb997",
+      "dbef5a4b-e803-41b4-93af-cd4e6dbde2ff",
+      "e4ac0dd2-e641-434d-a4b2-18449786df89",
+      "5481b97d-5841-4009-82f0-c4d7306bbbc2"
+    ],
+    "query_type": "Scenario-based",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab",
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396",
+      "46900f4a-4978-4e3f-9db1-cceb677c8146",
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ]
+  },
+  {
+    "id": "Q003",
+    "question_en": "The mother is in the 3rd trimester, has edema and slightly increased blood pressure but below 140/90, urinary protein is negative, and there are no danger signs. Besides previous advice, what additional advice should I give for the 3rd trimester?",
+    "expected_answer_en": "Increase the frequency of ANC visits, teach fetal kick counting, discuss birth preparedness planning (emergency transport, blood donor, money), ensure institutional delivery, advise avoiding overexertion and standing for long periods, teach how to recognize danger signs, and provide nutritional advice.",
+    "question_bn": "মা তৃতীয় ত্রৈমাসিকে (3rd trimester) আছেন, তার ইডিমা আছে এবং রক্তচাপ সামান্য বেড়েছে কিন্তু ১৪০/৯০-এর নিচে, প্রস্রাবে প্রোটিন নেগেটিভ এবং কোনো বিপদচিহ্ন নেই। আগের পরামর্শের পাশাপাশি তৃতীয় ত্রৈমাসিক (3rd trimester) বিবেচনায় আমি মাকে অতিরিক্ত কী পরামর্শ দেব?",
+    "expected_answer_bn": "ANC ভিজিটের সংখ্যা বাড়ান, বাচ্চার নড়াচড়া (Fetal kick count) গণনা শেখান, প্রসব প্রস্তুতি পরিকল্পনা (জরুরি পরিবহন, রক্তদাতা, টাকা) নিয়ে আলোচনা করুন, প্রাতিষ্ঠানিক প্রসব নিশ্চিত করুন, অতিরিক্ত পরিশ্রম ও দীর্ঘক্ষণ দাঁড়িয়ে থাকা এড়াতে বলুন, বিপদচিহ্ন চিনতে শেখান এবং সুষম পুষ্টির পরামর্শ দিন।",
+    "source_card_id": [
+      "730c977b-8cec-4ba0-a84c-b37270abe8a5",
+      "905210ac-0b60-48d1-87a2-7030ee28f0c3",
+      "af773e4f-1d36-4a7e-a380-a4d2c68dab33",
+      "5481b97d-5841-4009-82f0-c4d7306bbbc2"
+    ],
+    "query_type": "Scenario-based",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Birth Preparedness",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146",
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e",
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6"
+    ]
+  },
+  {
+    "question_en": "During a community meeting, a pregnant woman asked why she needs regular check-ups during pregnancy. What should I explain about the importance of antenatal check-ups?",
+    "expected_answer_en": "Discuss the importance of check-ups during pregnancy and inform the pregnant mother how many times and where she should receive services. Antenatal check-ups help register the mother for services, provide access to care for any pregnancy-related problems, and allow early identification of high-risk pregnancies and danger signs so necessary action can be taken.",
+    "question_bn": "একটি কমিউনিটি মিটিংয়ে একজন গর্ভবতী মা জানতে চাইলেন গর্ভকালে নিয়মিত চেকআপ কেন দরকার। গর্ভকালীন চেকআপের গুরুত্ব সম্পর্কে আমি কী ব্যাখ্যা করব?",
+    "expected_answer_bn": "গর্ভকালীন সময়ে চেকআপের গুরুত্ব নিয়ে আলোচনা করুন এবং গর্ভবতী মাকে জানান তিনি কমপক্ষে কয়বার ও কোথায় সেবা নেবেন। গর্ভকালীন চেকআপের মাধ্যমে মা সেবা পাওয়ার জন্য তালিকাভুক্ত হন, গর্ভকালীন যেকোনো সমস্যার জন্য সেবা ও চিকিৎসা পাওয়ার সুযোগ পান, এবং ঝুঁকিপূর্ণ গর্ভধারণ ও বিপদজনক লক্ষণ আগেই নির্ণয় করে প্রয়োজনীয় ব্যবস্থা নেওয়া যায়।",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"
+    ],
+    "source_card_id": [
+      "690a687f-22f6-437a-bc5c-ecc635470a99"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q250"
+  },
+  {
+    "question_en": "During today's ANC visit, I noticed the mother's weight has not increased since last month — it seems stable or slightly decreased. What should I do in this situation?",
+    "expected_answer_en": "If weight remains stable or decreases during pregnancy, it is abnormal. Check for anemia and measure fundal height to see if it matches the expected gestational age. Provide counseling and refer as needed.",
+    "question_bn": "আজকের এএনসি ভিজিটে দেখলাম গত মাস থেকে মায়ের ওজন বাড়েনি — ওজন স্থির বা সামান্য কমে গেছে। এই অবস্থায় আমি কী করব?",
+    "expected_answer_bn": "গর্ভাবস্থায় ওজন স্থির থাকা বা কমে যাওয়া অস্বাভাবিক। রক্তস্বল্পতা পরীক্ষা করুন, জরায়ুর উচ্চতা মেপে দেখুন স্বাভাবিক আছে কিনা। পরামর্শ দিন এবং প্রয়োজনে রেফার করুন।",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"
+    ],
+    "source_card_id": [
+      "6a9f576f-de32-4ebb-b2fe-cb02fd7b356d"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Problem Identification & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q251"
+  },
+  {
+    "question_en": "What is the correct step-by-step procedure to measure a pregnant woman's weight during an ANC visit?",
+    "expected_answer_en": "Use a bathroom scale kept in the same place with the indicator set to zero. Weigh yourself first to confirm the scale is working. The mother should stand barefoot in light clothing, upright and still on the scale with feet slightly apart, heels and toes on the scale. Record the weight in kilograms on the designated form once the indicator stabilizes.",
+    "question_bn": "এএনসি ভিজিটে গর্ভবতী মহিলার ওজন মাপার সঠিক ধাপে ধাপে পদ্ধতি কী?",
+    "expected_answer_bn": "বাথরুম স্কেল একই জায়গায় রেখে নির্ণায়ক কাঁটা শূন্য (০)-তে আনুন। নিজের ওজন মেপে যন্ত্রটি ঠিক আছে কিনা দেখুন। মাকে খালি পায়ে হালকা কাপড়ে, সোজা হয়ে, নড়াচড়া না করে দাঁড়াতে বলুন — দুই পায়ের মাঝে ফাঁক রেখে গোড়ালি ও আঙ্গুল যন্ত্রের উপর থাকবে। কাঁটা স্থির হলে কেজিতে নির্ধারিত ফরমে ওজন লিখুন।",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"
+    ],
+    "source_card_id": [
+      "81130cba-2f96-471e-87b4-e4977a4e339f"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q252"
+  },
+  {
+    "question_en": "I measured a pregnant mother's height and found it is 142 cm, which is below 145 cm. Should I refer her, and what advice should I give?",
+    "expected_answer_en": "Normal height is 145 cm or more. If height is below 145 cm, the mother is at risk. Advise her to consult a doctor for further assessment and management.",
+    "question_bn": "একজন গর্ভবতী মায়ের উচ্চতা মেপে দেখলাম ১৪২ সে.মি., যা ১৪৫ সে.মি.-এর কম। আমি কি তাকে রেফার করব এবং কী পরামর্শ দেব?",
+    "expected_answer_bn": "স্বাভাবিক উচ্চতা ১৪৫ সে.মি. বা এর বেশি। উচ্চতা ১৪৫ সে.মি.-এর কম হলে মা ঝুঁকিপূর্ণ — তাকে ডাক্তারের পরামর্শ নিতে বলুন।",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"
+    ],
+    "source_card_id": [
+      "0c0a26e0-ed62-4429-8f65-44d8dc40ab55"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Referral & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q253"
+  },
+  {
+    "question_en": "What is the normal pulse rate range for a pregnant woman, and how does it differ for children?",
+    "expected_answer_en": "The normal pulse rate is 60 to 100 beats per minute. For children, the normal range is 100 to 160 beats per minute.",
+    "question_bn": "গর্ভবতী মহিলার স্বাভাবিক নাড়ির গতি কত, এবং শিশুদের ক্ষেত্রে তা কীভাবে আলাদা?",
+    "expected_answer_bn": "স্বাভাবিক নাড়ির গতি ৬০ থেকে ১০০ বার প্রতি মিনিটে। শিশুদের ক্ষেত্রে ১০০ থেকে ১৬০ বার প্রতি মিনিটে।",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"
+    ],
+    "source_card_id": [
+      "2a04425c-2fd6-4814-b0f9-1b14553882e5"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q254"
+  },
+  {
+    "question_en": "How should I measure a pregnant woman's temperature using a thermometer during a home visit?",
+    "expected_answer_en": "Hold the thermometer by the glass part (not the silver bulb). Shake the mercury down before use. Place the silver bulb under the armpit with no clothing underneath and hold for two minutes. Read the temperature where the expanded mercury line ends on the white scale. Normal temperature is 97°F to 99°F (37°C).",
+    "question_bn": "বাড়ি ভিজিটে থার্মোমিটার দিয়ে গর্ভবতী মহিলার তাপমাত্রা কীভাবে মাপব?",
+    "expected_answer_bn": "থার্মোমিটারের কাঁচের অংশে ধরুন (রুপালী অংশে নয়)। ব্যবহারের আগে পারদ ঝাঁকিয়ে নিচে নামান। রুপালী অংশ বগলের নিচে চাপ দিয়ে ধরে রাখুন — বগলে কাপড় থাকবে না — দুই মিনিট রাখুন। সাদা স্কেলে প্রসারিত পারদের শেষ মাথা যে দাগে থাকে সেটাই তাপমাত্রা। স্বাভাবিক তাপমাত্রা ৯৭° ফারেনহাইট থেকে ৯৯° ফারেনহাইট (৩৭° সে.)।",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"
+    ],
+    "source_card_id": [
+      "5375135e-5877-4ebe-a47f-2d5654651e19"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q255"
+  },
+  {
+    "question_en": "During an ANC visit I checked for edema, measured blood pressure and urinary protein — all are normal. What home care advice should I give the mother, and when should I refer?",
+    "expected_answer_en": "If urinary albumin and blood pressure results are normal, provide counseling only. Advise avoiding loose salt on food, not sitting with legs dangling, keeping feet elevated on a pillow, and eating protein-rich foods. If urinary albumin or blood pressure results are abnormal, refer the mother. For fever above 99°F, advise paracetamol or Napa per physician guidance, sponge the body with normal or lukewarm water, increase fluid intake, and consult a physician if fever does not subside.",
+    "question_bn": "এএনসি ভিজিটে ইডিমা, রক্তচাপ ও প্রস্রাবে প্রোটিন পরীক্ষা করেছি — সব স্বাভাবিক। মাকে বাড়িতে কী পরামর্শ দেব, আর কখন রেফার করব?",
+    "expected_answer_bn": "প্রস্রাবে অ্যালবুমিন ও রক্তচাপ স্বাভাবিক থাকলে শুধু পরামর্শ দিন — পাতে আলগা লবণ না খাওয়া, পা ঝুলিয়ে না বসা, পায়ের নিচে বালিশ দিয়ে পা উচু রাখা এবং আমিষ জাতীয় খাবার খাওয়ার পরামর্শ দিন। এই পরীক্ষার ফলাফল অস্বাভাবিক হলে রেফার করুন। জ্বর (৯৯° ফারেনহাইটের বেশি) হলে চিকিৎসকের পরামর্শ অনুযায়ী প্যারাসিটামল বা নাপা, স্বাভাবিক বা কুসুম গরম পানিতে কাপড় ভিজিয়ে শরীর মুছা, বেশি তরল খাওয়া এবং জ্বর না কমলে চিকিৎসকের পরামর্শ নিতে বলুন।",
+    "module_id": [
+      "1d030fd0-6541-4e4b-bb0b-38a1cc2b29ab"
+    ],
+    "source_card_id": [
+      "dbef5a4b-e803-41b4-93af-cd4e6dbde2ff",
+      "09446d3d-1f44-4721-9456-62da472c99f8"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q256"
+  },
+  {
+    "question_en": "A newly identified pregnant mother in my area is unsure about what to eat during pregnancy. What nutritional counseling should I provide?",
+    "expected_answer_en": "Advise the mother to eat six types of food daily: fish, meat, or liver; egg; thick lentil; milk or dairy; yellow and orange vegetables or fruits such as carrot, sweet pumpkin, mango, jackfruit; and dark green leafy vegetables. She should eat three main meals plus two snacks daily, eat at least one handful more than before pregnancy, and drink eight to ten glasses of water per day.",
+    "question_bn": "আমার এলাকায় নতুন গর্ভবতী একজন মা গর্ভকালে কী খাবেন তা নিয়ে দ্বিধায় আছেন। পুষ্টি সংক্রান্ত কী পরামর্শ দেব?",
+    "expected_answer_bn": "মাকে প্রতিদিন ছয় ধরনের খাবার খেতে বলুন — মাছ, মাংস বা কলিজার যেকোনো একটি; ডিম; ঘন ডাল; দুধ বা দুগ্ধজাতীয় খাবার; হলুদ ও কমলা রঙের সবজি বা ফল যেমন গাজর, মিষ্টিকুমড়া, আম, কাঁঠাল; এবং গাঢ় সবুজ শাকসবজি। প্রতিদিন তিনবেলা প্রধান খাবার ও দুই বেলা নাস্তা খেতে হবে, আগের পরিমাণের চেয়ে অন্তত একমুঠ বেশি খেতে হবে এবং দিনে আট থেকে দশ গ্লাস পানি পান করতে হবে।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "e6cb9430-5da7-4e90-8d15-b4d154acb662"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Lifestyle Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q257"
+  },
+  {
+    "question_en": "A pregnant mother at 14 weeks asked when and how she should take iron and calcium tablets. What is the correct dosage schedule?",
+    "expected_answer_en": "From 12 weeks of pregnancy until three months after delivery, she should take one iron tablet daily on a full stomach at midday. From four months of pregnancy until three months after delivery, she should take one calcium tablet on a full stomach twice daily — morning and night. Iron and calcium tablets must never be taken together.",
+    "question_bn": "১৪ সপ্তাহের একজন গর্ভবতী মা জানতে চাইলেন আয়রন ও ক্যালসিয়াম বড়ি কখন ও কীভাবে খাবেন। সঠিক সেবনের সময়সূচি কী?",
+    "expected_answer_bn": "গর্ভের ১২ সপ্তাহ থেকে প্রসব পরবর্তী তিন মাস পর্যন্ত প্রতিদিন দুপুরে ভরাপেটে একটি আয়রন বড়ি খেতে হবে। গর্ভের চার মাস থেকে প্রসব পরবর্তী তিন মাস পর্যন্ত সকালে ও রাতে ভরাপেটে একটি করে ক্যালসিয়াম বড়ি খেতে হবে। আয়রন ও ক্যালসিয়াম বড়ি কখনও একসাথে খাওয়া যাবে না।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "3e312502-19a3-49a1-8c68-d449a249a4d2"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q258"
+  },
+  {
+    "question_en": "A woman says her last menstrual period was more than 45 days ago and she feels morning nausea and breast heaviness, but she is not sure if she is pregnant. What should I advise?",
+    "expected_answer_en": "These are signs of pregnancy: menstruation stopped for more than 45 days, morning nausea or vomiting, frequent urge to urinate, fatigue, heavy or enlarged breasts, dark line on the lower abdomen, and fetal movement felt at 16 to 18 weeks. To confirm pregnancy, a urine test can be done (if menstruation does not occur on the expected date, wait two more weeks), or an ultrasound can be performed one week after the expected menstrual date.",
+    "question_bn": "একজন মহিলা বললেন গত ৪৫ দিনের বেশি মাসিক হয়নি, সকালে বমি ভাব ও স্তন ভারী লাগছে, কিন্তু গর্ভবতী কিনা নিশ্চিত নন। আমি কী পরামর্শ দেব?",
+    "expected_answer_bn": "গর্ভধারণের লক্ষণগুলোর মধ্যে ৪৫ দিনের বেশি মাসিক বন্ধ, সকালে বমি ভাব বা বমি, ঘনঘন প্রস্রাব, অবসাদ, স্তন ভারী হওয়া, তলপেটে কালো দাগ এবং ১৬–১৮ সপ্তাহে ভ্রূণের নড়াচড়া অনুভব করা। নিশ্চিত করতে প্রস্রাব পরীক্ষা করা যায় (নির্দিষ্ট তারিখে মাসিক না হলে আরও দুই সপ্তাহ পর) অথবা মাসিকের নির্দিষ্ট তারিখের এক সপ্তাহ পর আল্ট্রাসনোগ্রাম করা যায়।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "85da6cc3-faca-44a5-b8ae-b8d284259d3c"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Symptom Identification",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q259"
+  },
+  {
+    "question_en": "What is antenatal care (ANC) and why is it necessary for pregnant mothers?",
+    "expected_answer_en": "Antenatal care (ANC) is the health service provided to a mother during pregnancy to ensure safe delivery. It is given from identification of pregnancy until onset of labor. Through ANC the pregnant mother is registered for services, can access care for any pregnancy problem, and high-risk pregnancies and danger signs can be identified early so necessary action can be taken.",
+    "question_bn": "গর্ভকালীন পরিচর্যা (এএনসি) কী এবং গর্ভবতী মায়ের জন্য এটি কেন প্রয়োজন?",
+    "expected_answer_bn": "নিরাপদ প্রসব নিশ্চিত করতে গর্ভকালে মাকে দেওয়া স্বাস্থ্যসেবাকে গর্ভকালীন পরিচর্যা (এএনসি) বলে। গর্ভবতী চিহ্নিত হওয়া থেকে প্রসব ব্যথা ওঠা পর্যন্ত এটি দেওয়া হয়। এর মাধ্যমে মা সেবার জন্য তালিকাভুক্ত হন, গর্ভকালীন যেকোনো সমস্যার চিকিৎসা পান, এবং ঝুঁকিপূর্ণ গর্ভধারণ ও বিপদজনক লক্ষণ আগেই চিহ্নিত করে প্রয়োজনীয় ব্যবস্থা নেওয়া যায়।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "621b789c-5c86-4f5d-8f3b-61fb2ff1c132"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q260"
+  },
+  {
+    "question_en": "A pregnant mother at five months wants to skip her ANC visit because she feels fine and her family says check-ups are unnecessary. How should I counsel her?",
+    "expected_answer_en": "Explain that even if monthly check-ups are not possible, she must receive at least four antenatal services during pregnancy, and at least one must be at a health facility. The first visit should be within the first three months, the second between six and seven months, the third by eight months, and the fourth by nine months. ANC helps detect problems early — reassure her but emphasize completing all scheduled visits.",
+    "question_bn": "পাঁচ মাসের একজন গর্ভবতী মা ভালো বোধ করায় এএনসি ভিজিট বাদ দিতে চান, পরিবারও বলছে চেকআপ দরকার নেই। আমি তাকে কীভাবে পরামর্শ দেব?",
+    "expected_answer_bn": "ব্যাখ্যা করুন প্রতি মাসে চেকআপ না হলেও গর্ভকালে কমপক্ষে চারবার গর্ভকালীন সেবা নিতে হবে এবং অন্তত একটি স্বাস্থ্যকেন্দ্র থেকে নিতে হবে। প্রথম ভিজিট প্রথম তিন মাসে, দ্বিতীয় ছয়–সাত মাসে, তৃতীয় আট মাসে এবং চতুর্থ নয় মাসে। এএনসি সমস্যা আগেই ধরতে সাহায্য করে — মাকে আশ্বস্ত করুন কিন্তু সব নির্ধারিত ভিজিট সম্পন্ন করতে বলুন।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "730c977b-8cec-4ba0-a84c-b37270abe8a5",
+      "621b789c-5c86-4f5d-8f3b-61fb2ff1c132"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Motivational Counseling & Overcoming Reluctance",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q261"
+  },
+  {
+    "question_en": "What are my duties as a health worker during an antenatal home visit?",
+    "expected_answer_en": "During an antenatal visit, register the pregnant woman, confirm the antenatal visit, take obstetric history, previous pregnancy history, other illness and medication history, and family history. Perform antenatal examinations, provide pregnancy-related counseling, and refer when necessary.",
+    "question_bn": "গর্ভকালীন বাড়ি ভিজিটে স্বাস্থ্যকর্মী হিসেবে আমার করণীয় কী?",
+    "expected_answer_bn": "গর্ভকালীন ভিজিটে গর্ভবতী রেজিস্ট্রেশন করা, গর্ভকালীন ভিজিট নিশ্চিত করা, গর্ভকালীন ও পূর্বের গর্ভের ইতিহাস, অন্যান্য রোগ ও ঔষধ সেবনের ইতিহাস ও পরিবারের ইতিহাস নেওয়া, গর্ভকালীন পরীক্ষা করা, গর্ভসংক্রান্ত পরামর্শ দেওয়া এবং প্রয়োজনে রেফার করা।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "b382cbcc-e471-4a18-a07c-5c4f249b9782"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Documentation Verification & Coordination",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q262"
+  },
+  {
+    "question_en": "A pregnant mother missed both scheduled TT vaccines during pregnancy and is now at eight months. She came late for vaccination — what should I do?",
+    "expected_answer_en": "Two doses of tetanus toxoid vaccine should be given during pregnancy between five and eight months at a four-week interval to prevent postpartum infection. Regardless of how late she comes, give the next eligible dose according to the five-dose TT schedule. Do not withhold vaccination because of the delay.",
+    "question_bn": "একজন গর্ভবতী মা গর্ভকালে নির্ধারিত দুটি টিটি টিকা মিস করেছেন এবং এখন আট মাস — দেরিতে টিকা নিতে এসেছেন। আমি কী করব?",
+    "expected_answer_bn": "প্রসব পরবর্তী সংক্রমণ প্রতিরোধে গর্ভকালে পাঁচ থেকে আট মাসের মধ্যে চার সপ্তাহের ব্যবধানে দুটি টিটেনাস টক্সয়েড টিকা দিতে হয়। যত দেরি করেই আসুক, পাঁচ ডোজ টিটি টিকার সময়সূচি অনুযায়ী প্রাপ্য পরবর্তী ডোজ দিন — দেরির কারণে টিকা দেওয়া বন্ধ করবেন না।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "424ad137-2f1e-4240-9fab-56ad0e6a1686",
+      "ce83b891-6775-41bd-b54b-4ec634326bcc"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Immunization Catch-up Rule",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q263"
+  },
+  {
+    "question_en": "What physical and laboratory examinations are included in antenatal care services?",
+    "expected_answer_en": "Antenatal services include physical examination such as fundal height and abdominal examination, blood pressure, weight, height, pulse rate, edema, and temperature. Pathological tests include hemoglobin and blood glucose, and urine bilirubin and albumin tests. Counseling on pregnancy and childbirth and recording obstetric history on the maternal, newborn, and child health card are also provided.",
+    "question_bn": "গর্ভকালীন পরিচর্যার সেবায় কোন কোন শারীরিক ও পরীক্ষাগার পরীক্ষা অন্তর্ভুক্ত?",
+    "expected_answer_bn": "গর্ভকালীন সেবায় শারীরিক পরীক্ষা — জরায়ুর উচ্চতা ও পেট পরীক্ষা, রক্তচাপ, ওজন, উচ্চতা, নাড়ির গতি, ইডিমা ও তাপমাত্রা — এবং প্যাথলজিক্যাল পরীক্ষা — রক্তে হিমোগ্লোবিন ও গ্লুকোজ, প্রস্রাবে বিলিরুবিন ও অ্যালবুমিন — অন্তর্ভুক্ত। গর্ভকালীন ও প্রসবকালীন পরামর্শ এবং মা-নবজাতক-শিশু স্বাস্থ্য কার্ডে গর্ভের ইতিহাস লিপিবদ্ধ করা হয়।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "9eb921fb-424e-41f0-827b-256c2d3cae47"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q264"
+  },
+  {
+    "question_en": "What lifestyle advice should I give a pregnant mother about rest, clothing, heavy work, and deworming?",
+    "expected_answer_en": "Advise avoiding heavy work such as pulling water with pitchers, washing heavy clothes, digging soil, pounding rice, and breaking bricks. She should sleep at least eight hours at night and rest two hours at midday. Wear loose clothing and avoid high-heeled shoes. After five months of pregnancy, give one deworming tablet per physician guidance before completing eight months.",
+    "question_bn": "গর্ভবতী মাকে বিশ্রাম, পোশাক, ভারী কাজ ও কৃমিনাশক সংক্রান্ত কী জীবনধারা পরামর্শ দেব?",
+    "expected_answer_bn": "ভারী কাজ — কলসি দিয়ে পানি টানা, ভারী কাপড় কাচা, মাটি কাটা, ধান ভানা, ইট ভাঙা — এড়াতে বলুন। রাতে কমপক্ষে আট ঘণ্টা ঘুম ও দুপুরে দুই ঘণ্টা বিশ্রাম নিতে হবে। ঢিলে ঢালা পোশাক পরুন ও উঁচু জুতা পরবেন না। গর্ভের পাঁচ মাস পূর্ণ হলে চিকিৎসকের পরামর্শ অনুযায়ী পূর্ণ আট মাসের মধ্যে একটি কৃমিনাশক বড়ি খেতে হবে।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "5481b97d-5841-4009-82f0-c4d7306bbbc2"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Lifestyle Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q265"
+  },
+  {
+    "question_en": "A pregnant mother is preparing for delivery. Combining ANC visit schedule, nutrition, supplements, TT vaccination, and general advice — what comprehensive counseling should I provide?",
+    "expected_answer_en": "Ensure she completes at least four ANC visits — first within three months, second at six to seven months, third by eight months, fourth by nine months, with at least one at a health facility. Counsel on daily nutrition (six food groups, extra portion, 8–10 glasses water), iron tablet from 12 weeks (midday, full stomach) and calcium from 4 months (morning and night, never together), two TT doses between five and eight months at four-week interval, avoid heavy work, sleep 8 hours plus 2 hours rest, loose clothing, deworming after five months, and institutional delivery planning.",
+    "question_bn": "একজন গর্ভবতী মা প্রসবের প্রস্তুতি নিচ্ছেন। এএনসি ভিজিটের সময়সূচি, পুষ্টি, সম্পূরক, টিটি টিকা ও সাধারণ পরামর্শ একত্রিত করে আমি কী বিস্তৃত পরামর্শ দেব?",
+    "expected_answer_bn": "কমপক্ষে চারটি এএনসি ভিজিট নিশ্চিত করুন — প্রথম তিন মাসে, দ্বিতীয় ছয়–সাত মাসে, তৃতীয় আট মাসে, চতুর্থ নয় মাসে; অন্তত একটি স্বাস্থ্যকেন্দ্র থেকে। প্রতিদিন ছয় ধরনের খাবার, অতিরিক্ত পরিমাণ ও ৮–১০ গ্লাস পানি; ১২ সপ্তাহ থেকে দুপুরে আয়রন বড়ি, ৪ মাস থেকে সকাল-রাতে ক্যালসিয়াম (একসাথে নয়); পাঁচ–আট মাসে চার সপ্তাহ ব্যবধানে দুটি টিটি টিকা; ভারী কাজ এড়ানো, রাতে ৮ ঘণ্টা ও দুপুরে ২ ঘণ্টা বিশ্রাম, ঢিলে পোশাক, পাঁচ মাস পর কৃমিনাশক এবং প্রাতিষ্ঠানিক প্রসবের পরিকল্পনা।",
+    "module_id": [
+      "51ccb087-7ef6-4ad0-aec4-6285f7857a5e"
+    ],
+    "source_card_id": [
+      "730c977b-8cec-4ba0-a84c-b37270abe8a5",
+      "e6cb9430-5da7-4e90-8d15-b4d154acb662",
+      "3e312502-19a3-49a1-8c68-d449a249a4d2",
+      "424ad137-2f1e-4240-9fab-56ad0e6a1686",
+      "5481b97d-5841-4009-82f0-c4d7306bbbc2"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Birth Preparedness",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q266"
+  },
+  {
+    "question_en": "During today's ANC visit, the mother has edema and urinary albumin and blood pressure are normal. What counseling should I give her?",
+    "expected_answer_en": "Advise the mother not to eat loose salt on her plate. Tell her not to sit with legs dangling. Keep feet elevated with a pillow under them. Encourage protein-rich foods.",
+    "question_bn": "আজকের এএনসি ভিজিটে মায়ের ইডিমা আছে, কিন্তু প্রস্রাবে অ্যালবুমিন ও রক্তচাপ স্বাভাবিক। এই অবস্থায় আমি তাকে কী পরামর্শ দেব?",
+    "expected_answer_bn": "মাকে পাতে আলগা লবণ না খাওয়ার পরামর্শ দিন। পা ঝুলিয়ে না বসতে বলুন। পায়ের নিচে বালিশ দিয়ে পা উঁচু করে রাখতে বলুন। আমিষ জাতীয় খাবার খেতে উৎসাহিত করুন।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "fabcfe06-262b-4bea-ab5e-7cfd05ddb997"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q267"
+  },
+  {
+    "question_en": "A pregnant mother has fever. What medicine and home care should I advise according to protocol?",
+    "expected_answer_en": "Advise the mother to take Napa or Paracetamol tablet as per the doctor's advice (on a full stomach). Wipe the whole body with a cloth soaked in normal or lukewarm water. She should eat plenty of liquid foods. If fever does not subside, seek the doctor's advice.",
+    "question_bn": "একজন গর্ভবতী মায়ের জ্বর হয়েছে। প্রোটোকল অনুযায়ী কোন ওষুধ ও বাড়িতে কী যত্নের পরামর্শ দেব?",
+    "expected_answer_bn": "চিকিৎসকের পরামর্শ অনুযায়ী ট্যাবলেট নাপা বা প্যারাসিটামল খেতে বলুন (ভরা পেটে)। স্বাভাবিক পানিতে বা কুসুম গরম পানিতে কাপড় ভিজিয়ে সমস্ত শরীর মুছে দিতে বলুন। বেশি বেশি তরল জাতীয় খাবার খেতে বলুন। জ্বর না কমলে চিকিৎসকের পরামর্শ নিতে বলুন।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "74ca51d6-4771-4042-aa20-6e65fa408a7d"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q268"
+  },
+  {
+    "question_en": "At a home visit I measured the mother's weight and found it has not increased or has decreased since the last visit. What should I do next?",
+    "expected_answer_en": "Weight remaining stable or decreasing during pregnancy is abnormal. Check whether anemia and fundal height are normal. Provide counseling as needed and refer if necessary.",
+    "question_bn": "বাড়ি ভিজিটে মায়ের ওজন মেপে দেখলাম গত ভিজিটের তুলনায় ওজন স্থির আছে বা কমে গেছে। পরবর্তীতে আমি কী করব?",
+    "expected_answer_bn": "গর্ভাবস্থায় ওজন স্থির থাকা বা কমে যাওয়া অস্বাভাবিক। রক্তস্বল্পতা এবং জরায়ুর উচ্চতা স্বাভাবিক আছে কিনা তা পরীক্ষা করে মিলিয়ে দেখুন। প্রয়োজনে পরামর্শ দিন এবং রেফার করুন।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "5432355f-fa15-40c1-b7e3-ec6742a56e1e"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Problem Identification & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q269"
+  },
+  {
+    "question_en": "What is the normal pulse rate range for a pregnant mother?",
+    "expected_answer_en": "The normal pulse rate for a pregnant mother is 60 to 100 beats per minute.",
+    "question_bn": "গর্ভবতী মায়ের স্বাভাবিক নাড়ির গতি কত হওয়া উচিত?",
+    "expected_answer_bn": "গর্ভবতী মায়ের স্বাভাবিক নাড়ির গতি ৬০ থেকে ১০০ বার প্রতি মিনিটে।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "edf123a9-a22f-4751-9110-9be983fde845"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q270"
+  },
+  {
+    "question_en": "I measured the mother's height and found it is below 145 centimeters. She seems otherwise well. What should I tell her?",
+    "expected_answer_en": "Normal height is 145 centimeters or more. If height is below 145 centimeters, the mother is at risk. Advise her to consult a doctor.",
+    "question_bn": "মায়ের উচ্চতা মেপে দেখলাম ১৪৫ সেন্টিমিটারের কম। অন্যদিকে সে ভালো আছে বলে মনে হচ্ছে। তাকে কী বলব?",
+    "expected_answer_bn": "স্বাভাবিক উচ্চতা ১৪৫ সেন্টিমিটার বা এর বেশি। উচ্চতা ১৪৫ সেন্টিমিটারের কম হলে মা ঝুঁকিপূর্ণ। তাকে ডাক্তারের পরামর্শ নিতে বলুন।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "b80df28d-9cdd-4012-aaf5-6e44e97f68e6"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Referral & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q271"
+  },
+  {
+    "question_en": "What are the step-by-step instructions to measure a pregnant mother's blood pressure correctly?",
+    "expected_answer_en": "Let the patient sit calmly for 5 minutes before measurement. Measure blood pressure with the back supported against a chair, arm resting on a table at heart level. Place the cuff two finger-widths above the elbow crease — not too loose or tight. Use the stethoscope at the artery where the pulse is felt. Inflate the cuff to 200 mmHg, then slowly release. Record systolic pressure where sound is first heard and diastolic where sound disappears. Fully release air and remove the cuff carefully.",
+    "question_bn": "গর্ভবতী মায়ের রক্তচাপ সঠিকভাবে মাপার ধাপে ধাপে নির্দেশনা কী?",
+    "expected_answer_bn": "রক্তচাপ পরীক্ষার পূর্বে ৫ মিনিট রোগীকে শান্তভাবে বসতে দিন। চেয়ারের পশ্চাৎ দেয়ালে পিঠ ঠেকিয়ে বসা অবস্থায়, হাত হৃদপিন্ডের সম-উচ্চতায় রেখে রক্তচাপ নিন। কনুইয়ের ভাঁজ থেকে দুই আঙ্গুল উপরে বাহুবন্ধনী বাঁধুন — খুব ঢিলা বা টাইট করা যাবে না। নাড়ীর গতি অনুভব করা যায় সেখানে স্টেথোস্কোপ রাখুন। বাহুবন্ধনীতে ২০০ মিলিমিটার পর্যন্ত বাতাস দিন, তারপর আস্তে আস্তে খুলুন। প্রথমে শব্দ শোনা যায় যেখানে সেটাই সিস্টোলিক এবং শেষে শব্দ বন্ধ হয় যেখানে সেটাই ডায়াস্টোলিক রক্তচাপ। বাতাস সম্পূর্ণ ছেড়ে বাহুবন্ধনী সাবধানে খুলে রাখুন।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "03dc8c43-6a98-450d-9166-c2312b8fd4aa"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q272"
+  },
+  {
+    "question_en": "The mother's blood pressure is abnormal, urinary albumin and edema examination results are also abnormal. Should I refer her?",
+    "expected_answer_en": "Yes. If urinary albumin and edema examination results are abnormal, refer the mother to the Upazila hospital or health center.",
+    "question_bn": "মায়ের রক্তচাপ অস্বাভাবিক, প্রস্রাবে অ্যালবুমিন ও ইডিমা পরীক্ষার ফলাফলও অস্বাভাবিক। আমি কি তাকে রেফার করব?",
+    "expected_answer_bn": "হ্যাঁ। প্রস্রাবে অ্যালবুমিন এবং ইডিমা পরীক্ষার ফলাফল অস্বাভাবিক থাকলে মাকে উপজেলা হাসপাতাল বা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "74aece78-688f-40ee-895c-25ba4693df30",
+      "d687a96e-ed56-4035-9e14-315b21de05ad"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Clinical Protocol & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q273"
+  },
+  {
+    "question_en": "What temperature range is considered normal for a pregnant mother, and what counts as abnormal?",
+    "expected_answer_en": "Normal temperature is 97 to 99 degrees Fahrenheit (37 degrees Celsius). Abnormal temperature is above 99 degrees Fahrenheit (fever) or below 97 degrees Fahrenheit (hypothermia).",
+    "question_bn": "গর্ভবতী মায়ের জন্য স্বাভাবিক তাপমাত্রার সীমা কত, এবং কীকে অস্বাভাবিক বলা হয়?",
+    "expected_answer_bn": "স্বাভাবিক তাপমাত্রা ৯৭ ডিগ্রি ফারেনহাইট থেকে ৯৯ ডিগ্রি ফারেনহাইট (৩৭ ডিগ্রি সেলসিয়াস)। অস্বাভাবিক তাপমাত্রা হলো ৯৯ ডিগ্রি ফারেনহাইটের বেশি (জ্বর) এবং ৯৭ ডিগ্রি ফারেনহাইটের কম (হাইপোথারমিয়া)।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "675586e7-c59d-43a3-9032-81051032212e"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q274"
+  },
+  {
+    "question_en": "How do I measure fundal height for a pregnant mother at 20 weeks gestation?",
+    "expected_answer_en": "Ask the mother to empty her bladder. Have her lie down with knees bent. Palpate from the fundus downward to mark the upper border, then from below the navel to the symphysis pubis. Place the zero mark of the measuring tape at the upper mark, pass over the navel to the symphysis pubis, and record the centimeters on the maternal and newborn health card. From 16 to 23 weeks, record the result in the fundal height field. Also ask about fetal movement — normally the fetus moves 10 or more times in 12 hours.",
+    "question_bn": "২০ সপ্তাহের গর্ভবতী মায়ের জরায়ুর উচ্চতা কীভাবে মাপব?",
+    "expected_answer_bn": "মাকে প্রস্রাব করিয়ে নিন। শুয়ে দুই হাঁটু ভাঁজ করতে বলুন। জিফি-স্টারনাম থেকে নীচের দিকে হাত দিয়ে অনুভব করে উপরের দাগ দিন, নাভীর নিচ থেকে সিমফাইসিস পিউবিস পর্যন্ত মাপুন। মেজারিং টেপের '০' দাগ উপরের দাগে রেখে নাভীর উপর দিয়ে সিমফাইসিস পিউবিস পর্যন্ত টেনে সেন্টিমিটার কার্ডে লিখুন। ১৬–২৩ সপ্তাহে ফলাফল মা, নবজাতক ও শিশু স্বাস্থ্য তথ্য কার্ডের জরায়ুর উচ্চতার ঘরে লিখুন। বাচ্চার নড়াচড়া সম্পর্কেও জিজ্ঞাসা করুন — স্বাভাবিকভাবে ১২ ঘণ্টায় ১০ বা তার বেশি বার নড়াচড়া করে।",
+    "module_id": [
+      "46900f4a-4978-4e3f-9db1-cceb677c8146"
+    ],
+    "source_card_id": [
+      "905210ac-0b60-48d1-87a2-7030ee28f0c3"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Diagnostic Procedure",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q275"
+  },
+  {
+    "question_en": "A pregnant mother in her first trimester complains of nausea, vomiting, lower back pain, and constipation together. What combined home management advice should I give?",
+    "expected_answer_en": "For nausea and vomiting, advise dry foods such as puffed rice or biscuits and eating small amounts frequently. For lower back pain, she should not bend forward for work, should not lift heavy objects, sleep on a firm mattress, and may take one Paracetamol tablet as per the doctor's advice. For constipation, she should eat plenty of vegetables and fruits, drink isabgol husk with water or sherbet daily, and drink more water.",
+    "question_bn": "প্রথম ত্রৈমাসিকের একজন গর্ভবতী মা বমিবমি ভাব, বমি, পিঠের নিম্নাংশে ব্যথা এবং কোষ্ঠকাঠিন্য — একসাথে অভিযোগ করছেন। একত্রিত বাড়িতে যত্নের পরামর্শ কী দেব?",
+    "expected_answer_bn": "বমিবমি ভাব ও বমির জন্য মুড়ি, বিস্কুটের মতো শুকনো খাবার এবং বারে বারে অল্প পরিমাণে খেতে বলুন। পিঠের নিম্নাংশে ব্যথায় সামনে ঝুঁকে কাজ করা যাবে না, ভারী জিনিস ওঠানো যাবে না, শক্ত বিছানায় ঘুমাতে হবে এবং চিকিৎসকের পরামর্শ অনুযায়ী একটি করে প্যারাসিটামল দিতে পারেন। কোষ্ঠকাঠিন্য হলে প্রচুর শাক-সবজি ও ফলমূল, প্রতিদিন ইসবগুলের ভূষি দিয়ে পানি বা শরবত এবং বেশি পানি পান করতে বলুন।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "0e3627f6-116a-4d2f-b07a-1373340347c6",
+      "95435831-d293-4bfc-8506-086b0468527d",
+      "7bc1d4f8-e718-4d92-aa71-fa2f4eb203a4"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q276"
+  },
+  {
+    "question_en": "A mother in early pregnancy cannot keep regular meals down because of nausea. What dietary counseling should I provide?",
+    "expected_answer_en": "Advise her to eat dry foods such as puffed rice and biscuits. She should eat small amounts frequently rather than large meals at once.",
+    "question_bn": "প্রাথমিক গর্ভাবস্থায় একজন মা বমিবমি ভাবের কারণে নিয়মিত খাবার খেতে পারছেন না। খাদ্যগত পরামর্শ কী দেব?",
+    "expected_answer_bn": "মুড়ি, বিস্কুটের মতো শুকনো খাবার খেতে বলুন। একবারে বেশি না খেয়ে বারে বারে অল্প পরিমাণে খেতে বলুন।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "0e3627f6-116a-4d2f-b07a-1373340347c6"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Lifestyle Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q277"
+  },
+  {
+    "question_en": "For anemia and malnutrition during pregnancy, what iron and folic acid regimen should I advise?",
+    "expected_answer_en": "Advise iron and folic acid tablets twice daily for one month. Also encourage iron- and vitamin C-rich foods.",
+    "question_bn": "গর্ভাবস্থায় রক্তস্বল্পতা ও অপুষ্টির জন্য আয়রন ও ফলিক এসিডের কী নিয়ম পরামর্শ দেব?",
+    "expected_answer_bn": "আয়রন এবং ফলিক এসিড ট্যাবলেট দিনে দুবার এক মাসের জন্য খেতে বলুন। আয়রন ও ভিটামিন সি সমৃদ্ধ খাবার খেতেও উৎসাহিত করুন।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "82a406f3-44d7-4abb-8806-8c05d09eba39"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q278"
+  },
+  {
+    "question_en": "A pregnant mother complains of heartburn after meals. What practical advice should I give her?",
+    "expected_answer_en": "Advise eating small amounts frequently. She should avoid spicy and oily foods. She should not lie down immediately after eating.",
+    "question_bn": "একজন গর্ভবতী মা খাওয়ার পর বুক জ্বালাপোড়ায় ভুগছেন। কী ব্যবহারিক পরামর্শ দেব?",
+    "expected_answer_bn": "বারে বারে অল্প পরিমাণে খেতে বলুন। মশলা যুক্ত এবং তৈলাক্ত খাবার এড়িয়ে চলতে বলুন। খাওয়ার পর পরই শোয়া থেকে বিরত থাকতে বলুন।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "e0082935-b43c-4ff2-b608-10c6f3e2138c"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q279"
+  },
+  {
+    "question_en": "What should a pregnant mother do if she has lower back pain?",
+    "expected_answer_en": "She should not work bending forward. She should not lift heavy objects. She should sleep on a firm mattress. Give one Paracetamol tablet as per the doctor's advice.",
+    "question_bn": "গর্ভবতী মায়ের পিঠের নিম্নাংশে ব্যথা হলে কী করতে হবে?",
+    "expected_answer_bn": "সামনে ঝুঁকে কোনো কাজ করা যাবে না। ভারী জিনিস ওঠানো যাবে না। শক্ত বিছানায় ঘুমাতে হবে। চিকিৎসকের পরামর্শ অনুযায়ী একটি করে প্যারাসিটামল ট্যাবলেট খেতে দিতে হবে।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "95435831-d293-4bfc-8506-086b0468527d"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q280"
+  },
+  {
+    "question_en": "During a home visit, a pregnant mother says she urinates very frequently but has no fever. What should I advise?",
+    "expected_answer_en": "Advise her to drink an adequate amount of water. If she develops fever or chills, she should seek the doctor's advice.",
+    "question_bn": "বাড়ি ভিজিটে একজন গর্ভবতী মা বলছেন ঘনঘন প্রসাব হচ্ছে, কিন্তু জ্বর নেই। কী পরামর্শ দেব?",
+    "expected_answer_bn": "পরিমাণমতো পানি পান করতে বলুন। জ্বর বা শীতকম্পন হলে চিকিৎসকের পরামর্শ নিতে বলুন।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "8e6442e2-abf9-4ca3-b611-817538b7d339"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Symptom Identification",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q281"
+  },
+  {
+    "question_en": "What lifestyle measures should I teach a pregnant mother who has swollen veins in her legs?",
+    "expected_answer_en": "Advise avoiding standing for long periods. When sitting, keep the feet elevated. Do regular light exercise. Use crepe bandage if needed.",
+    "question_bn": "পায়ে স্ফীত শিরা থাকা গর্ভবতী মাকে কী জীবনধারা সংক্রান্ত ব্যবস্থা শেখাব?",
+    "expected_answer_bn": "অনেকক্ষণ দাঁড়িয়ে থাকা এড়িয়ে চলতে বলুন। বসার সময় পা উঁচু করে রাখতে বলুন। নিয়মিত হালকা ব্যায়াম করতে বলুন। প্রয়োজনে ক্রেপ ব্যান্ডেজ ব্যবহার করতে বলুন।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "92fded14-0a02-474c-a542-f9083d7d06cd"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Lifestyle Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q282"
+  },
+  {
+    "question_en": "A pregnant mother with frequent urination now also has fever and chills. Should I only advise more fluids at home?",
+    "expected_answer_en": "No. She should drink an adequate amount of water, but if fever or chills develop she must seek the doctor's advice.",
+    "question_bn": "ঘনঘন প্রসাব হওয়া একজন গর্ভবতী মায়ের এখন জ্বর ও শীতকম্পন হয়েছে। শুধু বাড়িতে বেশি তরল খাওয়ার পরামর্শ দিলেই হবে?",
+    "expected_answer_bn": "না। পরিমাণমতো পানি পান করতে বলুন, কিন্তু জ্বর বা শীতকম্পন হলে অবশ্যই চিকিৎসকের পরামর্শ নিতে হবে।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "8e6442e2-abf9-4ca3-b611-817538b7d339"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Clinical Protocol & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q283"
+  },
+  {
+    "question_en": "What home care is recommended for hemorrhoids (piles) during pregnancy?",
+    "expected_answer_en": "Eat vegetables and fruits. Drink plenty of water. Avoid constipation. Apply hot or cold water compress. Use an ointment for application at the anus.",
+    "question_bn": "গর্ভাবস্থায় অর্শ্ব বা পাইলসের জন্য বাড়িতে কী যত্নের পরামর্শ দেওয়া হয়?",
+    "expected_answer_bn": "শাক-সবজি এবং ফলমূল খেতে হবে। প্রচুর পরিমাণে পানি পান করতে হবে। কোষ্ঠকাঠিন্য এড়িয়ে চলতে হবে। গরম বা ঠান্ডা পানির সেক দিতে হবে। মলদ্বারে ব্যবহারের জন্য মলম ব্যবহার করতে হবে।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "e1efae73-03a0-4e72-bd08-d31097fb9f37"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q284"
+  },
+  {
+    "question_en": "How should I manage leg pain or leg cramps in a pregnant mother?",
+    "expected_answer_en": "Massage the leg. Give calcium tablets one tablet twice daily.",
+    "question_bn": "গর্ভবতী মায়ের পায়ে ব্যথা বা পা কামড়ালে কীভাবে ব্যবস্থা নেব?",
+    "expected_answer_bn": "ম্যাসেজ করতে হবে। ক্যালসিয়াম বড়ি একটি করে দিনে দুবার খেতে দিতে হবে।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "2406a238-d5ec-4a7e-b7dd-aa45302139b8"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q285"
+  },
+  {
+    "question_en": "A pregnant mother has constipation and is also at risk of hemorrhoids. What combined dietary and lifestyle advice covers both problems?",
+    "expected_answer_en": "She should eat plenty of vegetables and fruits and drink isabgol husk with water or sherbet daily, along with more water, to relieve constipation. To prevent hemorrhoids, continue vegetables and fruits, drink plenty of water, avoid constipation, apply hot or cold water compress, and use an anal ointment if needed.",
+    "question_bn": "একজন গর্ভবতী মায়ের কোষ্ঠকাঠিন্য আছে এবং অর্শ্ব হওয়ার ঝুঁকিও আছে। দুটি সমস্যা মিলিয়ে কী খাদ্য ও জীবনধারা সংক্রান্ত পরামর্শ দেব?",
+    "expected_answer_bn": "কোষ্ঠকাঠিন্যের জন্য প্রচুর শাক-সবজি ও ফলমূল, প্রতিদিন ইসবগুলের ভূষি দিয়ে পানি বা শরবত এবং বেশি পানি পান করতে বলুন। অর্শ্ব প্রতিরোধে শাক-সবজি ও ফলমূল, প্রচুর পানি, কোষ্ঠকাঠিন্য এড়ানো, গরম বা ঠান্ডা পানির সেক এবং প্রয়োজনে মলদ্বারে মলম ব্যবহারের পরামর্শ দিন।",
+    "module_id": [
+      "d64bc859-b83c-4ad9-b371-fd1b752cf039"
+    ],
+    "source_card_id": [
+      "7bc1d4f8-e718-4d92-aa71-fa2f4eb203a4",
+      "e1efae73-03a0-4e72-bd08-d31097fb9f37"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q286"
+  },
+  {
+    "question_en": "A pregnant mother reports spotting vaginal bleeding but it is not heavy. What counseling and home care should I provide?",
+    "expected_answer_en": "Tell her to rest completely in bed. Forbid heavy work. Use a clean sanitary napkin. Advise frequent liquid foods such as saline, water, and sherbet. If bleeding does not decrease or increases within a short time, refer her quickly to the hospital.",
+    "question_bn": "একজন গর্ভবতী মা যোনীপথে ফোঁটা ফোঁটা রক্তক্ষরণের কথা বলছেন, তবে বেশি নয়। কী পরামর্শ ও বাড়িতে যত্ন দেব?",
+    "expected_answer_bn": "তাকে বিছানায় শুয়ে সম্পূর্ণরূপে বিশ্রাম নিতে বলুন। ভারী কাজ করতে নিষেধ করুন। পরিষ্কার স্যানিটারী ন্যাপকিন পরে থাকতে বলুন। স্যালাইন, পানি, শরবত ইত্যাদি ঘন ঘন তরল খাবার খেতে বলুন। অল্প সময়ের মধ্যে রক্তক্ষরণ না কমলে বা বেড়ে গেলে দ্রুত হাসপাতালে রেফার করুন।",
+    "module_id": [
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396"
+    ],
+    "source_card_id": [
+      "9ff9eff5-8fb4-48b5-8194-2f66e9ba137e"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q287"
+  },
+  {
+    "question_en": "A pregnant mother has high blood pressure and also swelling in her hands and feet. What should I do before and during referral?",
+    "expected_answer_en": "Tell her to lie down and recheck blood pressure after four hours. If blood pressure is above 140 over 90 mmHg, advise complete rest and forbid loose salt on her plate, and refer her quickly to the hospital. If she has both high blood pressure and swelling in hands and feet, refer her quickly to the hospital. Before going, tell her to lie on her left side, eat nutritious foods such as fish, meat, eggs, and milk, and forbid loose salt.",
+    "question_bn": "একজন গর্ভবতী মায়ের উচ্চ রক্তচাপ এবং হাতে-পায়েও ফোলা আছে। রেফার করার আগে ও সময়ে আমি কী করব?",
+    "expected_answer_bn": "তাকে শুয়ে থাকতে বলুন এবং চার ঘণ্টা পরে আবার রক্তচাপ মাপুন। রক্তচাপ ১৪০ ওভার ৯০ মিলিমিটার মারকারীর বেশি হলে সম্পূর্ণ বিশ্রামে থাকতে, পাতে আলগা লবণ খেতে নিষেধ করতে এবং দ্রুত হাসপাতালে রেফার করতে বলুন। উচ্চ রক্তচাপ এবং হাতে-পায়ে পানি আসা উভয় লক্ষণ থাকলে দ্রুত হাসপাতালে রেফার করুন। যাওয়ার আগে বাম দিকে কাত হয়ে শুতে, মাছ, মাংস, ডিম, দুধ খেতে এবং পাতে আলগা লবণ খেতে নিষেধ করুন।",
+    "module_id": [
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396"
+    ],
+    "source_card_id": [
+      "2504fd7f-e3e5-42b3-924f-51c75d754231",
+      "1f5fb32d-13d7-4ebb-beb7-d60b6fbfab26"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Clinical Escalation & Patient Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q288"
+  },
+  {
+    "question_en": "A pregnant mother has swelling in her hands and feet but no high blood pressure yet. What should I advise her?",
+    "expected_answer_en": "Tell her to keep her feet elevated during sleep or rest. Advise her to lie on her left side. Encourage nutritious foods such as fish, meat, eggs, and milk, and forbid loose salt on her plate. Recheck after one week.",
+    "question_bn": "একজন গর্ভবতী মায়ের হাতে-পায়ে ফোলা আছে, তবে এখনো উচ্চ রক্তচাপ নেই। তাকে কী পরামর্শ দেব?",
+    "expected_answer_bn": "ঘুম বা বিশ্রামের সময় পা উঁচু করে রাখতে বলুন। বাম দিকে কাত হয়ে শুতে বলুন। মাছ, মাংস, ডিম, দুধের মতো পুষ্টিকর খাবার খেতে বলুন এবং পাতে আলগা লবণ খেতে নিষেধ করুন। এক সপ্তাহ পরে আবার পরীক্ষা করুন।",
+    "module_id": [
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396"
+    ],
+    "source_card_id": [
+      "e4ac0dd2-e641-434d-a4b2-18449786df89"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q289"
+  },
+  {
+    "question_en": "What are the danger signs that require urgent hospital referral when a pregnant mother has heavy vaginal bleeding with lower abdominal pain?",
+    "expected_answer_en": "If a pregnant mother has heavy vaginal bleeding and lower abdominal pain, refer her quickly to the hospital. Tell her to use a clean sanitary napkin and drink frequent liquid foods such as saline, water, and sherbet.",
+    "question_bn": "গর্ভবতী মায়ের যোনীপথে বেশি রক্তক্ষরণ ও তলপেটে ব্যথা থাকলে জরুরি হাসপাতাল রেফারেলের বিপদচিহ্ন কী?",
+    "expected_answer_bn": "যোনীপথে বেশি রক্তক্ষরণ এবং তলপেটে ব্যথা থাকলে দ্রুত হাসপাতালে রেফার করুন। পরিষ্কার স্যানিটারী ন্যাপকিন পরে থাকতে বলুন এবং স্যালাইন, পানি, শরবত ইত্যাদি ঘন ঘন তরল খাবার খেতে বলুন।",
+    "module_id": [
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396"
+    ],
+    "source_card_id": [
+      "d003d658-350c-4c3b-898d-01038d09e9b5"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Maternal Danger Signs & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q290"
+  },
+  {
+    "question_en": "At 34 weeks gestation, a mother's water breaks in small amounts and the fluid color is normal. What should I tell her to do at home?",
+    "expected_answer_en": "Tell her to rest completely in bed. Forbid heavy work. Use a clean sanitary napkin. Advise frequent liquid foods such as saline, water, and sherbet. If the leaking does not decrease or increases, refer her to the hospital.",
+    "question_bn": "৩৪ সপ্তাহের একজন মায়ের অল্প অল্প পানি ভেঙেছে এবং পানির রং স্বাভাবিক। বাড়িতে তাকে কী করতে বলব?",
+    "expected_answer_bn": "বিছানায় শুয়ে সম্পূর্ণরূপে বিশ্রাম নিতে বলুন। ভারী কাজ করতে নিষেধ করুন। পরিষ্কার স্যানিটারী ন্যাপকিন পরে থাকতে বলুন। স্যালাইন, পানি, শরবত ইত্যাদি ঘন ঘন তরল খাবার খেতে বলুন। পানি ভাঙা না কমলে বা বেড়ে গেলে হাসপাতালে রেফার করুন।",
+    "module_id": [
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396"
+    ],
+    "source_card_id": [
+      "86f1fffb-ad1c-4b04-bd92-f19f40ede2fc"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q291"
+  },
+  {
+    "question_en": "What immediate action is required if a pregnant mother before 37 weeks has heavy water breaking with brown, green, or blood-stained fluid?",
+    "expected_answer_en": "If heavy water breaks before 37 weeks and the fluid is brown, green, or blood-stained, refer her quickly to the hospital.",
+    "question_bn": "৩৭ সপ্তাহের আগে গর্ভবতী মায়ের বেশি পানি ভেঙে গেছে এবং পানির রং বাদামী, সবুজ বা রক্ত মিশ্রিত হলে তাৎক্ষণিক কী ব্যবস্থা নিতে হবে?",
+    "expected_answer_bn": "৩৭ সপ্তাহের আগে বেশি পানি ভাঙ্গে এবং পানির রং বাদামী, সবুজ বা রক্ত মিশ্রিত হলে দ্রুত হাসপাতালে রেফার করুন।",
+    "module_id": [
+      "3f751ce8-c5fc-4a45-9bd2-6f7c4807e396"
+    ],
+    "source_card_id": [
+      "1df55677-2c08-4fbd-a898-ed15ce76b18f"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Emergency Management & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q292"
+  }
+]

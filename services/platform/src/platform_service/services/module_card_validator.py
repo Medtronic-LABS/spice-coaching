@@ -1,8 +1,6 @@
-"""W-11 — quality validator for v3.3 ModuleCard + ModuleQuizQuestion.
+"""Quality validator for ModuleCard and ModuleQuizQuestion.
 
-Distinct from `services/card_validator.py` which validates the v3.0
-`CoachingCardResponse` shape. This module operates on the v3.3 module-
-pipeline shapes and adds 5 rules per Implementation Plan §11:
+This module operates on the module-pipeline shapes and adds 5 rules:
 
 1. **Primary-script bleed** — primary-locale fields shouldn't contain >X%
    characters outside the deployment's native script (catches LLM forgetting
@@ -14,15 +12,14 @@ pipeline shapes and adds 5 rules per Implementation Plan §11:
 4. **Quiz options pairwise-distinct** — no two options identical (bug
    that makes the right answer obvious).
 5. **Forbidden patterns** — reuses `_DOSAGE_RE`, `_DRUG_RE`,
-   `_DIAGNOSIS_RE` from the v3.0 `card_validator.py` (CHWs shouldn't
-   prescribe meds even from v3.3 modules).
+   `_DIAGNOSIS_RE` (CHWs shouldn't prescribe meds even from modules).
 
 Reference data:
-- Settings.spice_referral_set — same source of truth as v3.0 validator.
+- Settings.spice_referral_set — referral destination vocabulary.
 
 Hard violations → caller should drop the card or fail the candidate.
 Soft warnings → caller annotates `field_flags_jsonb` and the reviewer sees
-them in the review surface (W-6).
+them in the review surface.
 """
 
 from __future__ import annotations
@@ -43,9 +40,7 @@ from platform_service.services.card_body_text import (
     is_rich_text_body,
 )
 
-# Forbidden-expression regexes for clinical safety checks. Originally lived
-# in the v3.0 card_validator (deleted in the architecture reset); kept here
-# because the module-card validator is the only legitimate caller.
+# Forbidden-expression regexes for clinical safety checks.
 _DOSAGE_RE = re.compile(
     r"\b\d+(\.\d+)?\s*(mg|mcg|µg|ug|g\b|ml|cc|iu|units?|tablets?|capsules?|drops?|doses?|"
     r"teaspoon|tablespoon|sachet|ampoule|vial)\b",
@@ -220,7 +215,7 @@ class ModuleCardValidator:
         shape and the SQLAlchemy model attributes). We accept dicts rather
         than ORM instances so the validator runs equally well on:
         - LLM output before persistence (Stage D)
-        - reviewer-edit payload before update (W-6 PATCH)
+        - reviewer-edit payload before update
         - DB rows (via card.__dict__)
         """
         hard: list[str] = []
@@ -236,7 +231,7 @@ class ModuleCardValidator:
 
         # Required minimums. Refresher / digital_proficiency cards carry
         # body; content_update cards put their content in the practice
-        # fields and leave body empty by design (W-5 §7).
+        # fields and leave body empty by design.
         is_content_update_shape = bool(prev and curr and rationale)
         body_raw = _primary_locale_raw(card, "body", self._settings)
         if not card_body_is_nonempty(body_raw) and not is_content_update_shape:
@@ -308,8 +303,8 @@ class ModuleCardValidator:
                         break  # one warning per body number is enough
 
         # Referral destination check — only when the card carries an EXPLICIT
-        # referral_destination field (not a v3.3 ModuleCard concept by default,
-        # but tolerated in case Stage D ever adds it). v3.3 modules embed
+        # referral_destination field (not a ModuleCard concept by default,
+        # but tolerated in case Stage D ever adds it). Modules embed
         # referral guidance inside next_action as primary-locale prose, so we
         # don't try to parse facility names out of it.
         referral = card.get("referral_destination")
@@ -415,7 +410,7 @@ def annotate_field_flags(
     quiz_result: QuizValidationResult | None = None,
 ) -> dict[str, Any]:
     """Merge validator output into a card's or question's `field_flags_jsonb`.
-    Reviewer-surface (W-6) reads this to surface warnings on the edit screen."""
+    Reviewer-surface reads this to surface warnings on the edit screen."""
     base = dict(field_flags_jsonb or {})
     if card_result is not None:
         if card_result.soft_warnings:

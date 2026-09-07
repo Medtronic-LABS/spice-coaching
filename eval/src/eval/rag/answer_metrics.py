@@ -419,6 +419,10 @@ def aggregate_e2e_summaries(
         "faithfulness": _nested_mean(judge_artifacts, "judge_metrics", "faithfulness"),
         "answer_relevance": _nested_mean(judge_artifacts, "judge_metrics", "answer_relevance"),
         "groundedness": _nested_mean(judge_artifacts, "judge_metrics", "groundedness"),
+        "reference_correctness": _nested_mean(judge_artifacts, "judge_metrics", "reference_correctness"),
+        "abstention_appropriateness": _nested_mean(
+            judge_artifacts, "judge_metrics", "abstention_appropriateness"
+        ),
         "judge_error_rate": _mean(
             [
                 1.0
@@ -428,6 +432,29 @@ def aggregate_e2e_summaries(
             ]
         ),
     }
+
+    judge_by_answerable: dict[str, dict[str, float]] = {}
+    for answerable in ("yes", "partial", "no"):
+        subset = [a for a in judge_artifacts if a.get("answerable") == answerable]
+        if not subset:
+            continue
+        judge_by_answerable[answerable] = {
+            "faithfulness": _nested_mean(subset, "judge_metrics", "faithfulness"),
+            "reference_correctness": _nested_mean(subset, "judge_metrics", "reference_correctness"),
+            "abstention_appropriateness": _nested_mean(subset, "judge_metrics", "abstention_appropriateness"),
+        }
+    out_of_scope_judge = [a for a in judge_artifacts if a.get("is_out_of_scope")]
+    if out_of_scope_judge:
+        judge_by_answerable["out_of_scope"] = {
+            "abstention_appropriateness": _nested_mean(
+                out_of_scope_judge, "judge_metrics", "abstention_appropriateness"
+            ),
+            "reference_correctness": _nested_mean(
+                out_of_scope_judge, "judge_metrics", "reference_correctness"
+            ),
+        }
+    if judge_by_answerable:
+        judge_summary["by_answerable"] = judge_by_answerable  # type: ignore[assignment]
 
     error_summary = {
         "query_error_rate": _mean([1.0 for a in artifacts if a.get("error")]),
@@ -449,6 +476,7 @@ def aggregate_e2e_summaries(
                 "hit_at_k": [],
                 "strict_citation_accuracy": [],
                 "faithfulness": [],
+                "reference_correctness": [],
             },
         )
         if artifact.get("token_f1") is not None:
@@ -462,6 +490,8 @@ def aggregate_e2e_summaries(
         judge = artifact.get("judge_metrics")
         if isinstance(judge, dict) and judge.get("faithfulness") is not None:
             bucket["faithfulness"].append(float(judge["faithfulness"]))
+        if isinstance(judge, dict) and judge.get("reference_correctness") is not None:
+            bucket["reference_correctness"].append(float(judge["reference_correctness"]))
 
     by_category_summary = {
         slug: {metric: _mean(values) for metric, values in metrics.items()}

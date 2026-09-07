@@ -1,4 +1,4 @@
-"""W-5 — card_drafter unit tests with mocked AIRuntimeClient."""
+"""card_drafter unit tests with mocked AIRuntimeClient."""
 
 import json
 from typing import Any
@@ -15,6 +15,7 @@ from platform_service.services.card_drafter import (
 from platform_service.services.card_image_assigner import ImageCatalogEntry
 from platform_service.services.prompt_variables.card_drafter_variables import build_card_drafter_variables
 from platform_service.services.prompts.card_drafter_prompt import _SYSTEM_BASE
+from platform_service.services.prompts.symbol_verbalization import SYMBOL_VERBALIZATION_RULES
 
 pytestmark = pytest.mark.usefixtures("mock_prompt_templates")
 
@@ -329,8 +330,6 @@ class TestMultiSourceCoverage:
         assert "cross-source coverage" in lowered
 
     def test_system_prompt_has_symbol_verbalization_rules(self) -> None:
-        from platform_service.services.prompts.symbol_verbalization import SYMBOL_VERBALIZATION_RULES
-
         variables = build_card_drafter_variables(
             module_type="initial_training",
             card_min_count=3,

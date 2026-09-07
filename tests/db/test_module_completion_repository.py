@@ -1,4 +1,4 @@
-"""W-10 — module_completion_repository integration tests."""
+"""module_completion_repository integration tests."""
 
 from __future__ import annotations
 

@@ -1,0 +1,55 @@
+{
+  "records": [
+    {
+      "question_en": "At the start of an EPI session, what should I explain to participants about the program's purpose and target population?",
+      "expected_answer_en": "Greet everyone, introduce the EPI program concept, explain who the target population is, write it on the board, and ask all participants to repeat it.",
+      "question_bn": "ইপিআই সেশনের শুরুতে কার্যক্রমের উদ্দেশ্য ও লক্ষ্যিত জনগোষ্ঠী সম্পর্কে অংশগ্রহণকারীদের কী ব্যাখ্যা করতে হবে?",
+      "expected_answer_bn": "সবাইকে শুভেচ্ছা জানিয়ে সেশন শুরু করুন, ইপিআই সর্ম্পকে ধারণা দিন, লক্ষ্যিত জনগোষ্ঠী কারা তা বলুন, বোর্ডে লিখুন এবং সকলকে বলতে বলুন।",
+      "module_id": [
+        "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+      ],
+      "source_card_id": [
+        "25738f5d-830f-4d8b-bc38-9ecacfd2b35f"
+      ],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "After vaccinating a child, the mother says the child seems unwell. How should I discuss vaccine side effects with her?",
+      "expected_answer_en": "Ask what kinds of problems children face after vaccination and listen carefully to what she says. Then discuss common and dangerous vaccine side effects and how to manage them.",
+      "question_bn": "শিশুকে টিকা দেওয়ার পর মা বলছেন শিশুটির শরীর খারাপ লাগছে। টিকার পার্শ্বপ্রতিক্রিয়া নিয়ে আমি তার সাথে কীভাবে আলোচনা করব?",
+      "expected_answer_bn": "টিকা নেয়ার পর শিশুরা কী ধরণের সমস্যার সম্মুখীন হয় তা জানতে চান এবং মায়ের কথা মনোযোগ সহকারে শুনুন। পরে টিকার সাধারণ ও বিপদজনক পার্শ্বপ্রতিক্রিয়া এবং এর সমাধান নিয়ে আলোচনা করুন।",
+      "module_id": [
+        "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+      ],
+      "source_card_id": [
+        "ab78583f-c3cc-44df-9bc0-9ae532e3329c"
+      ],
+      "query_type": "Situational",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Counseling & Home Management",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During an EPI training session, how should I present the child vaccination schedule so everyone understands it?",
+      "expected_answer_en": "Know the names of vaccines given for each disease, have a few participants say the names and write them on the board, verify and correct errors through synthesis and analysis, present the vaccine schedule poster, and confirm that everyone has understood.",
+      "question_bn": "ইপিআই প্রশিক্ষণে শিশুর টিকার সিডিউল উপস্থাপন করার সময় সবাই যেন বুঝতে পারে, তার জন্য আমি কী করব?",
+      "expected_answer_bn": "কোন কোন রোগের জন্য কোন টিকা দেওয়া হয় তার নাম জানুন, কয়েকজনকে নাম বলতে বলুন এবং বোর্ডে লিখুন, যাচাই করে ভুল-ত্রুটি সংযোজন বিয়োজন করে ঠিক করুন, টিকার সিডিউলের পোস্টার উপস্থাপন করুন এবং সবাই বুঝেছে কিনা যাচাই করুন।",
+      "module_id": [
+        "065e5a37-6dcf-4fe4-9450-b05176ad13ac"
+      ],
+      "source_card_id": [
+        "44051a6f-21c2-434f-996e-4c5fbc5992d6"
+      ],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

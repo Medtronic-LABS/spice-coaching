@@ -1,4 +1,4 @@
-"""W-AI-RUNTIME unit tests — PromptExecutor v3.3 behaviours.
+"""PromptExecutor unit tests.
 
 Verifies:
 - Base64 image_attachments decode to ProviderImage and forward to provider
@@ -14,7 +14,7 @@ import logging
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from ai_runtime.providers.base import BaseProvider, ProviderImage
@@ -113,6 +113,7 @@ def _make_request(
 def _executor_settings(
     *,
     json_parse_retries: int = 0,
+    json_parse_retries_local: int = 0,
     log_llm_responses: bool = False,
     log_llm_response_max_chars: int = 8000,
 ) -> SimpleNamespace:
@@ -122,6 +123,7 @@ def _executor_settings(
         default_max_tokens=8192,
         default_temperature=0.2,
         json_parse_retries=json_parse_retries,
+        json_parse_retries_local=json_parse_retries_local,
         log_llm_responses=log_llm_responses,
         log_llm_response_max_chars=log_llm_response_max_chars,
     )
@@ -225,7 +227,7 @@ class TestNewGenerationTypeDispatch:
         ],
     )
     @pytest.mark.asyncio
-    async def test_v33_types_dispatch_through_executor(
+    async def test_generation_types_dispatch_through_executor(
         self,
         gt: GenerationType,
         patched_executor: PromptExecutor,
@@ -397,3 +399,130 @@ class TestLlmResponseLogging:
             with caplog.at_level(logging.INFO, logger="ai_runtime.services.llm_response_logging"):
                 await executor.execute(_make_request())
         assert any("truncated, total_len=100" in rec.message for rec in caplog.records)
+
+
+# ── Local embed routing ──────────────────────────────────────────────────
+
+
+class TestEmbedRouting:
+    @pytest.mark.asyncio
+    async def test_use_local_routes_to_local_service(self) -> None:
+        local_vectors = [[0.1] * 768]
+        with patch("ai_runtime.services.prompt_executor.get_local_embedding_service") as get_service:
+            local_service = AsyncMock()
+            local_service.embed.return_value = local_vectors
+            get_service.return_value = local_service
+            executor = PromptExecutor()
+            result = await executor.embed(["hello"], use_local=True)
+
+        local_service.embed.assert_awaited_once_with(["hello"])
+        assert result == local_vectors
+
+    @pytest.mark.asyncio
+    async def test_cloud_embed_still_uses_provider(self, stub_provider: _StubProvider) -> None:
+        with patch(
+            "ai_runtime.services.prompt_executor._get_provider",
+            return_value=stub_provider,
+        ) as get_provider:
+            executor = PromptExecutor()
+            executor._settings = SimpleNamespace(
+                ai_provider="google",
+                google_embedding_model="gemini-embedding-001",
+                embedding_dimension=768,
+            )
+            result = await executor.embed(["hello"], use_local=False)
+
+        get_provider.assert_called_once_with("google")
+        assert len(result) == 1
+        assert len(result[0]) == 768
+
+
+# ── Local generate routing ───────────────────────────────────────────────
+
+
+class TestLocalGenerateRouting:
+    @pytest.mark.asyncio
+    async def test_use_local_routes_to_local_service(self) -> None:
+        with patch("ai_runtime.services.prompt_executor.get_local_generation_service") as get_service:
+            local_service = AsyncMock()
+            local_service.generate.return_value = ('{"ok": true}', 5, 10)
+            get_service.return_value = local_service
+            executor = PromptExecutor()
+            executor._settings = SimpleNamespace(
+                ai_provider="google",
+                local_generation_model_id="Qwen/Qwen3-0.6B",
+                json_parse_retries=1,
+                json_parse_retries_local=0,
+                log_llm_responses=False,
+                log_llm_response_max_chars=8000,
+                default_inference_model="gemini-2.5-flash",
+                default_max_tokens=8192,
+                default_temperature=0.2,
+            )
+            request = _make_request().model_copy(update={"use_local": True})
+            response = await executor.execute(request)
+
+        local_service.generate.assert_awaited_once()
+        assert response.provider == "local"
+        assert response.model == "Qwen/Qwen3-0.6B"
+        assert response.parsed_json == {"ok": True}
+        assert response.error is None
+
+    @pytest.mark.asyncio
+    async def test_use_local_rejects_image_attachments(self) -> None:
+        image = InferenceImage(mime_type="image/png", data_base64=base64.b64encode(b"png").decode())
+        executor = PromptExecutor()
+        executor._settings = SimpleNamespace(
+            ai_provider="google",
+            local_generation_model_id="Qwen/Qwen3-0.6B",
+            json_parse_retries=1,
+            json_parse_retries_local=0,
+            log_llm_responses=False,
+            log_llm_response_max_chars=8000,
+            default_inference_model="gemini-2.5-flash",
+            default_max_tokens=8192,
+            default_temperature=0.2,
+        )
+        request = _make_request(image_attachments=[image]).model_copy(update={"use_local": True})
+        response = await executor.execute(request)
+
+        assert response.error == "local generation does not support image_attachments"
+        assert response.provider == "local"
+
+    @pytest.mark.asyncio
+    async def test_use_local_does_not_retry_json_parse_when_local_retries_zero(self) -> None:
+        with patch("ai_runtime.services.prompt_executor.get_local_generation_service") as get_service:
+            local_service = AsyncMock()
+            local_service.generate.return_value = ("not-json", 5, 10)
+            get_service.return_value = local_service
+            executor = PromptExecutor()
+            executor._settings = SimpleNamespace(
+                ai_provider="google",
+                local_generation_model_id="Qwen/Qwen3-0.6B",
+                json_parse_retries=1,
+                json_parse_retries_local=0,
+                log_llm_responses=False,
+                log_llm_response_max_chars=8000,
+                default_inference_model="gemini-2.5-flash",
+                default_max_tokens=8192,
+                default_temperature=0.2,
+            )
+            request = _make_request().model_copy(update={"use_local": True})
+            response = await executor.execute(request)
+
+        assert local_service.generate.await_count == 1
+        assert response.error == "failed to parse JSON from provider output"
+
+    @pytest.mark.asyncio
+    async def test_cloud_generate_still_uses_provider(self, stub_provider: _StubProvider) -> None:
+        with patch(
+            "ai_runtime.services.prompt_executor._get_provider",
+            return_value=stub_provider,
+        ) as get_provider:
+            executor = PromptExecutor()
+            executor._settings = _executor_settings()
+            response = await executor.execute(_make_request())
+
+        get_provider.assert_called_once_with("google")
+        assert response.provider == "google"
+        assert response.error is None

@@ -1,0 +1,11 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: MicroCoaching
+  structure:
+    - type: space
+      key: space-docs
+      title: MicroCoaching
+      path: docs
+      default: true
+      content:
+        directory: ./

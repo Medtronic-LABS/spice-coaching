@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
 from uuid import UUID
 
-from mc_contracts.coaching import CoachingRagRequest, CoachingRagResponse
+from mc_contracts.coaching import CoachingLocalRagRequest, CoachingRagRequest, CoachingRagResponse
 from mc_contracts.internal_ai import InferenceRequest, InferenceResponse
 from mc_foundation.objectstore import ObjectNotFoundError
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.base import SessionLocal
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
 from platform_service.services.coaching_rag_errors import CoachingRagError
@@ -22,7 +24,7 @@ from eval.rag.answer_metrics import (
 from eval.rag.citation_metrics import compute_citation_metrics
 from eval.rag.context_metrics import compute_context_metrics
 from eval.rag.corpus import CardCorpusDoc
-from eval.rag.llm_judge import LlmJudge, build_judge_context
+from eval.rag.llm_judge import JudgeInput, LlmJudge, build_judge_context
 from eval.rag.rag_dataset import RagGoldenRecord
 
 
@@ -65,6 +67,7 @@ class RagQueryResult:
     context_metrics: dict[str, float] | None
     citation_metrics: dict[str, float | bool | None]
     judge_metrics: dict[str, float | str | None] | None
+    generation_context: str
 
 
 class EvalObjectStorage:
@@ -99,15 +102,15 @@ class InstrumentedAIRuntimeClient:
         self.last_embed_latency_ms: float | None = None
         self.last_token_usage = TokenUsage(input=0, output=0)
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
+    async def embed(self, texts: list[str], *, use_local: bool = False) -> list[list[float]]:
         started = time.perf_counter()
-        result = await self._client.embed(texts)
+        result = await self._client.embed(texts, use_local=use_local)
         self.last_embed_latency_ms = (time.perf_counter() - started) * 1000.0
         return result
 
-    async def generate(self, request: InferenceRequest) -> InferenceResponse:
+    async def generate(self, request: InferenceRequest, *, use_local: bool = False) -> InferenceResponse:
         started = time.perf_counter()
-        response = await self._client.generate(request)
+        response = await self._client.generate(request, use_local=use_local)
         self.last_generate_latency_ms = (time.perf_counter() - started) * 1000.0
         usage = response.token_usage
         self.last_token_usage = TokenUsage(input=usage.input, output=usage.output)
@@ -115,6 +118,35 @@ class InstrumentedAIRuntimeClient:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+
+def resolve_cited_card_ids_to_modules(
+    cited_ids: list[str],
+    cards_by_module: dict[UUID, list[CardCorpusDoc]],
+) -> list[str]:
+    """Map cited card UUIDs to parent module UUIDs for local card RAG eval."""
+    card_to_module = {
+        card.card_id: module_id for module_id, cards in cards_by_module.items() for card in cards
+    }
+    module_ids = set(cards_by_module.keys())
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for cited_id in cited_ids:
+        try:
+            cited_uuid = UUID(cited_id)
+        except ValueError:
+            continue
+        if cited_uuid in card_to_module:
+            module_id = str(card_to_module[cited_uuid])
+        elif cited_uuid in module_ids:
+            module_id = cited_id
+        else:
+            module_id = cited_id
+        if module_id in seen:
+            continue
+        seen.add(module_id)
+        resolved.append(module_id)
+    return resolved
 
 
 def _grounding_context_text(
@@ -143,8 +175,12 @@ class RagQueryRunner:
         token: str | None = None,
         cards_by_module: dict[UUID, list[CardCorpusDoc]] | None = None,
         llm_judge: LlmJudge | None = None,
+        use_local: bool = False,
+        local_card: bool = False,
     ) -> None:
         self._tenant_id = tenant_id
+        self._use_local = use_local
+        self._local_card = local_card
         base_client = AIRuntimeClient(base_url=base_url, token=token)
         self._ai = InstrumentedAIRuntimeClient(base_client)
         self._storage = EvalObjectStorage()
@@ -153,7 +189,6 @@ class RagQueryRunner:
         self._llm_judge = llm_judge
 
     async def run_record(self, record: RagGoldenRecord, *, k: int) -> RagQueryResult:
-        body = CoachingRagRequest(question=record.query, response_language=record.language)
         started = time.perf_counter()
         error: str | None = None
         answer = ""
@@ -162,13 +197,36 @@ class RagQueryRunner:
         cited_module_ids: list[str] = []
         suggested_questions: list[str] = []
         cosine_distances: list[float] = []
+        generation_context = ""
 
         try:
             async with SessionLocal() as session:
-                response = await CoachingRagService(session, self._ai, self._storage).query(
-                    body,
-                    tenant_id=self._tenant_id,
+                tenant_scope = (
+                    using_selected_tenant(self._tenant_id) if self._tenant_id is not None else nullcontext()
                 )
+                with tenant_scope:
+                    service = CoachingRagService(session, self._ai, self._storage)
+                    if self._local_card:
+                        local_body = CoachingLocalRagRequest(
+                            question=record.query,
+                            response_language=record.language,
+                            include_generation_context=True,
+                        )
+                        response = await service.local_query(
+                            local_body,
+                            tenant_id=self._tenant_id,
+                        )
+                    else:
+                        body = CoachingRagRequest(
+                            question=record.query,
+                            response_language=record.language,
+                            include_generation_context=True,
+                            use_local=self._use_local,
+                        )
+                        response = await service.query(
+                            body,
+                            tenant_id=self._tenant_id,
+                        )
             (
                 answer,
                 model,
@@ -176,7 +234,13 @@ class RagQueryRunner:
                 cited_module_ids,
                 suggested_questions,
                 cosine_distances,
+                generation_context,
             ) = _response_fields(response)
+            if self._local_card and cited_module_ids:
+                cited_module_ids = resolve_cited_card_ids_to_modules(
+                    cited_module_ids,
+                    self._cards_by_module,
+                )
         except CoachingRagError as exc:
             error = exc.message
 
@@ -190,7 +254,7 @@ class RagQueryRunner:
 
         retrieved_uuids = [UUID(module_id) for module_id in retrieved_module_ids]
         cited_uuids = [UUID(module_id) for module_id in cited_module_ids]
-        context_text = _grounding_context_text(
+        context_text = generation_context.strip() or _grounding_context_text(
             retrieved_uuids,
             cited_uuids,
             self._cards_by_module,
@@ -224,12 +288,17 @@ class RagQueryRunner:
 
         judge_metric_values: dict[str, float | str | None] | None = None
         if self._llm_judge is not None and error is None:
-            judge_scores = await self._llm_judge.score(
+            judge_input = JudgeInput(
                 question=record.query,
                 answer=answer,
-                retrieved_module_ids=retrieved_uuids,
-                cards_by_module=self._cards_by_module,
+                expected_answer=record.expected_answer,
+                generation_context=context_text,
+                answerable=record.answerable,
+                is_out_of_scope=record.is_out_of_scope,
+                category=record.category,
+                language=record.language,
             )
+            judge_scores = await self._llm_judge.score(judge_input)
             judge_metric_values = judge_scores.as_dict()
 
         return RagQueryResult(
@@ -257,6 +326,7 @@ class RagQueryRunner:
             context_metrics=context_metric_values,
             citation_metrics=citation_metric_values,
             judge_metrics=judge_metric_values,
+            generation_context=context_text,
         )
 
     async def aclose(self) -> None:
@@ -266,7 +336,7 @@ class RagQueryRunner:
 
 def _response_fields(
     response: CoachingRagResponse,
-) -> tuple[str, str | None, list[str], list[str], list[str], list[float]]:
+) -> tuple[str, str | None, list[str], list[str], list[str], list[float], str]:
     retrieved_module_ids = [str(hit.module_id) for hit in response.retrieved_modules]
     cosine_distances = [hit.cosine_distance for hit in response.retrieved_modules]
     cited_module_ids = [str(module_id) for module_id in response.cited_module_ids]
@@ -277,6 +347,7 @@ def _response_fields(
         cited_module_ids,
         list(response.suggested_questions),
         cosine_distances,
+        response.generation_context or "",
     )
 
 
@@ -313,6 +384,7 @@ def rag_result_to_artifact_dict(result: RagQueryResult) -> dict[str, object]:
         "context_metrics": result.context_metrics or {},
         "citation_metrics": result.citation_metrics,
         "judge_metrics": result.judge_metrics or {},
+        "generation_context": result.generation_context,
         "exact_match": result.e2e_metrics.get("exact_match"),
         "token_f1": result.e2e_metrics.get("token_f1"),
         "token_recall": result.e2e_metrics.get("token_recall"),

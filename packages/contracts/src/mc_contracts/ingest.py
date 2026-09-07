@@ -108,7 +108,6 @@ class IngestProgressNode(BaseModel):
     candidate_id: uuid.UUID | None = None
     chunk_id: str | None = None
     proposed_title: str | None = None
-    fusion: bool | None = None
     published_module_merge: dict[str, Any] | None = None
     input_summary: dict[str, Any] | None = None
     output_summary: dict[str, Any] | None = None
@@ -126,19 +125,6 @@ class IngestBatchSourceProgress(BaseModel):
     nodes: list[IngestProgressNode] = Field(default_factory=list)
 
 
-class IngestBatchFusionProgress(BaseModel):
-    key: str = "fusion"
-    title: str
-    description: str
-    run_id: uuid.UUID
-    status: str
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    error: dict[str, Any] | None = None
-    source_document_ids: list[str] | None = None
-    nodes: list[IngestProgressNode] = Field(default_factory=list)
-
-
 class IngestBatchPollResponse(BaseModel):
     """Tree-shaped progress for ``GET /admin/ingest/batches/{batch_id}``."""
 
@@ -149,7 +135,6 @@ class IngestBatchPollResponse(BaseModel):
     error: dict[str, Any] | None = None
     ingested_by: UserActorRef | None = None
     sources: list[IngestBatchSourceProgress] = Field(default_factory=list)
-    fusion: IngestBatchFusionProgress | None = None
     retry_url: str | None = Field(
         None,
         description=(

@@ -1,0 +1,352 @@
+{
+  "records": [
+    {
+      "question_en": "What causes cracked nipples or breast sores in postnatal mothers?",
+      "expected_answer_en": "Cracked nipples or breast sores are common after delivery, usually because the baby is not breastfed with the correct technique. This causes nipple cracking or sores and pain for the mother.",
+      "question_bn": "প্রসব-পরবর্তী সময়ে স্তনের বোঁটা ফেটে যাওয়া বা ঘা হওয়ার কারণ কী?",
+      "expected_answer_bn": "প্রসব পরবর্তী সময়ে স্তনের বোঁটা ফেটে যাওয়া বা ঘা হওয়া সাধারণ সমস্যা। এর কারণ হলো শিশুকে সঠিক পদ্ধতিতে স্তন পান না করানো। এর ফলে স্তনের বোঁটা ফেটে যায় বা ঘা হয় এবং মা ব্যথা অনুভব করেন।",
+      "module_id": ["3a6dc0b6-21c7-4570-ad70-c71166b6b634"],
+      "source_card_id": ["3938ebeb-3516-4c7c-b4e9-8501e8e36b42"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Etiology Understanding",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A nursing mother has swollen painful breasts and mild fever three days after delivery. What should I advise and when should I refer?",
+      "expected_answer_en": "Swollen painful breasts are common when the baby is not breastfed correctly or not fed frequently enough. Advise correct breastfeeding technique and frequent feeding. Apply warm compress before feeding and cold compress after feeding. If breasts remain swollen and painful and the mother has fever, refer her to the nearest health center.",
+      "question_bn": "প্রসবের তিন দিন পর দুধ পান করানো মায়ের স্তন ফুলে ব্যথা এবং হালকা জ্বর। কী পরামর্শ দেব এবং কখন রেফার করব?",
+      "expected_answer_bn": "শিশুকে সঠিক পদ্ধতিতে বা পর্যাপ্ত পরিমাণে স্তন পান না করালে স্তন ফুলে ব্যথা হয়। সঠিক স্তনপান পদ্ধতি ও ঘন ঘন দুধ খাওয়ানোর পরামর্শ দিন। দুধ খাওয়ানোর আগে গরম সেঁক ও পরে ঠান্ডা সেঁক দিন। স্তন ফুলে ব্যথা থাকলে এবং জ্বর হলে নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["3a6dc0b6-21c7-4570-ad70-c71166b6b634"],
+      "source_card_id": ["8b57b4e9-118b-4463-8a6f-91106388c519"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Self-care & Breast Care",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should I manage a postnatal mother whose nipples are cracked and painful during breastfeeding?",
+      "expected_answer_en": "Advise correct breastfeeding technique and ensure proper positioning of the mother's breast and the baby's mouth during feeding. After feeding, apply breast milk on the nipple and let it dry—this keeps nipples soft and helps sores heal. If nipples are cracked or sore and the mother has pain, refer her to the nearest health center.",
+      "question_bn": "স্তনপানের সময় বোঁটা ফেটে ব্যথা অনুভব করা প্রসূতি মাকে কীভাবে সামলাব?",
+      "expected_answer_bn": "সঠিক স্তনপান পদ্ধতি ও দুধ খাওয়ানোর সময় মায়ের স্তন ও শিশুর মুখ সঠিক অবস্থানে আছে কিনা নিশ্চিত করুন। দুধ খাওয়ানোর পর স্তনের বোঁটায় মায়ের দুধ লাগিয়ে শুকিয়ে নিন—এতে বোঁটা নরম থাকবে ও ঘা শুকিয়ে যাবে। বোঁটা ফেটে বা ঘা হলে এবং ব্যথা হলে নিকটস্থ স্বাস্থ্যকেন্দ্রে রেফার করুন।",
+      "module_id": ["3a6dc0b6-21c7-4570-ad70-c71166b6b634"],
+      "source_card_id": ["3938ebeb-3516-4c7c-b4e9-8501e8e36b42"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Self-care & Breast Care",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A postpartum mother looks pale and weak two weeks after delivery. When should I refer her rather than manage at home?",
+      "expected_answer_en": "Postnatal anemia or general weakness is common. Encourage iron-rich foods and iron tablets. However, if weakness is severe or she has danger signs, refer to the health center. For mild postnatal lower abdominal or back pain, reassure and manage symptomatically at home with paracetamol or calcium as advised—but refer if condition worsens or danger signs appear.",
+      "question_bn": "প্রসবের দুই সপ্তাহ পর একজন মা ফ্যাকাশে ও দুর্বল দেখাচ্ছেন। বাড়িতে সামলানোর বদলে কখন রেফার করব?",
+      "expected_answer_bn": "প্রসব-পরবর্তী রক্তস্বল্পতা বা সাধারণ দুর্বলতা হতে পারে—আয়রন সমৃদ্ধ খাবার ও আয়রন বড়ি দিন। তবে অবস্থা গুরুতর হলে বা বিপদচিহ্ন থাকলে স্বাস্থ্যকেন্দ্রে রেফার করুন। হালকা তলপেট বা পিঠ-গায়ে ব্যথায় আশ্বস্ত করুন ও পরামর্শ অনুযায়ী প্যারাসিটামল বা ক্যালসিয়াম দিন—অবস্থা খারাপ হলে রেফার করুন।",
+      "module_id": ["8441d848-a42f-4848-a557-85037831a8f6"],
+      "source_card_id": [
+        "a11fc9cd-5f88-4663-88bc-104ba459f09d",
+        "303ea72c-6f0c-4fc9-b1fd-be6e036308f1",
+        "56f19ae0-5cdd-48dd-94fe-22f7e28354cc"
+      ],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Problem Identification & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What dietary and supplement advice should be given for postnatal anemia or general weakness?",
+      "expected_answer_en": "Encourage iron-rich foods such as green leafy vegetables, fish, meat, eggs, and milk. Ask the mother to eat one extra meal per day. Also advise taking two iron tablets daily for one month.",
+      "question_bn": "প্রসব-পরবর্তী রক্তস্বল্পতা বা সাধারণ দুর্বলতায় খাদ্য ও সাপ্লিমেন্ট সংক্রান্ত কী পরামর্শ দেব?",
+      "expected_answer_bn": "সবুজ শাক-সবজি, মাছ, মাংস, ডিম, দুধসহ আয়রন সমৃদ্ধ খাবার খেতে উৎসাহিত করুন। এক বেলার খাবার বেশি খেতে বলুন। এছাড়া প্রতিদিন দুটি করে আয়রন বড়ি এক মাস গ্রহণ করতে পরামর্শ দিন।",
+      "module_id": ["8441d848-a42f-4848-a557-85037831a8f6"],
+      "source_card_id": ["a11fc9cd-5f88-4663-88bc-104ba459f09d"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Lifestyle Counseling",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should I manage lower abdominal pain in a postpartum mother?",
+      "expected_answer_en": "Lower abdominal pain can occur in the postnatal period. Reassure the patient. If needed, give paracetamol tablet one tablet three times daily.",
+      "question_bn": "প্রসূতি মায়ের তলপেটে ব্যথা হলে কীভাবে সামলাব?",
+      "expected_answer_bn": "প্রসব-পরবর্তী সময়ে তলপেটে ব্যথা হতে পারে। রোগীকে আশ্বস্ত করুন। প্রয়োজনে প্যারাসিটামল ট্যাবলেট একটি করে দিনে তিনবার খেতে দিন।",
+      "module_id": ["8441d848-a42f-4848-a557-85037831a8f6"],
+      "source_card_id": ["303ea72c-6f0c-4fc9-b1fd-be6e036308f1"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Counseling & Home Management",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A weak postpartum mother also complains of back and body pain. What combined home management can I advise?",
+      "expected_answer_en": "For anemia or weakness, encourage iron-rich foods, an extra meal daily, and two iron tablets daily for one month. For back or body pain, advise continuing pain relief as before, encourage bathing in warm water, reassure her, and recommend calcium tablet intake.",
+      "question_bn": "দুর্বল প্রসূতি মা পিঠ ও গায়ে ব্যথারও অভিযোগ করছেন। একসাথে কী গৃহ পরিচর্যার পরামর্শ দেব?",
+      "expected_answer_bn": "রক্তস্বল্পতা বা দুর্বলতায় আয়রন সমৃদ্ধ খাবার, এক বেলা বেশি খাবার ও এক মাস প্রতিদিন দুটি আয়রন বড়ি খেতে বলুন। পিঠ বা গায়ে ব্যথায় আগের মতো বেদনাশক ঔষধ, উষ্ণ পানিতে গোসল, আশ্বাস ও ক্যালসিয়াম ট্যাবলেট গ্রহণের পরামর্শ দিন।",
+      "module_id": ["8441d848-a42f-4848-a557-85037831a8f6"],
+      "source_card_id": [
+        "a11fc9cd-5f88-4663-88bc-104ba459f09d",
+        "56f19ae0-5cdd-48dd-94fe-22f7e28354cc"
+      ],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Counseling & Home Management",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What daily foods should I counsel a postpartum mother to eat for good nutrition and recovery?",
+      "expected_answer_en": "Daily she should eat six types of food: any one of fish, meat, or liver; eggs; thick lentils; milk or dairy; yellow or orange vegetables or fruits such as carrot, pumpkin, mango, jackfruit; and dark green leafy vegetables. Eat three main meals and two snacks daily, at least one handful more than before pregnancy, and drink 8–10 glasses of water daily.",
+      "question_bn": "ভালো পুষ্টি ও সেরে ওঠার জন্য প্রসূতি মাকে প্রতিদিন কী কী খাবার খেতে বলব?",
+      "expected_answer_bn": "প্রতিদিন ছয় ধরনের খাবার খাবেন: মাছ, মাংস বা কলিজার যেকোনো একটি; ডিম; ঘন ডাল; দুধ বা দুগ্ধজাত খাবার; গাজর, মিষ্টি কুমড়া, আম, কাঁঠালসহ হলুদ-কমলা সবজি বা ফল; এবং গাঢ় সবুজ শাক-সবজি। দিনে তিনবেলা প্রধান খাবার ও দুই বেলা নাস্তা, গর্ভাবস্থার চেয়ে অন্তত একমুঠ বেশি, এবং আট থেকে দশ গ্লাস পানি পান করুন।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": ["34b6d1de-544c-4f13-8305-d893088b1aef"],
+      "query_type": "Counseling",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Postnatal Maternal Counseling",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "When and how much vitamin A should be given to a postpartum mother?",
+      "expected_answer_en": "Within 42 days after delivery, give the mother one high-potency vitamin A capsule of 200,000 IU.",
+      "question_bn": "প্রসূতি মাকে কখন ও কত ভিটামিন এ দিতে হবে?",
+      "expected_answer_bn": "প্রসবের পর ৪২ দিনের মধ্যে মাকে একটি উচ্চক্ষমতা সম্পন্ন দুই লক্ষ আই.ই.U. ভিটামিন এ ক্যাপসুল খাওয়াতে হবে।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": ["34b6d1de-544c-4f13-8305-d893088b1aef"],
+      "query_type": "Drug / Dosage",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Treatment Protocol",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "It has been five days since delivery and I need to plan my next PNC visit. When should the third postnatal visit be done?",
+      "expected_answer_en": "Postnatal visits are scheduled as: first within 24 hours, second within 3 days, third within 7 to 14 days, and fourth within 42 days. At five days postpartum, you are within the window for the third visit.",
+      "question_bn": "প্রসবের পাঁচ দিন হয়ে গেছে, পরের পিএনসি ভিজিটের পরিকল্পনা করতে হবে। তৃতীয় প্রসব-পরবর্তী ভিজিট কখন করতে হবে?",
+      "expected_answer_bn": "প্রসব-পরবর্তী ভিজিট: প্রথম চব্বিশ ঘন্টার মধ্যে, দ্বিতীয় তিন দিনের মধ্যে, তৃতীয় সাত থেকে চৌদ্দ দিনের মধ্যে এবং চতুর্থ বিয়াল্লিশ দিনের মধ্যে। পাঁচ দিনে আপনি তৃতীয় ভিজিটের সময়সীমার মধ্যে আছেন।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": ["d2f017e6-fbb2-491e-80ed-9801dfdf7109"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Documentation Verification & Coordination",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is postnatal care and how long does the postpartum period last?",
+      "expected_answer_en": "After delivery, it usually takes about six weeks for the mother's uterus and reproductive organs to return to normal. This period is called the postpartum period or puerperium. The care given to the mother and newborn during this time together is called postnatal care.",
+      "question_bn": "প্রসব-পরবর্তী সেবা কী এবং প্রসব-পরবর্তী সময় কত দিন স্থায়ী?",
+      "expected_answer_bn": "প্রসবের পর মায়ের জরায়ু ও প্রজনন অঙ্গ স্বাভাবিক অবস্থায় ফিরতে সাধারণত ছয় সপ্তাহ লাগে—এ সময়কে প্রসব-পরবর্তী সময় বা পিউরপেরিয়াম বলে। এই সময়ে প্রসূতি ও নবজাতককে যে সেবা দেওয়া হয় তাকে প্রসব-পরবর্তী সেবা বলে।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": ["8573f5d0-f5e1-4dad-982e-29498d360893"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "On day 8 after delivery, the mother's lochia is still red. Is this normal?",
+      "expected_answer_en": "Normal lochia changes color over time: red on days 1–4, yellow on days 5–9, and white on days 10–15. On day 8, lochia may still appear red in some mothers, especially if she started walking late. However, if bleeding is excessive (500 mL or more, or soaking one pad per hour), lochia stays red too long, is foul-smelling with fever and lower abdominal pain, refer immediately as these suggest postpartum hemorrhage or infection.",
+      "question_bn": "প্রসবের ৮ দিনে মায়ের লোকিয়া এখনও লাল। এটা কি স্বাভাবিক?",
+      "expected_answer_bn": "স্বাভাবিক লোকিয়ার রং সময়ের সাথে বদলায়: ১–৪ দিনে লাল, ৫–৯ দিনে হলুদ, ১০–১৫ দিনে সাদা। ৮ দিনে কিছু মায়ের লোকিয়া লাল থাকতে পারে, বিশেষ করে দেরিতে হাঁটাচলা শুরু করলে। তবে ৫০০ মিলি বা বেশি রক্তপাত, প্রতি ঘন্টায় একটি প্যাড ভিজে যাওয়া, দীর্ঘদিন লাল থাকা, দুর্গন্ধ, জ্বর ও তলপেটে ব্যথা হলে দ্রুত রেফার করুন—এগুলো রক্তক্ষরণ বা সংক্রমণের লক্ষণ।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": [
+        "501bebad-6197-4c9d-9b58-aa62737f220e",
+        "216731e1-4c7c-49fa-a220-c94483d0b742"
+      ],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Differential Diagnosis & Complication Recognition",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should a postpartum mother care for her perineum, especially if she has stitches?",
+      "expected_answer_en": "The perineum is the muscular area between the vaginal opening and anus. If there are stitches, keep the area dry and clean. Use plenty of water after urination and defecation daily to keep the perineum clean. Use antibiotic and antiseptic ointment as advised by the doctor. Perform perineal and abdominal muscle exercises.",
+      "question_bn": "প্রসূতি মা তার পেরিনিয়ামের যত্ন কীভাবে নেবেন, বিশেষ করে সেলাই থাকলে?",
+      "expected_answer_bn": "যোনিপথ ও মলদ্বারের মাঝের মাংসল অংশ হলো পেরিনিয়াম। সেলাই থাকলে জায়গাটি শুকনো ও পরিষ্কার রাখুন। প্রতিদিন প্রস্রাব ও পায়খানার পর বেশি পানি ব্যবহার করুন। চিকিৎসকের পরামর্শ অনুযায়ী অ্যান্টিবায়োটিক ও অ্যান্টিসেপটিক মলম ব্যবহার করুন। পেরিনিয়াম ও পেটের পেশির ব্যায়াম করুন।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": ["b5e0a4ce-c38d-437e-a59d-a53df4040387"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Self-care & Breast Care",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "The postpartum mother is soaking one sanitary pad every hour on day 3. Should I refer her?",
+      "expected_answer_en": "Yes, refer immediately. If 500 mL or more of bleeding occurs, or one pad is soaked every hour, this is postpartum hemorrhage—not normal lochia. Foul-smelling lochia with fever and lower abdominal pain also indicates infection and requires urgent referral.",
+      "question_bn": "প্রসবের ৩ দিনে মা প্রতি ঘন্টায় একটি প্যাড ভিজিয়ে ফেলছেন। রেফার করব?",
+      "expected_answer_bn": "হ্যাঁ, দ্রুত রেফার করুন। ৫০০ মিলি লিটার বা বেশি রক্তপাত, অথবা প্রতি ঘন্টায় একটি প্যাড ভিজে গেলে তা প্রসব-পরবর্তী রক্তক্ষরণ—স্বাভাবিক লোকিয়া নয়। জ্বর ও তলপেটে ব্যথাসহ দুর্গন্ধযুক্ত লোকিয়া সংক্রমণের লক্ষণ এবং জরুরি রেফার প্রয়োজন।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": ["501bebad-6197-4c9d-9b58-aa62737f220e"],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Maternal Danger Signs & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What are the components of postnatal care?",
+      "expected_answer_en": "The components of postnatal care are: postnatal visits, postnatal examinations, postnatal counseling, and identification and management of postnatal complications.",
+      "question_bn": "প্রসব-পরবর্তী পরিচর্যার উপাদান কী কী?",
+      "expected_answer_bn": "প্রসব-পরবর্তী পরিচর্যার উপাদানগুলো হলো প্রসব-পরবর্তী ভিজিট, প্রসব-পরবর্তী পরীক্ষা, প্রসব-পরবর্তী পরামর্শ এবং প্রসব-পরবর্তী জটিলতা চিহ্নিতকরণ ও ব্যবস্থা গ্রহণ।",
+      "module_id": ["e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": ["91c9f66a-1ce4-466f-b8e7-7e25d8a3b642"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What physical examinations should I perform for a postpartum mother during a PNC visit?",
+      "expected_answer_en": "After delivery, examine the mother's weight, blood pressure, edema, temperature, pulse rate, and uterine involution. Also check hemoglobin and glucose in blood, albumin and bilirubin in urine. If perineal stitches are present, check for infection; also assess lochia and whether breasts are producing adequate milk.",
+      "question_bn": "পিএনসি ভিজিটে প্রসূতি মায়ের কী কী শারীরিক পরীক্ষা করতে হবে?",
+      "expected_answer_bn": "বাচ্চা ভূমিষ্ঠ হওয়ার পর মায়ের ওজন, রক্তচাপ, ইডিমা, তাপমাত্রা, নাড়ির গতি ও জরায়ুর উচ্চতা হ্রাস পরীক্ষা করুন। রক্তে হিমোগ্লোবিন ও গ্লুকোজ এবং ইউরিনে অ্যালবুমিন ও বিলিরুবিন পরীক্ষা করুন। পেরিনিয়ামে সেলাই থাকলে সংক্রমণ, লোকিয়া এবং স্তনে পর্যাপ্ত দুধ আসছে কিনা তাও পরীক্ষা করুন।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": [
+        "b69f15d5-6645-4d8a-b6e7-0f8a8bffc2bb",
+        "ccdc0470-e178-410e-ad12-51c357f4e407"
+      ],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Diagnostic Procedure",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "Summarize what services and assessments are included in a complete postnatal care visit for mother and newborn.",
+      "expected_answer_en": "Postnatal care includes four scheduled visits (within 24 hours, 3 days, 7–14 days, and 42 days), physical examination of mother and newborn, newborn birth weight within 48 hours, pathological tests (hemoglobin, glucose, urine albumin and bilirubin), postnatal counseling, and identification and management of complications.",
+      "question_bn": "মা ও নবজাতকের জন্য সম্পূর্ণ প্রসব-পরবর্তী সেবা ভিজিটে কী কী সেবা ও পরীক্ষা অন্তর্ভুক্ত—সংক্ষেপে বলুন?",
+      "expected_answer_bn": "প্রসব-পরবর্তী সেবায় চারটি ভিজিট (২৪ ঘন্টা, ৩ দিন, ৭–১৪ দিন, ৪২ দিন), মা ও নবজাতকের শারীরিক পরীক্ষা, ৪৮ ঘন্টার মধ্যে নবজাতকের জন্ম ওজন, রক্তে হিমোগ্লোবিন-গ্লুকোজ ও ইউরিনে অ্যালবুমিন-বিলিরুবিন পরীক্ষা, প্রসব-পরবর্তী পরামর্শ এবং জটিলতা চিহ্নিতকরণ ও ব্যবস্থা অন্তর্ভুক্ত।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff", "e7b05394-a774-4ae1-a5c4-955a9483a131"],
+      "source_card_id": [
+        "e0300ed9-d9b7-411f-93e0-99f53864c4a7",
+        "b2cb2b3c-a7d0-4e71-9d34-8a32551275a7",
+        "17686bf8-b77f-4317-a234-351e1c195b9d"
+      ],
+      "query_type": "Cross-card Synthesis",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Cross-module Integration",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "Why is postnatal care important for preventing maternal and newborn deaths?",
+      "expected_answer_en": "Postnatal care is needed to identify and manage complications in the mother and baby, thereby preventing maternal and newborn deaths. It also helps provide family planning counseling and advice on care of the mother and baby to the family.",
+      "question_bn": "মা ও শিশুর মৃত্যু রোধে প্রসব-পরবর্তী সেবা কেন গুরুত্বপূর্ণ?",
+      "expected_answer_bn": "প্রসব-পরবর্তী সেবার মাধ্যমে মা ও শিশুর জটিলতা চিহ্নিত ও ব্যবস্থা নিয়ে মা ও শিশু মৃত্যু প্রতিরোধ করা যায়। এছাড়া পরিবার পরিকল্পনা পরামর্শ ও মা-শিশুর যত্নের পরামর্শ দিতে সাহায্য করে।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": ["ea25a5f5-a51c-4670-b49f-3a46639ba193"],
+      "query_type": "Counseling",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Prevention & Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What pathological laboratory tests are required for a postpartum mother?",
+      "expected_answer_en": "Required pathological tests for the postpartum mother are: hemoglobin and glucose in blood, and albumin and bilirubin in urine.",
+      "question_bn": "প্রসূতি মায়ের জন্য কী কী প্যাথলজিক্যাল পরীক্ষা প্রয়োজন?",
+      "expected_answer_bn": "প্রসূতি মায়ের প্রয়োজনীয় প্যাথলজিক্যাল পরীক্ষাগুলো হলো: রক্তে হিমোগ্লোবিন ও গ্লুকোজ পরীক্ষা এবং ইউরিনে অ্যালবুমিন ও বিলিরুবিন পরীক্ষা।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": ["ccdc0470-e178-410e-ad12-51c357f4e407"],
+      "query_type": "Drug / Dosage",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Diagnostic Procedure",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "Five days after delivery, uterine height is still at the umbilicus. Should I be concerned?",
+      "expected_answer_en": "After delivery, uterine height is at the umbilicus immediately, then decreases by one finger daily. By the 10th day it should reach the pubic bone and return to pre-pregnancy size by 42 days. At day 5, height above the umbilicus may indicate delayed involution—monitor closely and refer if involution is not progressing or danger signs appear.",
+      "question_bn": "প্রসবের ৫ দিনে জরায়ুর উচ্চতা এখনও নাভি বরাবর। উদ্বিগ্ন হওয়া উচিত?",
+      "expected_answer_bn": "প্রসবের পরপর জরায়ুর উচ্চতা নাভি বরাবর, তারপর প্রতিদিন এক আঙ্গুল করে কমে। ১০ দিনে তলপেটের ত্রিকোণ হাড় বরাবর ও ৪২ দিনে পূর্বের অবস্থায় ফেরে। ৫ দিনে নাভির উপরে থাকলে ইনভলুশনে দেরি হতে পারে—নজরদারি করুন এবং অগ্রগতি না হলে বা বিপদচিহ্নে রেফার করুন।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": ["9c727744-b4c5-4abb-a7ee-7ed1903941a0"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What is the puerperium and when should the four PNC visits be completed?",
+      "expected_answer_en": "The puerperium is the approximately six-week period after delivery when the uterus and reproductive organs return to normal. Four PNC visits should be completed: first within 24 hours, second within 3 days, third within 7–14 days, and fourth within 42 days.",
+      "question_bn": "পিউরপেরিয়াম কী এবং চারটি পিএনসি ভিজিট কখন সম্পন্ন করতে হবে?",
+      "expected_answer_bn": "পিউরপেরিয়াম হলো প্রসবের পর প্রায় ছয় সপ্তাহ, যখন জরায়ু ও প্রজনন অঙ্গ স্বাভাবিক অবস্থায় ফেরে। চারটি পিএনসি ভিজিট: প্রথম ২৪ ঘন্টার মধ্যে, দ্বিতীয় ৩ দিনের মধ্যে, তৃতীয় ৭–১৪ দিনের মধ্যে এবং চতুর্থ ৪২ দিনের মধ্যে সম্পন্ন করতে হবে।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": [
+        "297a3b21-d417-4597-b036-5be754e99fd5",
+        "e0300ed9-d9b7-411f-93e0-99f53864c4a7"
+      ],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Patient Education",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "A mother who had a premature delivery has less lochia than expected at one week. Is this normal?",
+      "expected_answer_en": "Lochia discharge is usually less in premature delivery and more in twin pregnancy and hydramnios. Normal lochia lasts 2–4 weeks and changes from red (days 1–4) to yellow (days 5–9) to white (days 10–15). Less lochia in premature delivery can be normal, but monitor for danger signs of hemorrhage or infection.",
+      "question_bn": "অপরিণত প্রসব হওয়া মায়ের এক সপ্তাহে প্রত্যাশিত চেয়ে কম লোকিয়া হচ্ছে। এটা কি স্বাভাবিক?",
+      "expected_answer_bn": "লোকিয়া নিঃসরণ অপরিণত প্রসবে কম এবং যমজ ও হাইড্রোমনিওস-এ বেশি হয়। স্বাভাবিক লোকিয়া ২–৪ সপ্তাহ থাকে এবং ১–৪ দিনে লাল, ৫–৯ দিনে হলুদ, ১০–১৫ দিনে সাদা হয়। অপরিণত প্রসবে কম লোকিয়া স্বাভাবিক হতে পারে, তবে রক্তক্ষরণ বা সংক্রমণের বিপদচিহ্ন পর্যবেক্ষণ করুন।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": ["216731e1-4c7c-49fa-a220-c94483d0b742"],
+      "query_type": "Situational",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How should I advise perineal care and pelvic floor exercises after delivery?",
+      "expected_answer_en": "Keep perineal stitches dry and clean. Use plenty of water after urination and defecation daily. Apply antibiotic and antiseptic ointment as per doctor's advice. Also advise perineal and abdominal muscle exercises.",
+      "question_bn": "প্রসবের পর পেরিনিয়ামের যত্ন ও তলপেটের পেশির ব্যায়াম সম্পর্কে কী পরামর্শ দেব?",
+      "expected_answer_bn": "পেরিনিয়ামের সেলাই শুকনো ও পরিষ্কার রাখুন। প্রতিদিন প্রস্রাব ও পায়খানার পর বেশি পানি ব্যবহার করুন। চিকিৎসকের পরামর্শ অনুযায়ী অ্যান্টিবায়োটিক ও অ্যান্টিসেপটিক মলম দিন। পেরিনিয়াম ও পেটের পেশির ব্যায়াম করার পরামর্শ দিন।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": ["12450c9c-6380-4680-b543-ff7e27391ded"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Self-care & Breast Care",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "Lochia is foul-smelling with fever and lower abdominal pain on day 12. What action should I take?",
+      "expected_answer_en": "Refer immediately. Foul-smelling lochia with fever and lower abdominal pain indicates infection. Also be alert if bleeding is 500 mL or more or one pad is soaked hourly—that indicates postpartum hemorrhage. Postpartum hemorrhage can occur from 6 hours to 6 weeks after delivery.",
+      "question_bn": "১২ দিনে লোকিয়ায় দুর্গন্ধ, জ্বর ও তলপেটে ব্যথা। আমি কী করব?",
+      "expected_answer_bn": "দ্রুত রেফার করুন। জ্বর ও তলপেটে ব্যথাসহ দুর্গন্ধযুক্ত লোকিয়া সংক্রমণের লক্ষণ। ৫০০ মিলি বা বেশি রক্তপাত বা প্রতি ঘন্টায় একটি প্যাড ভিজে গেলে প্রসব-পরবর্তী রক্তক্ষরণ—প্রসবের ৬ ঘন্টা পর থেকে ৬ সপ্তাহ পর্যন্ত হতে পারে।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": [
+        "c811296b-41ad-4a36-a650-d6b8c0502b77",
+        "216731e1-4c7c-49fa-a220-c94483d0b742"
+      ],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Emergency Management & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "How long does normal lochia last and what color changes occur over time?",
+      "expected_answer_en": "Lochia usually lasts 2 to 4 weeks after delivery. Color changes depend on time: red on days 1–4, yellow on days 5–9, and white on days 10–15. Mothers who start walking late may have red lochia for longer.",
+      "question_bn": "স্বাভাবিক লোকিয়া কতদিন থাকে এবং সময়ের সাথে রঙ কীভাবে বদলায়?",
+      "expected_answer_bn": "প্রসবের পর সাধারণত ২–৪ সপ্তাহ লোকিয়া বের হয়। ১–৪ দিনে লাল, ৫–৯ দিনে হলুদ এবং ১০–১৫ দিনে সাদা হয়। দেরিতে হাঁটাচলা শুরু করলে লাল লোকিয়া বেশিদিন থাকতে পারে।",
+      "module_id": ["d476db69-92ee-4973-b2c5-068a23a01bff"],
+      "source_card_id": ["216731e1-4c7c-49fa-a220-c94483d0b742"],
+      "query_type": "Factual",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
-from mc_contracts.coaching import CoachingRagRequest
+from mc_contracts.coaching import CoachingLocalRagRequest, CoachingRagRequest
 from mc_contracts.enums import GenerationType
 from mc_contracts.internal_ai import InferenceResponse
 from platform_service.config import Settings
@@ -20,6 +21,7 @@ from platform_service.services.coaching_rag_service import (
     coaching_rag_response_locales,
     resolve_response_language,
 )
+from platform_service.services.prompt_registry import COACHING_LOCAL_CARD_CHAT_ROUTE_TEMPLATE_ID
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -203,6 +205,26 @@ async def test_router_parses_happy_path() -> None:
     assert result.answer == "হাই!"
 
 
+@pytest.mark.asyncio
+async def test_router_card_local_uses_local_card_template_and_generation_type() -> None:
+    ai = AsyncMock()
+    ai.generate = AsyncMock(
+        return_value=_route_resp(
+            parsed_json={
+                "intent": "coaching_question",
+                "confidence": "high",
+                "answer": "",
+            }
+        )
+    )
+    router = CoachingChatRouter(MagicMock(spec=AsyncSession), ai)
+    await router.route(question="What is ANC?", lang="bn", use_local=True, card_local=True)
+    req = ai.generate.await_args.args[0]
+    assert req.generation_type == GenerationType.COACHING_LOCAL_CARD_CHAT_ROUTE
+    assert req.prompt.template_id == COACHING_LOCAL_CARD_CHAT_ROUTE_TEMPLATE_ID
+    assert ai.generate.await_args.kwargs["use_local"] is True
+
+
 # ─── CoachingRagService.query early branch ────────────────────────────────
 
 
@@ -311,3 +333,281 @@ async def test_query_clinical_skips_router_calls_embed() -> None:
 
     ai.generate.assert_not_called()
     ai.embed.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_query_use_local_passes_flag_to_embed_search_and_generate() -> None:
+    mod_id = uuid4()
+    mock_module = MagicMock()
+    mock_module.id = mod_id
+    mock_module.title_localized = {"bn": "Test"}
+    mock_module.domain = "rmnch"
+
+    ai = AsyncMock()
+    ai.embed = AsyncMock(return_value=[[1.0] + [0.0] * 767])
+    ai.generate = AsyncMock(
+        return_value=InferenceResponse(
+            request_id="r1",
+            generation_type=GenerationType.COACHING_RAG,
+            provider="local",
+            model="qwen-local",
+            max_tokens=1024,
+            temperature=0.1,
+            raw_text='{"answer": "Local answer", "cited_module_ids": [], "suggested_questions": []}',
+            parsed_json={
+                "answer": "Local answer",
+                "cited_module_ids": [],
+                "suggested_questions": [],
+            },
+            latency_ms=100,
+            error=None,
+        )
+    )
+    svc = _rag_svc(ai=ai)
+
+    with (
+        patch(
+            "platform_service.services.coaching_rag_service.should_route_chat",
+            return_value=False,
+        ),
+        patch("platform_service.services.coaching_rag_service.ModuleRepository") as repo_cls,
+    ):
+        repo = repo_cls.return_value
+        repo.search_by_embedding = AsyncMock(return_value=[(mock_module, 0.1)])
+        repo.list_cards_for_module_ids = AsyncMock(return_value=[])
+
+        resp = await svc.query(
+            CoachingRagRequest(
+                question="What is ANC?",
+                response_language="bn",
+                use_local=True,
+            )
+        )
+
+    ai.embed.assert_awaited_once_with(["What is ANC?"], use_local=True)
+    repo.search_by_embedding.assert_awaited_once()
+    assert repo.search_by_embedding.await_args.kwargs["use_local"] is True
+    ai.generate.assert_awaited_once()
+    assert ai.generate.await_args.kwargs["use_local"] is True
+    req = ai.generate.await_args.args[0]
+    assert req.generation_type == GenerationType.COACHING_RAG
+    assert resp.answer == "Local answer"
+    assert resp.model == "qwen-local"
+
+
+# ─── CoachingRagService.local_query ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_local_query_chitchat_early_return_skips_embed() -> None:
+    ai = AsyncMock()
+    ai.generate = AsyncMock(
+        return_value=_route_resp(
+            parsed_json={
+                "intent": "chitchat",
+                "confidence": "high",
+                "answer": "Hello! Ask me a coaching question.",
+                "suggested_questions": ["ANC steps?"],
+            }
+        )
+    )
+    ai.embed = AsyncMock()
+    svc = _rag_svc(ai=ai)
+
+    resp = await svc.local_query(CoachingLocalRagRequest(question="Hello", response_language="bn"))
+
+    assert resp.answer.startswith("Hello!")
+    assert resp.retrieved_modules == []
+    ai.embed.assert_not_called()
+    ai.generate.assert_awaited_once()
+    assert ai.generate.await_args.kwargs["use_local"] is True
+    req = ai.generate.await_args.args[0]
+    assert req.generation_type == GenerationType.COACHING_LOCAL_CARD_CHAT_ROUTE
+
+
+@pytest.mark.asyncio
+async def test_local_query_empty_card_corpus_returns_404() -> None:
+    ai = AsyncMock()
+    ai.embed = AsyncMock(return_value=[[1.0] + [0.0] * 767])
+    svc = _rag_svc(ai=ai)
+
+    with (
+        patch(
+            "platform_service.services.coaching_rag_service.should_route_chat",
+            return_value=False,
+        ),
+        patch("platform_service.services.coaching_rag_service.ModuleRepository") as repo_cls,
+    ):
+        repo = repo_cls.return_value
+        repo.search_cards_by_local_embedding = AsyncMock(return_value=[])
+
+        with pytest.raises(CoachingRagError) as exc:
+            await svc.local_query(CoachingLocalRagRequest(question="What is ANC?", response_language="bn"))
+
+    assert exc.value.status_code == 404
+    assert "backfill_module_card_local_embeddings" in str(exc.value)
+    ai.embed.assert_awaited_once_with(["What is ANC?"], use_local=True)
+
+
+@pytest.mark.asyncio
+async def test_local_query_uses_card_search_and_local_generate() -> None:
+    mod_id = uuid4()
+    card_id = uuid4()
+    mock_module = MagicMock()
+    mock_module.id = mod_id
+    mock_module.title_localized = {"bn": "Test"}
+    mock_module.domain = "rmnch"
+
+    mock_card = MagicMock()
+    mock_card.id = card_id
+    mock_card.module_id = mod_id
+    mock_card.card_order = 0
+
+    ai = AsyncMock()
+    ai.embed = AsyncMock(return_value=[[1.0] + [0.0] * 767])
+    ai.generate = AsyncMock(
+        return_value=InferenceResponse(
+            request_id="r1",
+            generation_type=GenerationType.COACHING_LOCAL_CARD_RAG,
+            provider="local",
+            model="qwen-local",
+            max_tokens=1024,
+            temperature=0.1,
+            raw_text='{"answer": "Local card answer", "cited_module_ids": [], "suggested_questions": []}',
+            parsed_json={
+                "answer": "Local card answer",
+                "cited_module_ids": [],
+                "suggested_questions": [],
+            },
+            latency_ms=100,
+            error=None,
+        )
+    )
+    svc = _rag_svc(ai=ai)
+
+    with (
+        patch(
+            "platform_service.services.coaching_rag_service.should_route_chat",
+            return_value=False,
+        ),
+        patch("platform_service.services.coaching_rag_service.ModuleRepository") as repo_cls,
+        patch(
+            "platform_service.services.coaching_rag_service.card_row_to_dict",
+            return_value={"id": str(card_id), "title": {"bn": "Card"}, "body": {"bn": "Body"}},
+        ),
+    ):
+        repo = repo_cls.return_value
+        repo.search_cards_by_local_embedding = AsyncMock(return_value=[(mock_card, 0.1)])
+        repo.list_modules_by_ids = AsyncMock(return_value=[mock_module])
+
+        resp = await svc.local_query(CoachingLocalRagRequest(question="What is ANC?", response_language="bn"))
+
+    ai.embed.assert_awaited_once_with(["What is ANC?"], use_local=True)
+    repo.search_cards_by_local_embedding.assert_awaited_once()
+    ai.generate.assert_awaited_once()
+    assert ai.generate.await_args.kwargs["use_local"] is True
+    req = ai.generate.await_args.args[0]
+    assert req.generation_type == GenerationType.COACHING_LOCAL_CARD_RAG
+    assert resp.answer == "Local card answer"
+    assert len(resp.retrieved_modules) == 1
+    assert resp.retrieved_modules[0].module_id == mod_id
+    assert resp.retrieved_modules[0].cosine_distance == 0.1
+
+
+@pytest.mark.asyncio
+async def test_local_query_resolves_cited_card_ids_to_module_ids() -> None:
+    mod_id = uuid4()
+    card_id = uuid4()
+    mock_module = MagicMock()
+    mock_module.id = mod_id
+    mock_module.title_localized = {"bn": "Test"}
+    mock_module.domain = "rmnch"
+
+    mock_card = MagicMock()
+    mock_card.id = card_id
+    mock_card.module_id = mod_id
+    mock_card.card_order = 0
+
+    ai = AsyncMock()
+    ai.embed = AsyncMock(return_value=[[1.0] + [0.0] * 767])
+    ai.generate = AsyncMock(
+        return_value=InferenceResponse(
+            request_id="r1",
+            generation_type=GenerationType.COACHING_LOCAL_CARD_RAG,
+            provider="local",
+            model="qwen-local",
+            max_tokens=1024,
+            temperature=0.1,
+            raw_text=(
+                f'{{"answer": "Local card answer", '
+                f'"cited_module_ids": ["{card_id}"], "suggested_questions": []}}'
+            ),
+            parsed_json={
+                "answer": "Local card answer",
+                "cited_module_ids": [str(card_id)],
+                "suggested_questions": [],
+            },
+            latency_ms=100,
+            error=None,
+        )
+    )
+    svc = _rag_svc(ai=ai)
+
+    with (
+        patch(
+            "platform_service.services.coaching_rag_service.should_route_chat",
+            return_value=False,
+        ),
+        patch("platform_service.services.coaching_rag_service.ModuleRepository") as repo_cls,
+        patch(
+            "platform_service.services.coaching_rag_service.SourceRepository",
+        ) as source_repo_cls,
+        patch(
+            "platform_service.services.coaching_rag_service.card_row_to_dict",
+            return_value={"id": str(card_id), "title": {"bn": "Card"}, "body": {"bn": "Body"}},
+        ),
+    ):
+        repo = repo_cls.return_value
+        repo.search_cards_by_local_embedding = AsyncMock(return_value=[(mock_card, 0.1)])
+        repo.list_modules_by_ids = AsyncMock(return_value=[mock_module])
+        repo.list_cards_for_module_ids = AsyncMock(return_value=[])
+        source_repo = source_repo_cls.return_value
+        source_repo.list_block_provenance_by_ids = AsyncMock(return_value=[])
+        source_repo.list_source_documents_by_ids = AsyncMock(return_value=[])
+
+        resp = await svc.local_query(CoachingLocalRagRequest(question="What is ANC?", response_language="bn"))
+
+    assert resp.cited_module_ids == [mod_id]
+    attribution_calls = [invocation.args[0] for invocation in repo.list_modules_by_ids.await_args_list]
+    assert [mod_id] in attribution_calls
+
+
+def test_build_card_retrieval_context_emits_card_block() -> None:
+    mod_id = uuid4()
+    card_id = uuid4()
+    mock_module = MagicMock()
+    mock_module.id = mod_id
+
+    mock_card = MagicMock()
+    mock_card.id = card_id
+    mock_card.module_id = mod_id
+
+    ai = AsyncMock()
+    svc = _rag_svc(ai=ai)
+
+    with patch(
+        "platform_service.services.coaching_rag_service.card_row_to_dict",
+        return_value={"id": str(card_id), "title": {"bn": "Card title"}, "body": {"bn": "Card body"}},
+    ):
+        context = svc.build_card_retrieval_context(
+            [(mock_card, 0.123456)],
+            modules_by_id={mod_id: mock_module},
+        )
+
+    assert "CARD_BLOCK" in context
+    assert f"card_id={card_id}" in context
+    assert f"module_id={mod_id}" in context
+    assert "cosine_distance=0.123456" in context
+    assert "title[bn]: Card title" in context
+    assert "body[bn]: Card body" in context
+    assert "MODULE_BLOCK" not in context

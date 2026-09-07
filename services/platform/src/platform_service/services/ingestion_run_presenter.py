@@ -25,9 +25,7 @@ from platform_service.db.repositories.module_candidate_repository import (
 )
 from platform_service.services.ingest_run_error_summary import summarize_ingestion_run_error
 from platform_service.services.ingest_user_error_messages import user_message_for_step
-from platform_service.services.run_state.constants import as_error_object
 from platform_service.services.run_state_service import (
-    FUSION_RUN_TYPE,
     RUN_RUNNING,
     STAGE_CARD_DRAFT,
     STEP_AWAITING_INPUT,
@@ -74,8 +72,6 @@ class IngestionRunPresenter:
 
     @staticmethod
     def run_kind(run: IngestionRun) -> str:
-        if RunStateService.is_fusion_run(run):
-            return FUSION_RUN_TYPE
         return "pipeline"
 
     @staticmethod
@@ -109,8 +105,6 @@ class IngestionRunPresenter:
         activity = input_summary.get("activity")
         if activity:
             step_dict["activity"] = activity
-        if input_summary.get("fusion") is True:
-            step_dict["fusion"] = True
         if step.stage == STAGE_CARD_DRAFT and step.status == STEP_AWAITING_INPUT:
             step_dict["published_module_merge"] = {
                 "active": True,
@@ -155,7 +149,6 @@ class IngestionRunPresenter:
             error_code=step.error_code,
             error_message=step.error_message,
             activity=poll.get("activity"),
-            fusion=poll.get("fusion"),
             published_module_merge=merge_payload,
         )
 
@@ -186,11 +179,6 @@ class IngestionRunPresenter:
                 candidate_id = input_summary.get("candidate_id")
                 if candidate_id:
                     current["candidate_id"] = candidate_id
-                if input_summary.get("fusion") is True:
-                    current["fusion"] = True
-                    merged_title = input_summary.get("merged_title")
-                    if merged_title:
-                        current["merged_title"] = merged_title
             return current
         return None
 
@@ -276,11 +264,6 @@ class IngestionRunPresenter:
         current_activity = self.current_activity_from_steps(steps, run_status=run.status)
         if current_activity is not None:
             payload["current_activity"] = current_activity
-        if run_kind == FUSION_RUN_TYPE:
-            error = as_error_object(run.error_jsonb)
-            source_ids = error.get("source_document_ids")
-            if source_ids:
-                payload["source_document_ids"] = source_ids
         return payload
 
     async def present_detail(self, run: IngestionRun) -> IngestionRunDetail:
@@ -288,8 +271,6 @@ class IngestionRunPresenter:
         steps, candidates, run_kind = await self._load_run_context(run)
         current_activity = self.current_activity_from_steps(steps, run_status=run.status)
         source_document_ids = None
-        if run_kind == FUSION_RUN_TYPE:
-            source_document_ids = as_error_object(run.error_jsonb).get("source_document_ids")
         summary = (await self.present_summaries([run]))[0]
         # Re-present error with step context for richer causes/message.
         detail_error = self._present_run_error(

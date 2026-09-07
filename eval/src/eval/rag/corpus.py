@@ -6,19 +6,14 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from mc_foundation.locale import LOCALIZED_CARD_TEXT_FIELDS
 from platform_service.config import get_settings
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
+from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.repositories.module_read_repository import ModuleReadRepository
 from platform_service.db.tenant_scope import tenant_scope_filter
-from platform_service.localized import primary_text
-from platform_service.services.card_body_text import card_body_plain_text
 from platform_service.services.card_normalisation import card_row_to_dict
-from platform_service.services.module_search_text import (
-    card_metadata_text_for_search,
-    module_text_for_search,
-)
+from platform_service.services.module_search_text import card_text_for_search, module_text_for_search
 from sqlalchemy import func, select
 
 
@@ -76,40 +71,6 @@ def _title_parts_from_localized(
     return primary_title, en, bn
 
 
-def _localized_field_text(card: dict[str, Any], field: str) -> list[str]:
-    """Extract searchable text for one localized card field (with legacy fallback)."""
-    value = card.get(field)
-    if value is None:
-        legacy_bn = card.get(f"{field}_bn")
-        legacy_en = card.get(f"{field}_en")
-        if legacy_bn is not None or legacy_en is not None:
-            value = {}
-            if legacy_bn is not None:
-                value["bn"] = legacy_bn
-            if legacy_en is not None:
-                value["en"] = legacy_en
-    if not value:
-        return []
-    if field == "body":
-        parts: list[str] = []
-        if isinstance(value, dict):
-            for locale_value in value.values():
-                text = card_body_plain_text(locale_value)
-                if text:
-                    parts.append(text)
-        else:
-            text = card_body_plain_text(value)
-            if text:
-                parts.append(text)
-        return parts
-    if isinstance(value, dict):
-        primary = primary_text(value)
-        if primary:
-            return [primary]
-        return []
-    return [str(value)]
-
-
 def _card_title_parts(card: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
     title = card.get("title")
     if isinstance(title, dict):
@@ -119,15 +80,6 @@ def _card_title_parts(card: dict[str, Any]) -> tuple[str | None, str | None, str
         legacy_en=card.get("title_en"),
         legacy_bn=card.get("title_bn"),
     )
-
-
-def card_text_for_search(card: dict[str, Any]) -> str:
-    """Concatenate one card's searchable fields (no module-level metadata)."""
-    parts: list[str] = []
-    for field in LOCALIZED_CARD_TEXT_FIELDS:
-        parts.extend(_localized_field_text(card, field))
-    parts.extend(card_metadata_text_for_search(card.get("search_metadata")))
-    return "\n".join(parts)
 
 
 def build_module_card_corpus(
@@ -225,6 +177,38 @@ async def count_embedded_published_modules(*, tenant_id: int | None = None) -> i
             select(func.count())
             .select_from(Module)
             .where(Module.embedding.is_not(None), Module.lifecycle_status == "published")
+        )
+        if tenant_id is not None:
+            stmt = stmt.where(tenant_scope_filter(Module.tenant_id, tenant_id))
+        result = await session.execute(stmt)
+        return int(result.scalar_one())
+
+
+async def count_local_embedded_published_modules(*, tenant_id: int | None = None) -> int:
+    """Count published modules with a non-null local_embedding vector."""
+    async with SessionLocal() as session:
+        stmt = (
+            select(func.count())
+            .select_from(Module)
+            .where(Module.local_embedding.is_not(None), Module.lifecycle_status == "published")
+        )
+        if tenant_id is not None:
+            stmt = stmt.where(tenant_scope_filter(Module.tenant_id, tenant_id))
+        result = await session.execute(stmt)
+        return int(result.scalar_one())
+
+
+async def count_local_embedded_published_cards(*, tenant_id: int | None = None) -> int:
+    """Count published module cards with a non-null local_embedding vector."""
+    async with SessionLocal() as session:
+        stmt = (
+            select(func.count())
+            .select_from(ModuleCard)
+            .join(Module, ModuleCard.module_id == Module.id)
+            .where(
+                ModuleCard.local_embedding.is_not(None),
+                Module.lifecycle_status == "published",
+            )
         )
         if tenant_id is not None:
             stmt = stmt.where(tenant_scope_filter(Module.tenant_id, tenant_id))

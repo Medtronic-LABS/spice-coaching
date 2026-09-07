@@ -1,4 +1,4 @@
-"""W-8 — trigger_definition + module_trigger_binding repository."""
+"""trigger_definition + module_trigger_binding repository."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from platform_service.db.models.trigger_definition import (
     TriggerDefinition,
 )
 from platform_service.db.module_availability import LIFECYCLE_PUBLISHED, is_training_module_family
+from platform_service.services.assessment_topic_catalog import assessment_due_trigger_code
 
 
 class TriggerRepository:
@@ -181,8 +182,6 @@ class TriggerRepository:
         return list((await self._session.execute(stmt)).scalars().all())
 
     async def get_assessment_due_trigger(self, topic: str) -> TriggerDefinition | None:
-        from platform_service.services.assessment_topic_catalog import assessment_due_trigger_code
-
         return await self.get_trigger_by_code(assessment_due_trigger_code(topic))
 
     async def list_bindings_with_triggers_for_module(

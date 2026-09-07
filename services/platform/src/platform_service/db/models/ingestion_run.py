@@ -1,6 +1,6 @@
-"""v3.3 ingestion_run + ingestion_run_step — per-pipeline-pass state.
+"""ingestion_run + ingestion_run_step — per-pipeline-pass state.
 
-Per Data Model v3.3 §4.1, §4.2. Staging tables (truncatable on retention
+See `docs/concepts/modules-cards-families.md`, §4.2. Staging tables (truncatable on retention
 schedule, default 30 days). Make pipeline runs restartable, debuggable, and
 auditable. Not part of the durable content record.
 """

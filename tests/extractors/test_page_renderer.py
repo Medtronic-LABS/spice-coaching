@@ -1,4 +1,4 @@
-"""W-2 Stage A — page_renderer unit tests."""
+"""Stage A — page_renderer unit tests."""
 
 from pathlib import Path
 

@@ -127,6 +127,35 @@ class TestGenerateRoute:
         assert data["parsed_json"] == {"ok": True}
         assert data["error"] is None
 
+    @pytest.mark.asyncio
+    async def test_use_local_flag_passed_to_executor(self, client: AsyncClient) -> None:
+        expected = InferenceResponse(
+            request_id="req-route-1",
+            generation_type=GenerationType.QUIZ_DRAFTING,
+            provider="local",
+            model="Qwen/Qwen3-0.6B",
+            max_tokens=8192,
+            temperature=0.2,
+            raw_text='{"ok": true}',
+            parsed_json={"ok": True},
+            latency_ms=5,
+            token_usage=TokenUsage(input=3, output=7),
+        )
+        body = _sample_request().model_copy(update={"use_local": True}).model_dump(mode="json")
+        with patch(
+            "ai_runtime.api.internal_generate._executor.execute",
+            new_callable=AsyncMock,
+            return_value=expected,
+        ) as execute_mock:
+            resp = await client.post(
+                "/internal/generate/quiz_drafting",
+                json=body,
+                headers=_internal_headers(),
+            )
+        assert resp.status_code == 200
+        sent_request = execute_mock.await_args.args[0]
+        assert sent_request.use_local is True
+
 
 class TestEmbedRoute:
     @pytest.mark.asyncio
@@ -168,4 +197,21 @@ class TestEmbedRoute:
                 headers=_internal_headers(),
             )
         assert resp.status_code == 200
+        assert resp.json() == {"embeddings": vectors}
+
+    @pytest.mark.asyncio
+    async def test_use_local_flag_passed_to_executor(self, client: AsyncClient) -> None:
+        vectors = [[0.5] * 768]
+        with patch(
+            "ai_runtime.api.internal_embed._executor.embed",
+            new_callable=AsyncMock,
+            return_value=vectors,
+        ) as embed_mock:
+            resp = await client.post(
+                "/internal/embed",
+                json={"texts": ["hello"], "use_local": True},
+                headers=_internal_headers(),
+            )
+        assert resp.status_code == 200
+        embed_mock.assert_awaited_once_with(["hello"], use_local=True)
         assert resp.json() == {"embeddings": vectors}

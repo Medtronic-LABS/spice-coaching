@@ -1,6 +1,6 @@
 """Post-publish quiz generation worker.
 
-Per `docs/ARCHITECTURE_RESET.md`. Triggered on module publish (Stage 3
+See `docs/content-administration/ingest-pipeline.md`. Triggered on module publish (Stage 3
 enqueues a Celery task per `module_id`). Reads the module's cards from
 `module.module_json`, calls ai-runtime to generate scenario-based quiz
 questions, and writes `module_quiz_question` rows linked to the module via

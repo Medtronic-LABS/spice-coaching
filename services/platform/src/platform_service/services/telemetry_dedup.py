@@ -1,4 +1,4 @@
-"""W-10 — telemetry event idempotency via Redis.
+"""telemetry event idempotency via Redis.
 
 The SDK retries batches on network failure, app restart, and on a
 delivery-uncertain ack. Without dedup we double-count every retried event

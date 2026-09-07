@@ -8,11 +8,15 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from platform_service.config import get_settings
 from platform_service.db.base import Base
+
+_EMBEDDING_DIM = get_settings().embedding_dimension
 
 
 class ModuleCard(Base):
@@ -52,6 +56,10 @@ class ModuleCard(Base):
     # Additive card media from ingest figure assignment (not manual attachments).
     media_jsonb: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     field_flags_jsonb: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    # Local EmbeddingGemma vector for device-parity / offline retrieval eval.
+    # Written by bin/backfill_module_card_local_embeddings.py; not used in production RAG.
+    local_embedding: Mapped[list[float] | None] = mapped_column(Vector(_EMBEDDING_DIM), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

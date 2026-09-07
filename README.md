@@ -1,102 +1,148 @@
-# MicroCoaching Backend
+# MicroCoaching
 
-MicroCoaching is implemented as a stateful platform service plus a private AI runtime inside one monorepo.
+MicroCoaching delivers AI-assisted health coaching to community health workers (CHWs).
+This repository holds the backend.
 
-This document is the canonical reference for:
-- the backend architecture
-- the public and internal endpoint contract
-- the current implementation status
+The product is one `uv` workspace. The workspace has two services, two shared packages, and one eval harness.
 
-Old drifted route names are not part of the contract and should not be used.
+## Purpose
 
-## Quick Start Docs
+platform-api receives requests from the Android SDK and from admin clients.
+platform-api stores product state.
+platform-api calls ai-runtime for generation, embedding, and transcription.
 
-- Docs index and reading order: `docs/README.md`
-- Setup issues and fixes: `docs/SETUP_TROUBLESHOOTING.md`
-- Codebase map and ownership: `docs/PROJECT_NAVIGATION.md`
+ai-runtime is private. Devices do not call ai-runtime.
 
-## Architecture
-
-### Deployables
+## Deployable units
 
 `platform-api`
-- Public API for the Android SDK, admin flows, telemetry ingest, sync, and dashboards
-- Owns PostgreSQL writes, ClickHouse writes, orchestration, and final response validation
+
+- Serves the public HTTP API.
+- Owns PostgreSQL writes, ClickHouse writes, orchestration, and response validation.
 
 `platform-worker`
-- Async worker process from the same `platform_service` codebase
-- Owns ingestion jobs, quiz jobs, and queued gap-profile updates
+
+- Runs Celery jobs from the same `platform_service` codebase.
+- Owns ingest jobs, post-publish jobs, and telemetry side-effects.
+
+`platform-celery-beat`
+
+- Runs scheduled jobs.
+- Owns telemetry drain, chat FAQ aggregation, feedback summaries, and module-creation suggestion refresh.
 
 `ai-runtime`
-- Private internal inference service
-- Owns model-provider execution, embedding generation, and runtime response parsing
-- Does not own PostgreSQL, ClickHouse, or public product workflows
 
-### Shared Packages
+- Runs model-provider calls.
+- Does not own PostgreSQL, Redis, ClickHouse, or public product workflows.
+
+`migrate`
+
+- Runs Alembic once, then exits.
+
+## Shared packages
 
 `packages/contracts`
-- Pydantic contracts, enums, DTOs
+
+- Holds Pydantic contracts, enums, and DTOs.
 
 `packages/foundation`
-- Shared config, logging, tracing, lightweight infra helpers, and the vendor-agnostic `VectorStore` protocol
 
-### Ownership Rules
+- Holds shared config, logging, tracing, HTTP helpers, and the `VectorStore` protocol.
+
+`eval`
+
+- Holds the RAG eval harness. It is not a production deployable.
+
+## Ownership
 
 Platform owns:
+
 - PostgreSQL schema and repositories
 - Alembic migrations
 - telemetry ingest and analytics writes
 - sync contracts
-- final coaching-card validation
+- module validation
 - admin and dashboard APIs
 
 AI runtime owns:
+
 - provider adapters
-- raw generation execution
+- generation execution
 - embedding generation
 - runtime parsing
 
 Shared packages do not own:
+
 - SQLAlchemy models
 - repositories
 - business workflows
 - domain services
 
-## Repo Layout
+See [docs/architecture/where-to-change-code.md](docs/architecture/where-to-change-code.md) for where to change code.
+
+## Import rules
 
 ```text
-coaching-platform/
+services/platform → packages/contracts, packages/foundation
+services/ai-runtime → packages/contracts, packages/foundation
+eval → packages/contracts, services/platform
+packages/contracts → pydantic only
+packages/foundation → infra libraries only
+```
+
+- `services/ai-runtime` must not import `services/platform`.
+- `services/ai-runtime` must not use PostgreSQL, Redis, or ClickHouse.
+- `services/platform` must not import LLM provider SDKs. Call ai-runtime through `AIRuntimeClient`.
+
+## Repository layout
+
+```text
+spice-coaching/
 ├── pyproject.toml
 ├── README.md
 ├── docker-compose.yml
 ├── infra/
-│   ├── alembic/
-│   └── alembic.ini
+│ ├── alembic/
+│ └── alembic.ini
 ├── packages/
-│   ├── contracts/
-│   └── foundation/
-└── services/
-    ├── platform/
-    │   └── src/platform_service/
-    └── ai-runtime/
-        └── src/ai_runtime/
+│ ├── contracts/
+│ └── foundation/
+├── services/
+│ ├── platform/
+│ └── ai-runtime/
+├── eval/
+└── docs/
 ```
 
-## Canonical Endpoint Contract
+## Documentation map
 
-### API root
+| Document | Use |
+|----------|-----|
+| [docs/README.md](docs/README.md) | GitBook landing |
+| [docs/getting-started/local-development.md](docs/getting-started/local-development.md) | Local run steps |
+| [docs/architecture/where-to-change-code.md](docs/architecture/where-to-change-code.md) | Code ownership by task |
+| [docs/architecture/README.md](docs/architecture/README.md) | Services, data stores, and workflows |
+| [docs/troubleshooting/README.md](docs/troubleshooting/README.md) | Local Compose failures and fixes |
+| [docs/api-reference/endpoints.md](docs/api-reference/endpoints.md) | Canonical HTTP route contract |
+| [docs/device-coaching/send-telemetry.md](docs/device-coaching/send-telemetry.md) | Telemetry event procedures |
+| [docs/error-codes.json](docs/error-codes.json) | Problem Details `code` catalogue |
+| [docs/content-administration/ingest-pipeline.md](docs/content-administration/ingest-pipeline.md) | Ingest stages |
+| [docs/concepts/modules-cards-families.md](docs/concepts/modules-cards-families.md) | Modules and cards |
+| [docs/architecture/rag-evaluation.md](docs/architecture/rag-evaluation.md) | RAG eval harness |
+| [docs/appendix/known-limitations.md](docs/appendix/known-limitations.md) | Known product limits |
 
-Platform API routes are served under **`/medtronics-api`** (configurable via `API_ROOT_PATH`). Paths below are relative to that root; the full URL is `{api_root_path}` + path (e.g. `GET /medtronics-api/ready`, `POST /medtronics-api/coaching/counselling`).
+The HTTP route contract lives in [docs/api-reference/endpoints.md](docs/api-reference/endpoints.md).
+Do not add drifted route names.
 
-### Authentication
+## Error catalogue
 
-When `SPICE_AUTH_ENABLED=true`, platform-api validates every request (except paths listed in `SPICE_AUTH_EXEMPT_PATHS`, default `ready`) by calling SPICE auth-service `POST {SPICE_AUTH_BASE_URL}/authenticate` with the caller's headers:
+HTTP errors from platform-api and ai-runtime use RFC 7807 Problem Details.
+The `type` field is `docs/error-codes.json#{code}`.
+Clients map `code` to user-facing text.
 
-- `Authorization: Bearer <jwt>` (required)
-- `client` (optional; defaults to `SPICE_AUTH_DEFAULT_CLIENT`, typically `mob` for the Android app)
-- `auth-cookie` (optional; web clients)
+When you add, remove, or rename `mc_contracts.errors.ErrorCode`, update [docs/error-codes.json](docs/error-codes.json) in the same change.
 
-Set `SPICE_AUTH_BASE_URL` to the auth-service root as seen by platform — either direct (`http://authservice:8089`) or via the nginx reverse proxy (`http://gateway/auth-service`).
+## Quick start
 
 Callers must obtain JWTs with the correct SPICE login client: admin web uses `client: web`; the Android SDK uses `client: mob`. Platform forwards the `client` header to `/authenticate`. After authentication, non-`SUPER_USER`/`JOB_USER` principals must bind to a hierarchy `users` row; **authorization** uses that row's DB role against the `api_route` catalog (not SPICE suite-access planes). When the principal is SPICE `isSuperUser`, `isJobUser`, or has token role `SUPER_ADMIN` and no `users` row yet, platform auto-inserts a root `SUPER_ADMIN` row (`parent_id` null, `district_id` null, `tenant_id` from `userDetail.country.tenantId`, name from authenticate first/last/username or `"Admin"`) and continues the request; existing rows are never updated. `SUPER_USER` / `JOB_USER` still bypass route-grant checks. Upstream auth-service failures (timeouts, connection errors, or 5xx) on `/authenticate` and `POST /auth/session` surface to clients as `401` `not_authenticated`.
 
@@ -143,6 +189,14 @@ v3.3 is **module-centric** (not scenario-centric). Device sync uses `/sync/*`; a
 - Request `response_language` selects the answer language: deployment primary locale when empty, or any locale listed in `DEPLOYMENT_ADDITIONAL_LOCALES` (comma-separated; RAG-only — does not expand synced content keys)
 - Response includes `suggested_questions`: follow-up questions (in `response_language`) grounded in the retrieved module content (or soft coaching prompts on the chit-chat early-exit path)
 
+`POST /coaching/local-rag-query`
+- Same response shape as `POST /coaching/rag-query`, optimized for local on-device inference parity
+- Always embeds via ai-runtime local EmbeddingGemma and generates via local Qwen3 (`use_local` is implicit — no request flag)
+- Retrieves top-k **published module cards** by cosine similarity on `module_card.local_embedding` (not `module.embedding` / `module.local_embedding`); only the matched cards are passed to the answer LLM
+- Uses dedicated compact prompts: `coaching_local_card_chat_route` for early chat routing and `coaching_local_card_rag` for grounded generation over `CARD_BLOCK` excerpts
+- Requires card local embeddings backfilled (`bin/backfill_module_card_local_embeddings.py`); same chat-route early exit, attribution, and `response_language` rules as `rag-query`
+- `retrieved_modules` lists deduplicated parent modules of matched cards (best cosine distance per module)
+
 `POST /telemetry/events`
 - Accepts telemetry batches from the SDK
 - Writes analytics rows to ClickHouse
@@ -153,6 +207,11 @@ v3.3 is **module-centric** (not scenario-centric). Device sync uses `/sync/*`; a
 - Includes module thumbnail presigned GET URLs (`thumbnail_presigned_url` / `thumbnail_presigned_expires_seconds`) when a thumbnail object path exists; null on missing path or soft-failed presign (`has_thumbnail` remains the presence flag)
 - Also returns `assigned_module_ids` for the authenticated CHW (direct per-user module assignments); when the user has no assignments, `assigned_module_ids` is empty
 - Also returns `requested_modules` — the CHW's full training-request history (`module_id` and/or free-text `requested_module_name`, optional `reason`, `submitted_at`); empty when the CHW has no requests
+
+`GET /sync/card-embeddings?since=<ISO-8601>`
+- Returns 768-dim card embedding vectors for published training modules with `updated_at > since`
+- Lean payload (`card_id`, `module_id`, `card_family_id`, `embedding`); card text remains on `GET /sync/modules`
+- Cards without a persisted `local_embedding` are omitted; use the same `since` cursor as `/sync/modules` and join locally on `card_id`
 
 `GET /sync/triggers?since=<ISO-8601>`
 - Returns trigger definitions updated after `since`
@@ -191,7 +250,7 @@ v3.3 is **module-centric** (not scenario-centric). Device sync uses `/sync/*`; a
 - When SPICE auth is disabled, returns an empty card list
 - Uses the configured `morning_cards_max` threshold
 
-Module training requests (CHW self-service access) are accepted via `POST /telemetry/events` with `event_type=module_requested` (top-level `module_id` and/or `payload_json.requested_module_name`, optional `payload_json.reason`). See `docs/TELEMETRY_CONTRACT.md`.
+Module training requests (CHW self-service access) are accepted via `POST /telemetry/events` with `event_type=module_requested` (top-level `module_id` and/or `payload_json.requested_module_name`, optional `payload_json.reason`). See `docs/device-coaching/send-telemetry.md`.
 
 #### Admin-facing
 
@@ -224,16 +283,16 @@ Module training requests (CHW self-service access) are accepted via `POST /telem
 
 `POST /admin/ingest`
 - Queues the v3.3 pipeline (A→B→C→D) per staged source on `platform-celery-worker`
-- JSON body: `source_document_ids` (array, min 1 max 10), optional `override_duplicates` (booleans aligned to ids — when `true` on an already-`ingested` id, re-queues ingest in place on the same `source_document` row), optional `ingestion_instructions` (batch-wide steering text for Stage C module identification; sanitized at start and stored on `ingest_batch`), optional `cards_per_module` and `quizzes_per_module` (fixed card/quiz counts per module for this batch; stored on `ingest_batch`; must fall within deployment bounds), plus `assessment_mode` (stored on `ingest_batch`; `read_only` skips post-publish quiz generation); primary language is always the deployment primary locale; `content_domain` is set at upload and is not accepted here. Unknown fields (including removed `fuse_sources` and `skip_merge`) are rejected. Stage D always attempts published-module merge for normal ingest (cross-source fusion drafts skip merge internally). Cross-source fusion runs automatically after all pipelines finish when ≥2 sources are successfully queued; single-source batches skip fusion
+- JSON body: `source_document_ids` (array, min 1 max 10), optional `override_duplicates` (booleans aligned to ids — when `true` on an already-`ingested` id, re-queues ingest in place on the same `source_document` row), optional `ingestion_instructions` (batch-wide steering text for Stage C module identification; sanitized at start and stored on `ingest_batch`), optional `cards_per_module` and `quizzes_per_module` (fixed card/quiz counts per module for this batch; stored on `ingest_batch`; must fall within deployment bounds), plus `assessment_mode` (stored on `ingest_batch`; `read_only` skips post-publish quiz generation); primary language is always the deployment primary locale; `content_domain` is set at upload and is not accepted here. Unknown fields (including removed `fuse_sources` and `skip_merge`) are rejected. Stage D always attempts published-module merge. After every source finishes module identify, a batch-wide candidate merge collapses same-topic candidates (including same-document chunks); Stage D then drafts only that final set. Single-source batches take the same identify → merge → draft path
 - Accepts `source_document` rows in `uploaded` status; also `failed` (re-queue same row) and `ingested` only when `override_duplicates` is `true` for that id; already-`ingested` without override returns `409` Problem Details with `code=duplicate_content` for the whole request (atomic — nothing is queued) when any id is blocked; returns `422` with `code=source_not_uploaded` for other non-queueable states
-- When an ingestion run terminates as `failed` or `partially_succeeded`, the linked source document(s) are marked `status='failed'` (fusion runs update every constituent source document; `retired` knowledge rows are unchanged)
+- When an ingestion run terminates as `failed` or `partially_succeeded`, the linked source document(s) are marked `status='failed'` (`retired` knowledge rows are unchanged)
 - Returns `202` with `status: batch_queued`, top-level `batch_id` + `poll_url` (includes API root prefix, e.g. `/medtronics-api/admin/ingest/batches/{batch_id}`), and `sources[]` (each with `source_document_id`, `run_id`, `title`, `source_type`, `stored_path`, `ingested_at`, and `ingested_by` as `{id, name}` when the starter Spice user resolves to a hierarchy `users` row, else `null`). Stamps `source_document.ingested_by`, `ingest_batch.ingested_by`, and each queued `ingestion_run.ingested_by` with the starter's hierarchy user id for every queued document (including in-place re-ingest); does not change `ingested_at`.
 - Eagerly creates an `ingest_batch` (including assessment/cardinality/instructions config) and one `queued` `ingestion_run` per successfully queued source so the poll URL is valid immediately
 - Optional figure pipeline (defaults off): set `INGEST_SOURCE_IMAGE_EXTRACTION_ENABLED=true` so Stage A extracts native embedded PNG/JPEG/WebP images from PDF/PPTX/DOCX into object storage (`ingest/figures/...`) + `source_image` rows. When `INGEST_SOURCE_IMAGE_LLM_TEXT_ENABLED=true` (default on), Stage A fills empty/placeholder `source_image.alt_text` with a vision transcription plus short description; identical `content_sha256` reuses a prior usable alt (no second LLM call). Set `INGEST_CARD_IMAGE_ASSIGNMENT_ENABLED=true` (default on) so Stage D drafting passes a catalog of usable alt texts to the card-drafter LLM, which selects relevant images per card; resolved images are written as additive `media` with TipTap image nodes embedded in `body_localized`. Failures are best-effort and do not fail the ingest run. PPTX/DOCX only include true picture embeds (no LibreOffice rasterization). Existing modules and existing `source_image` rows are not backfilled.
 - Optional video visual extraction (defaults off): set `INGEST_VIDEO_VISUAL_EXTRACTION_ENABLED=true` so Stage A samples frames (~1 / 30s within each transcript chunk, capped), runs vision extraction, appends `## Visual (t=…)` sections onto transcript chunk markdown, and persists frames as `source_image` rows with `start_ms`/`end_ms`. Soft-fail — transcript Stage A still succeeds if vision fails. Tune with `INGEST_VIDEO_FRAME_INTERVAL_MS` and `INGEST_VIDEO_MAX_FRAMES_PER_DOCUMENT`. Card assignment of those frames uses `INGEST_CARD_IMAGE_ASSIGNMENT_ENABLED`. Audio-only sources are unchanged. Existing videos are not backfilled.
 
 `GET /admin/ingest/batches/{batch_id}`
-- Polls tree-shaped progress for the whole ingest batch: per-source nodes (thumbnail → extract → module identify, with per-chunk identify nodes and candidates nested under each chunk via `source_chunk_ids[0]`, each candidate holding `card_draft` + post-publish stages) and optional top-level `fusion` when a multi-source batch ran fusion. Each node includes fixed-catalog `title`/`description`. Chunk children use `key: "chunk"` and `chunk_id` (e.g. `chunk-3`) with their own status/`error`/`error_code`/`error_message`; chunk and identify status roll up from children. Candidates with missing lineage or an unknown chunk id are omitted. Batch status rolls up to `queued` | `running` | `succeeded` | `failed` | `partially_succeeded`. When status is `partially_succeeded`, top-level and per-source `error` objects include a human-readable `message` (and optional `causes`) explaining what failed (e.g. no module candidates, draft failures, post-publish failures); rolled-up tree nodes that are `partially_succeeded` also carry `error.message` when children failed. Top-level `ingested_by` is `{id, name}` soft-joined from `ingest_batch.ingested_by` (null when unset or the hierarchy user row is missing).
+- Polls tree-shaped progress for the whole ingest batch: per-source nodes (thumbnail → extract → module identify, with per-chunk identify nodes and candidates nested under each contributing chunk via merge lineage or `source_chunk_ids`, each candidate holding `card_draft` + post-publish stages) plus a `candidate_merge` node on each source that participated in batch-wide same-topic merge. A merged candidate appears under every contributing chunk and every contributing source. There is no `fusion` node. Each node includes fixed-catalog `title`/`description`. Chunk children use `key: "chunk"` and `chunk_id` (e.g. `chunk-3`) with their own status/`error`/`error_code`/`error_message`; chunk and identify status roll up from children. Candidates with missing lineage or an unknown chunk id are omitted. Batch status rolls up to `queued` | `running` | `succeeded` | `failed` | `partially_succeeded`. When status is `partially_succeeded`, top-level and per-source `error` objects include a human-readable `message` (and optional `causes`) explaining what failed (e.g. no module candidates, draft failures, post-publish failures); rolled-up tree nodes that are `partially_succeeded` also carry `error.message` when children failed. Top-level `ingested_by` is `{id, name}` soft-joined from `ingest_batch.ingested_by` (null when unset or the hierarchy user row is missing).
 - When Stage D finds a similar active module (highest-version published in the family if any, else the highest-version draft), it writes a dual-path pair in **two new families** (not the matched tip's family): **secondary** v1 in its family (LLM-merged cards) and **primary** v1 in its family (current-document cards), both `lifecycle_status=review_pending`, linked to each other and the matched tip. Both enqueue full post-publish; sibling candidates continue. The matched tip stays active until override. If an admin later edits that matched tip (`PUT /admin/modules/{id}` creating a new draft version), every `review_pending` row whose `merge_source_module_id` pointed at the old tip is retargeted to the new tip id in the same write (so override-merge retires the current source). Default `GET /admin/modules` (and `status=review_pending`) hides the `review_pending` secondary so the pair is one list row; filter does not hide a secondary after override (it is `draft`).
 - Includes top-level `retry_url` when at least one stage is retryable (includes API root prefix, e.g. `/medtronics-api/admin/ingest/batches/{batch_id}/retry`); `null` when nothing is retryable. POST with no body; the server identifies every retryable failed stage and retries them.
 
@@ -295,7 +354,7 @@ Module training requests (CHW self-service access) are accepted via `POST /telem
 - Hierarchy user CRUD. `DELETE` cascades to descendant users. When SPICE auth is enabled, non-`SUPER_USER`/`JOB_USER` principals must exist in the hierarchy `users` table with a role name that exactly matches a SPICE `roles[].name` (`AREA_MANAGER` / `PO` / `SHASTIYA_KORMI` / `SUPER_ADMIN`); missing or mismatched rows return `403 hierarchy_auth_failed`. Missing `SUPER_USER` / `JOB_USER` / `SUPER_ADMIN` principals are auto-provisioned as root `SUPER_ADMIN` rows on authenticate (see Auth section). Coordinate deploy with SPICE role-name rename and hierarchy data import.
 
 `GET /admin/ingestion-runs` and `GET /admin/ingestion-runs/{run_id}`
-- List and inspect ingestion runs. List supports optional `status`, optional `q` (case-insensitive substring on `original_filename` or `title`), optional `ingested_by` (hierarchy user id(s); repeat and/or comma-separate), `limit` (default 50, max 200), `offset` (default 0), `sort_by` (`started_at` | `completed_at` | `status` | `document_label`; default `started_at`), and `sort_dir` (`asc` | `desc`; default `desc`). Returns a paginated envelope: `{ runs, total_runs, total_pages, limit, offset }`. Each run (list and detail) includes `ingested_by` as `{id, name}` soft-joined from `ingestion_run.ingested_by` (null when unset or the hierarchy user row is missing). `generated_module_count`, `generated_card_count`, and `generated_quiz_count` are frozen when the run reaches a terminal status after post-publish (and refreshed on sibling pipeline runs when same-batch fusion shares modules); historical runs without a snapshot return `0`. Dual-path `review_pending` secondaries are excluded from the module count.
+- List and inspect ingestion runs. List supports optional `status`, optional `q` (case-insensitive substring on `original_filename` or `title`), optional `ingested_by` (hierarchy user id(s); repeat and/or comma-separate), `limit` (default 50, max 200), `offset` (default 0), `sort_by` (`started_at` | `completed_at` | `status` | `document_label`; default `started_at`), and `sort_dir` (`asc` | `desc`; default `desc`). Returns a paginated envelope: `{ runs, total_runs, total_pages, limit, offset }`. Each run (list and detail) includes `ingested_by` as `{id, name}` soft-joined from `ingestion_run.ingested_by` (null when unset or the hierarchy user row is missing). `generated_module_count`, `generated_card_count`, and `generated_quiz_count` are frozen when the run reaches a terminal status after post-publish (and refreshed on sibling pipeline runs when a merged module lists multiple `source_document_ids`); historical runs without a snapshot return `0`. Dual-path `review_pending` secondaries are excluded from the module count.
 
 `GET /admin/source-documents`
 - List source documents for admin catalog views (ingest dropdowns, video upload table, knowledge catalog). Optional `status` (`uploaded` | `ingesting` | `ingested` | `failed` | `retired`; omit for all non-retired statuses; repeat and/or comma-separate for multiple; use `status=retired` to list retired only), optional `sync_published_visible` (`true` = knowledge docs, `false` = ingest docs; omit for both), optional `source_type` (`pdf` | `pptx` | `docx` | `audio` | `video`; repeat and/or comma-separate for multiple), optional `q` (case-insensitive substring on `original_filename` or `title`), optional `uploaded_by` (hierarchy user id(s); repeat and/or comma-separate), optional `assigned` (`true` = has at least one document assignment; `false` = unassigned; omit for both), optional `division_id` / `district_id` / `upazila_id` assignee-geography filters (integer hierarchy ids; repeat and/or comma-separate for OR within each dimension; AND across dimensions; matches documents with at least one `document_assignment` to a user in the resolved geography); supports `limit` (default 50, max 200), `offset` (default 0), `sort_by` (`ingested_at` | `title` | `source_type` | `status` | `content_domain` | `original_filename`; default `ingested_at`), and `sort_dir` (`asc` | `desc`; default `desc`). Returns a paginated envelope: `{ source_documents, total_source_documents, total_pages, limit, offset }`. Each row includes `stored_path` (object-storage path for download via existing presign), plus `description`, `thumbnail_storage_path`, and `duration_ms` (audio/video milliseconds; null otherwise) when set. Actor fields `uploaded_by`, `updated_by`, and `ingested_by` are `{id, name}` soft-joins to hierarchy `users` (null when unset or the user row is missing).
@@ -406,11 +465,12 @@ Current state:
 ### Sync
 
 1. SDK calls `GET /sync/modules?since=...` for published modules and quizzes (includes `assigned_module_ids` and `requested_modules` for the authenticated CHW)
-2. SDK calls `GET /sync/source-documents?since=...` for presigned downloads of module-linked documents (delta) and the CHW's assigned documents (full snapshot)
-3. SDK calls `GET /sync/video-progress?since=...` for delta watch progress on still-assigned videos
-4. SDK calls `GET /sync/triggers?since=...` and `GET /sync/gaps?since=...` as needed
-5. SDK calls `GET /sync/chat-faqs?since=...` for bilingual FAQ suggestion chips (clustered + LLM-synthesized nightly)
-6. SDK calls `GET /sync/config` for threshold/config values
+2. SDK calls `GET /sync/card-embeddings?since=...` for card embedding vectors on the same module delta (join on `card_id`)
+3. SDK calls `GET /sync/source-documents?since=...` for presigned downloads of module-linked documents (delta) and the CHW's assigned documents (full snapshot)
+4. SDK calls `GET /sync/video-progress?since=...` for delta watch progress on still-assigned videos
+5. SDK calls `GET /sync/triggers?since=...` and `GET /sync/gaps?since=...` as needed
+6. SDK calls `GET /sync/chat-faqs?since=...` for bilingual FAQ suggestion chips (clustered + LLM-synthesized nightly)
+7. SDK calls `GET /sync/config` for threshold/config values
 
 ## Current Implementation Status
 
@@ -418,11 +478,11 @@ Current state:
 
 - monorepo layout with `platform`, `ai-runtime`, `contracts`, and `foundation`
 - single Alembic chain under `infra/alembic`
-- v3.3 module-centric sync (`/sync/modules`, `/sync/triggers`, `/sync/gaps`, `/sync/chat-faqs`, presign batches)
+- v3.3 module-centric sync (`/sync/modules`, `/sync/card-embeddings`, `/sync/triggers`, `/sync/gaps`, `/sync/chat-faqs`, presign batches)
 - coaching RAG via platform → internal AI runtime
 - telemetry ingest with ClickHouse writes
 - Redis-backed Celery workers for:
-  - v3.3 ingest pipeline (A→B→C→D) and cross-source fusion
+  - v3.3 ingest pipeline (A→B→C, batch candidate merge, D)
   - post-publish quiz, embedding, and gap classification
   - module-completion telemetry processing
 - morning-card selection with config-driven `morning_cards_max`
@@ -457,29 +517,41 @@ Current state:
 ### Prerequisites (first-run)
 
 ```bash
-cp .env.example .env           # then fill GOOGLE_API_KEY
 uv sync --locked --all-packages --group dev
 ```
 
-Without `.env`, `docker compose` fails at parse time because `GOOGLE_API_KEY` is declared required. See `docs/SETUP_TROUBLESHOOTING.md` for other known failures.
-
-### Pre-commit
-
-After syncing dev dependencies, install git hooks once:
+3. Install git hooks once.
 
 ```bash
 uv run pre-commit install
 ```
 
-Hooks run ruff (lint + format), Pyright type checking (on Python changes), and basic file hygiene on each commit. To check the whole repo without committing:
+4. Start the stack.
 
 ```bash
-uv run pre-commit run --all-files
+docker compose up --build
 ```
 
-### Environment
+Expected result:
 
-### Run services
+- `migrate` exits with code `0`.
+- `clickhouse-init` exits with code `0`.
+- `db`, `redis`, `clickhouse`, `ai-runtime`, and `platform-api` are running.
+- `platform-celery-worker` and `platform-celery-beat` are running.
+
+To publish the GitBook site at `http://localhost:18081`, add `--profile docs-static`.
+
+5. Check readiness.
+
+```bash
+docker compose ps
+curl -fsS http://localhost:8000/medtronics-api/ready
+curl -fsS http://localhost:8001/health
+```
+
+If a step fails, see [docs/troubleshooting/README.md](docs/troubleshooting/README.md).
+
+## Local run without Compose
 
 Platform API:
 
@@ -499,45 +571,19 @@ AI runtime:
 uv run uvicorn ai_runtime.main:app --host 0.0.0.0 --port 8001
 ```
 
-### Run with Docker Compose
+## Migrations
 
-1. Create a root `.env` file (or export variables in your shell) and set:
-   - `GOOGLE_API_KEY` (required for `ai-runtime`; `GEMINI_API_KEY` is accepted as fallback)
-   - `AI_RUNTIME_TOKEN` (optional, defaults to `dev-internal-token`)
-   - `APP_ENV` (optional, defaults to `development`)
-2. Start the stack:
-
-```bash
-docker compose up --build
-```
-
-Expected compose behavior:
-- `migrate` runs once and exits with code `0`
-- `clickhouse-init` runs once and exits with code `0`
-- `db`, `redis`, `clickhouse`, `ai-runtime`, and `platform-api` are running
-- `platform-celery-worker` and `platform-celery-beat` are running
-
-Quick verification:
-
-```bash
-docker compose ps
-curl -fsS http://localhost:8000/medtronics-api/ready
-curl -fsS http://localhost:8001/health
-```
-
-### Migrations
-
-Run Alembic as a separate step:
+Run Alembic as a separate step.
 
 ```bash
 uv run alembic -c infra/alembic.ini upgrade head
 ```
 
-Migrations should not be auto-run by application startup.
+Do not run migrations at application startup.
 
-## Next Recommended Work
+## Standards
 
-1. Add rate limiting on device-plane routes.
-3. Add sync pagination for large module catalogs.
-4. Add remaining planned admin config-management flows.
-5. Extend CI with type-checking beyond ruff (pyright/mypy) where practical.
+- The SDK talks only to platform-api.
+- ai-runtime is private and token-protected.
+- Platform is the system of record.
+- The workspace uses `uv`. Commit `uv.lock`.

@@ -6,9 +6,11 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from platform_service.config import get_settings
 from platform_service.db.models.chw_module_card_progress import CHWModuleCardProgress
 from platform_service.db.models.chw_module_completion import CHWModuleCompletion
 from platform_service.db.models.chw_module_quiz_progress import CHWModuleQuizProgress
+from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
 from platform_service.db.models.module import Module
 from platform_service.db.models.module_card import ModuleCard
 from platform_service.db.models.module_family import ModuleFamily
@@ -218,9 +220,6 @@ async def test_quiz_question_states_in_bundle_when_quiz_telemetry_mode(
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from platform_service.config import get_settings
-    from platform_service.db.models.chw_quiz_question_state import CHWQuizQuestionState
-
     monkeypatch.setattr(
         get_settings(),
         "telemetry_behavioural_gap_state_enabled",

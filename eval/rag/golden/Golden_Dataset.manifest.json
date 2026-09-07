@@ -1,0 +1,14 @@
+{
+  "name": "Golden_Dataset",
+  "description": "Bilingual golden dataset for RAG evaluation (compiled superset).",
+  "compiled_output": "Golden_Dataset.json",
+  "records": [
+    "records/anc.json",
+    "records/pnc.json",
+    "records/neonatal.json",
+    "records/infectious.json",
+    "records/diarrhea_nutrition.json",
+    "records/immunisation_documentation.json",
+    "records/out_of_scope.json"
+  ]
+}

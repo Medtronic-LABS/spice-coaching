@@ -1,6 +1,6 @@
 """Module — a specific version of a logical module. Immutable once written.
 
-Per `docs/ARCHITECTURE_RESET.md`:
+See `docs/content-administration/ingest-pipeline.md`:
 
 - Cards live inline as a JSON array on `module_json`. There are no per-card
   rows and no card stable IDs.
@@ -100,6 +100,10 @@ class Module(TenantMixin, Base):
     # client-side cast so a Python list[float] roundtrips cleanly to/from
     # the column. SQLAlchemy will bind None for unset (None) values.
     embedding: Mapped[list[float] | None] = mapped_column(Vector(_EMBEDDING_DIM), nullable=True)
+
+    # Local EmbeddingGemma vector for device-parity / offline retrieval eval.
+    # Written by bin/backfill_module_local_embeddings.py; not used in production RAG.
+    local_embedding: Mapped[list[float] | None] = mapped_column(Vector(_EMBEDDING_DIM), nullable=True)
 
     # When non-NULL, the module surfaces in the runtime "what's new" flow
     # for the duration. Admin sets/clears this from the dashboard.

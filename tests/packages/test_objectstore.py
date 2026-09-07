@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -82,8 +83,6 @@ class TestInMemoryObjectStore:
             bucket_name="test-bucket",
             allowed_prefixes=frozenset({"uploads"}),
         )
-        from io import BytesIO
-
         stored = await store.upload_file(
             file_obj=BytesIO(b"hello"),
             filename="note.txt",
@@ -97,8 +96,6 @@ class TestInMemoryObjectStore:
     @pytest.mark.asyncio
     async def test_upload_rejects_oversized(self) -> None:
         store = InMemoryObjectStore(allowed_prefixes=frozenset({"uploads"}))
-        from io import BytesIO
-
         with pytest.raises(ObjectTooLargeError):
             await store.upload_file(
                 file_obj=BytesIO(b"abcdef"),

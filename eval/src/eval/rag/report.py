@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import UUID
 
 from eval.rag.bm25 import CardHit, Hit
+from eval.rag.card_embedding import CardEmbeddingHit
 from eval.rag.corpus import CardCorpusDoc
 from eval.rag.dataset import QuestionLang, lookup_expected_card_index
 from eval.rag.embedding import EmbeddingHit
@@ -17,7 +18,10 @@ from eval.rag.metrics import card_retrieval_metrics_by_id, retrieval_metrics
 _REPORT_TITLES = {
     "bm25": "BM25 Retrieval Report",
     "embedding": "Embedding Retrieval Report",
+    "local_embedding": "Local Embedding Retrieval Report",
+    "card_local_embedding": "Card Local Embedding Retrieval Report",
     "rag": "RAG Chatbot E2E Report",
+    "local_rag": "Local RAG Chatbot E2E Report",
 }
 
 _METRIC_KEYS = ("hit_at_k", "mrr", "precision_at_k", "recall_at_k", "ndcg_at_k")
@@ -224,6 +228,66 @@ def artifact_from_pipeline_hits_with_lookup(
     )
 
 
+def _card_display_title_from_embedding(hit: CardEmbeddingHit) -> str:
+    return hit.primary_title or hit.title_en or hit.title_bn or ""
+
+
+def _derive_module_ids_from_card_hits(hits: list[CardEmbeddingHit]) -> list[UUID]:
+    seen: set[UUID] = set()
+    ordered: list[UUID] = []
+    for hit in hits:
+        if hit.module_id in seen:
+            continue
+        seen.add(hit.module_id)
+        ordered.append(hit.module_id)
+    return ordered
+
+
+def artifact_from_card_embedding_hits(
+    *,
+    record_id: str,
+    category: str,
+    question: str,
+    expected_module: str | None,
+    is_answerable: bool,
+    relevant_module_ids: list[UUID],
+    expected_card_ids: tuple[UUID, ...],
+    hits: list[CardEmbeddingHit],
+    k: int,
+) -> RecordArtifact:
+    derived_module_ids = _derive_module_ids_from_card_hits(hits)
+    module_metrics = retrieval_metrics(relevant_module_ids, derived_module_ids, k=k)
+    module_scores: list[float] = []
+    seen_modules: set[UUID] = set()
+    for hit in hits:
+        if hit.module_id in seen_modules:
+            continue
+        seen_modules.add(hit.module_id)
+        module_scores.append(hit.cosine_distance)
+    retrieved_card_ids = [hit.card_id for hit in hits]
+    card_metrics = (
+        card_retrieval_metrics_by_id(set(expected_card_ids), retrieved_card_ids, k=k)
+        if expected_card_ids
+        else {}
+    )
+    return RecordArtifact(
+        id=record_id,
+        category=category,
+        question=question,
+        expected_module=expected_module,
+        relevant_module_ids=[str(module_id) for module_id in relevant_module_ids],
+        is_answerable=is_answerable,
+        retrieved_module_ids=[str(module_id) for module_id in derived_module_ids],
+        retrieval_scores=module_scores,
+        retrieval_metrics=module_metrics,
+        expected_card_ids=[str(card_id) for card_id in expected_card_ids],
+        retrieved_card_ids=[str(card_id) for card_id in retrieved_card_ids],
+        retrieved_card_titles=[_card_display_title_from_embedding(hit) for hit in hits],
+        card_retrieval_scores=[hit.cosine_distance for hit in hits],
+        card_retrieval_metrics=card_metrics,
+    )
+
+
 def artifact_from_embedding_hits(
     *,
     record_id: str,
@@ -282,10 +346,15 @@ def write_batch_report(report: BatchReport, output_path: Path) -> None:
         label = key.replace("_", " ").title()
         lines.append(f"{label:<22}: {value:6.3f}")
     if report.aggregate_card_retrieval_metrics:
+        card_section_title = (
+            "AGGREGATE CARD RETRIEVAL (direct card embedding search)"
+            if report.retrieval_method == "card_local_embedding"
+            else "AGGREGATE CARD RETRIEVAL (pipeline, top-1 module)"
+        )
         lines.extend(
             [
                 "",
-                "AGGREGATE CARD RETRIEVAL (pipeline, top-1 module)",
+                card_section_title,
                 "─────────────────────────────────────────────",
             ]
         )
@@ -321,6 +390,7 @@ class RagRecordArtifact:
     context_metrics: dict[str, float]
     citation_metrics: dict[str, float | bool | None]
     judge_metrics: dict[str, float | str | None]
+    generation_context: str = ""
 
 
 @dataclass(frozen=True)
@@ -336,7 +406,7 @@ class RagBatchReport:
     retrieval_summary: dict[str, float]
     context_summary: dict[str, float]
     citation_summary: dict[str, float]
-    judge_summary: dict[str, float]
+    judge_summary: dict[str, object]
     error_summary: dict[str, float]
     perf_summary: dict[str, float]
     artifacts: list[RagRecordArtifact]
@@ -369,6 +439,7 @@ def rag_record_artifact_from_result(result_dict: dict[str, object]) -> RagRecord
         context_metrics=dict(result_dict.get("context_metrics") or {}),  # type: ignore[arg-type]
         citation_metrics=dict(result_dict.get("citation_metrics") or {}),  # type: ignore[arg-type]
         judge_metrics=dict(result_dict.get("judge_metrics") or {}),  # type: ignore[arg-type]
+        generation_context=str(result_dict.get("generation_context") or ""),
     )
 
 
@@ -412,22 +483,41 @@ def build_rag_batch_report(
 def _append_metric_section(
     lines: list[str],
     title: str,
-    metrics: dict[str, float],
+    metrics: dict[str, float | object],
 ) -> None:
     if not metrics:
         return
     lines.extend(["", title, "─────────────────────────────────────────────"])
     for key, value in metrics.items():
         label = key.replace("_", " ").title()
-        lines.append(f"{label:<22}: {value:6.3f}")
+        if isinstance(value, dict):
+            lines.append(f"{label}:")
+            for sub_key, sub_value in value.items():
+                if isinstance(sub_value, dict):
+                    parts = ", ".join(
+                        f"{part_key}={float(part_value):.3f}"
+                        for part_key, part_value in sub_value.items()
+                        if isinstance(part_value, (int, float))
+                    )
+                    lines.append(f"  {sub_key}: {parts}")
+                elif isinstance(sub_value, (int, float)):
+                    lines.append(f"  {sub_key}: {float(sub_value):.3f}")
+            continue
+        if isinstance(value, (int, float)):
+            lines.append(f"{label:<22}: {float(value):.3f}")
 
 
-def write_rag_batch_report(report: RagBatchReport, output_path: Path) -> None:
+def write_rag_batch_report(
+    report: RagBatchReport,
+    output_path: Path,
+    *,
+    title_key: str = "rag",
+) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = asdict(report)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    title = _REPORT_TITLES["rag"]
+    title = _REPORT_TITLES.get(title_key, _REPORT_TITLES["rag"])
     md_path = output_path.with_suffix(".md")
     e2e = report.e2e_summary
     lines = [

@@ -86,6 +86,7 @@ DASHBOARD_PATH_TEMPLATES: frozenset[str] = frozenset(
 SYNC_PATH_TEMPLATES: frozenset[str] = frozenset(
     {
         "/sync/badges",
+        "/sync/card-embeddings",
         "/sync/chat-faqs",
         "/sync/config",
         "/sync/gaps",
@@ -100,6 +101,7 @@ SYNC_PATH_TEMPLATES: frozenset[str] = frozenset(
 DEVICE_PATH_TEMPLATES: frozenset[str] = frozenset(
     {
         "/coaching/rag-query",
+        "/coaching/local-rag-query",
         "/morning/cards",
         "/telemetry/events",
     }

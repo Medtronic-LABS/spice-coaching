@@ -231,7 +231,7 @@ async def test_quiz_outcome_correct_hitting_zero_sets_resolved(
 async def test_three_fails_in_window_escalates_via_gap_state_service(
     patch_session_local, db_session: AsyncSession
 ) -> None:
-    """Verifies we reuse the W-8 escalation rule rather than reimplementing it."""
+    """Verifies we reuse the escalation rule rather than reimplementing it."""
     gap = await _make_gap(db_session)
     module = await _make_module(db_session, primary_gap_id=gap.id)
     chw = _test_chw_id()

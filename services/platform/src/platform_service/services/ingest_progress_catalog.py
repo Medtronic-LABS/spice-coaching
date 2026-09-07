@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from platform_service.services.run_state_service import (
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
-    STAGE_CROSS_SOURCE_FUSION,
     STAGE_EXTRACT,
     STAGE_GAP_CLASSIFICATION,
     STAGE_MODULE_IDENTIFY,
@@ -47,17 +47,13 @@ _CATALOG: dict[str, tuple[str, str]] = {
         "Binding triggers",
         "Attaching delivery triggers so the module can surface at the right moment.",
     ),
-    STAGE_CROSS_SOURCE_FUSION: (
-        "Fusing across sources",
-        "Matching related candidates from multiple source documents into fused modules.",
+    STAGE_CANDIDATE_MERGE: (
+        "Merging module candidates",
+        "Combining candidates that cover the same behavioural topic across chunks and documents.",
     ),
     "candidate": (
         "Module candidate",
         "Downstream drafting and post-publish work for one proposed module.",
-    ),
-    "fusion": (
-        "Cross-source fusion",
-        "Batch-level fusion across all sources in this ingest.",
     ),
     "chunk": (
         "Identify chunk",

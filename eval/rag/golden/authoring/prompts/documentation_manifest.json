@@ -1,0 +1,13 @@
+{
+  "domain": "documentation",
+  "batch_count": 1,
+  "total_expected_records": 12,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "documentation_batch0.prompt.json",
+      "prompt_md": "documentation_batch0.prompt.md",
+      "expected_record_count": 12
+    }
+  ]
+}

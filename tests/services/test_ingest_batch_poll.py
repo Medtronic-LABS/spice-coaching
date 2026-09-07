@@ -21,8 +21,8 @@ from platform_service.services.run_state_service import (
     RUN_QUEUED,
     RUN_RUNNING,
     RUN_SUCCEEDED,
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
-    STAGE_CROSS_SOURCE_FUSION,
     STAGE_EXTRACT,
     STAGE_MODULE_IDENTIFY,
     STAGE_QUIZ_GENERATION,
@@ -73,11 +73,28 @@ def _candidate(
     *,
     proposed_title: str = "X",
     source_chunk_ids: list[str] | None = None,
+    quality_flags_jsonb: dict | None = None,
+    source_provenance_jsonb: list | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=cand_id,
         proposed_title=proposed_title,
         source_chunk_ids=source_chunk_ids,
+        quality_flags_jsonb=quality_flags_jsonb,
+        source_provenance_jsonb=source_provenance_jsonb,
+    )
+
+
+def _tree(
+    steps: list,
+    candidates: list,
+    *,
+    source_document_id=None,
+):
+    return build_run_tree(
+        steps=steps,
+        candidates=candidates,
+        source_document_id=source_document_id or uuid4(),
     )
 
 
@@ -90,6 +107,11 @@ class TestCatalog:
     def test_activity_variant(self) -> None:
         title, _ = catalog_entry(STAGE_CARD_DRAFT, activity="published_module_merge")
         assert "Merging" in title
+
+    def test_candidate_merge_stage(self) -> None:
+        title, description = catalog_entry(STAGE_CANDIDATE_MERGE)
+        assert "Merging module candidates" == title
+        assert "same behavioural topic" in description
 
 
 class TestRollupBatchStatus:
@@ -124,7 +146,7 @@ class TestBuildRunTree:
             _step(stage=STAGE_QUIZ_GENERATION, candidate_id=str(cand), status=STEP_RUNNING),
         ]
         candidate = _candidate(cand, proposed_title="ANC Counselling", source_chunk_ids=["chunk-1"])
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         assert [n["key"] for n in tree] == [
             STAGE_THUMBNAIL,
             STAGE_EXTRACT,
@@ -153,7 +175,7 @@ class TestBuildRunTree:
             _step(stage=STAGE_QUIZ_GENERATION, candidate_id=str(cand), status=STEP_RUNNING),
         ]
         candidate = _candidate(cand, proposed_title="Invented Parent Case", source_chunk_ids=["chunk-1"])
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         assert [n["key"] for n in tree] == [STAGE_MODULE_IDENTIFY]
         identify = tree[0]
         assert identify["status"] == STEP_RUNNING
@@ -168,7 +190,7 @@ class TestBuildRunTree:
         ]
 
     def test_empty_when_no_steps(self) -> None:
-        assert build_run_tree(steps=[], candidates=[]) == []
+        assert _tree([], []) == []
 
     def test_candidates_nested_under_chunks_not_siblings(self) -> None:
         cand = uuid4()
@@ -185,7 +207,7 @@ class TestBuildRunTree:
             _step(stage=STAGE_CARD_DRAFT, candidate_id=str(cand)),
         ]
         candidate = _candidate(cand, proposed_title="From chunk-1", source_chunk_ids=["chunk-1"])
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         identify = tree[-1]
         assert identify["key"] == STAGE_MODULE_IDENTIFY
         assert identify["status"] == "partially_succeeded"
@@ -196,7 +218,7 @@ class TestBuildRunTree:
         assert identify["children"][1]["status"] == STEP_FAILED
         assert identify["children"][1]["error"]["type"] == "Timeout"
         assert identify["error"] is not None
-        assert identify["error"]["message"] == "ai-runtime"
+        assert identify["error"].get("message")
         assert [c["key"] for c in identify["children"][0]["children"]] == ["candidate"]
         assert identify["children"][0]["children"][0]["candidate_id"] == str(cand)
         assert identify["children"][1]["children"] == []
@@ -209,7 +231,7 @@ class TestBuildRunTree:
             _step(stage=STAGE_CARD_DRAFT, candidate_id=str(cand), status=STEP_RUNNING),
         ]
         candidate = _candidate(cand, source_chunk_ids=["chunk-1"])
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         identify = tree[-1]
         assert identify["status"] == STEP_RUNNING
         assert [c["key"] for c in identify["children"]] == ["chunk"]
@@ -217,7 +239,7 @@ class TestBuildRunTree:
         assert chunk["status"] == STEP_RUNNING
         assert chunk["children"][0]["key"] == "candidate"
 
-    def test_multi_chunk_lineage_nests_under_first_id_only(self) -> None:
+    def test_multi_chunk_lineage_fans_out_under_each_id(self) -> None:
         cand = uuid4()
         steps = [
             _step(stage=STAGE_MODULE_IDENTIFY),
@@ -230,12 +252,12 @@ class TestBuildRunTree:
             proposed_title="Merged",
             source_chunk_ids=["chunk-2", "chunk-1"],
         )
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         identify = tree[-1]
         chunk1, chunk2 = identify["children"]
         assert chunk1["chunk_id"] == "chunk-1"
         assert chunk2["chunk_id"] == "chunk-2"
-        assert chunk1["children"] == []
+        assert [c["candidate_id"] for c in chunk1["children"]] == [str(cand)]
         assert [c["candidate_id"] for c in chunk2["children"]] == [str(cand)]
 
     def test_orphan_candidate_omitted(self) -> None:
@@ -246,7 +268,7 @@ class TestBuildRunTree:
             _step(stage=STAGE_CARD_DRAFT, candidate_id=str(cand), status=STEP_RUNNING),
         ]
         candidate = _candidate(cand, source_chunk_ids=None)
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         identify = tree[-1]
         assert identify["children"][0]["children"] == []
         # Identify reflects chunk identify only (succeeded), not the orphan draft.
@@ -260,7 +282,7 @@ class TestBuildRunTree:
             _step(stage=STAGE_CARD_DRAFT, candidate_id=str(cand)),
         ]
         candidate = _candidate(cand, source_chunk_ids=["chunk-missing"])
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         assert tree[-1]["children"][0]["children"] == []
 
     def test_awaiting_input_rolls_up_through_chunk(self) -> None:
@@ -271,7 +293,7 @@ class TestBuildRunTree:
             _step(stage=STAGE_CARD_DRAFT, candidate_id=str(cand), status=STEP_AWAITING_INPUT),
         ]
         candidate = _candidate(cand, source_chunk_ids=["chunk-1"])
-        tree = build_run_tree(steps=steps, candidates=[candidate])  # type: ignore[arg-type]
+        tree = _tree(steps, [candidate])
         identify = tree[-1]
         chunk = identify["children"][0]
         assert chunk["children"][0]["status"] == STEP_AWAITING_INPUT
@@ -292,10 +314,62 @@ class TestBuildRunTree:
             _candidate(cand_a, proposed_title="ANC A", source_chunk_ids=["chunk-1"]),
             _candidate(cand_b, proposed_title="ANC B", source_chunk_ids=["chunk-2"]),
         ]
-        tree = build_run_tree(steps=steps, candidates=candidates)  # type: ignore[arg-type]
+        tree = _tree(steps, candidates)
         chunk1, chunk2 = tree[-1]["children"]
         assert [c["candidate_id"] for c in chunk1["children"]] == [str(cand_a)]
         assert [c["candidate_id"] for c in chunk2["children"]] == [str(cand_b)]
+
+    def test_merged_candidate_fans_out_under_two_chunks(self) -> None:
+        cand = uuid4()
+        source_id = uuid4()
+        steps = [
+            _step(stage=STAGE_MODULE_IDENTIFY),
+            _step(stage=STAGE_MODULE_IDENTIFY, chunk_id="chunk-1"),
+            _step(stage=STAGE_MODULE_IDENTIFY, chunk_id="chunk-2"),
+            _step(stage=STAGE_CARD_DRAFT, candidate_id=str(cand)),
+        ]
+        candidate = _candidate(
+            cand,
+            proposed_title="Merged ANC",
+            source_chunk_ids=["chunk-1"],
+            quality_flags_jsonb={
+                "merge_lineage": {
+                    "chunk_refs": [
+                        {"source_document_id": str(source_id), "chunk_id": "chunk-1"},
+                        {"source_document_id": str(source_id), "chunk_id": "chunk-2"},
+                    ]
+                }
+            },
+        )
+        tree = _tree(steps, [candidate], source_document_id=source_id)
+        chunk1, chunk2 = tree[-1]["children"]
+        assert [c["candidate_id"] for c in chunk1["children"]] == [str(cand)]
+        assert [c["candidate_id"] for c in chunk2["children"]] == [str(cand)]
+
+    def test_merged_candidate_visible_on_non_home_source(self) -> None:
+        cand = uuid4()
+        home_id = uuid4()
+        other_id = uuid4()
+        steps = [
+            _step(stage=STAGE_MODULE_IDENTIFY),
+            _step(stage=STAGE_MODULE_IDENTIFY, chunk_id="chunk-1"),
+            _step(stage=STAGE_CARD_DRAFT, candidate_id=str(cand)),
+        ]
+        candidate = _candidate(
+            cand,
+            proposed_title="Merged ANC",
+            source_chunk_ids=["chunk-3"],
+            quality_flags_jsonb={
+                "merge_lineage": {
+                    "chunk_refs": [
+                        {"source_document_id": str(home_id), "chunk_id": "chunk-3"},
+                        {"source_document_id": str(other_id), "chunk_id": "chunk-1"},
+                    ]
+                }
+            },
+        )
+        tree = _tree(steps, [candidate], source_document_id=other_id)
+        assert [c["candidate_id"] for c in tree[-1]["children"][0]["children"]] == [str(cand)]
 
 
 class TestRetryTargetsForRun:
@@ -387,11 +461,11 @@ class TestRetryTargetsForRun:
             == []
         )
 
-    def test_fusion_failure(self) -> None:
+    def test_candidate_merge_failure(self) -> None:
         batch_id = uuid4()
         run_id = uuid4()
         run = SimpleNamespace(id=run_id, status=RUN_FAILED)
-        steps = [_step(stage=STAGE_CROSS_SOURCE_FUSION, status=STEP_FAILED)]
+        steps = [_step(stage=STAGE_CANDIDATE_MERGE, status=STEP_FAILED)]
         targets = _retry_targets_for_run(
             batch_id=batch_id,
             run=run,  # type: ignore[arg-type]
@@ -401,7 +475,7 @@ class TestRetryTargetsForRun:
         assert targets == [
             {
                 "run_id": str(run_id),
-                "stage": STAGE_CROSS_SOURCE_FUSION,
+                "stage": STAGE_CANDIDATE_MERGE,
             }
         ]
 

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
+from mc_foundation.objectstore import ObjectStorageError
 from platform_service.db.repositories.badge_repository import BadgeRepository
 from platform_service.db.repositories.chw_badge_repository import CHWBadgeRepository
 from platform_service.services.sync.badges_bundle_builder import BadgesBundleBuilder
@@ -30,8 +32,6 @@ class _FakeStorage:
 
     async def presigned_get_url(self, object_name: str, **kwargs):  # type: ignore[no-untyped-def]
         if "invalid" in object_name:
-            from mc_foundation.objectstore import ObjectStorageError
-
             raise ObjectStorageError("presign failed")
         return type("Url", (), {"url": f"https://example.test/{object_name}", "expires_seconds": 3600})()
 
@@ -119,8 +119,6 @@ class TestBadgesBundleBuilder:
         )
 
         # Link module IDs
-        import uuid
-
         mod_id = uuid.uuid4()
         await badge_repo.replace_module_links(b1.id, [mod_id])
 

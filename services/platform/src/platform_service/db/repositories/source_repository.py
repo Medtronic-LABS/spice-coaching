@@ -1,4 +1,4 @@
-"""W-2 source repository — CRUD for source_document, source_page, content_block.
+"""source repository — CRUD for source_document, source_page, content_block.
 
 Async sessions per repository convention. Named methods only (no generic
 find_by). Used by Stage A worker (workers/stage_a_extract.py) to persist
@@ -76,7 +76,7 @@ def _source_document_order_clauses(sort_by: str, sort_dir: str) -> list[Any]:
 
 
 class SourceRepository:
-    """CRUD for the v3.3 source layer (source_document → source_page → content_block)."""
+    """CRUD for the source layer (source_document → source_page → content_block)."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -604,6 +604,12 @@ class SourceRepository:
             .where(ContentBlock.source_page_id == page_id)
             .order_by(ContentBlock.block_order)
         )
+        return list(result.scalars().all())
+
+    async def list_blocks_by_ids(self, block_ids: list[UUID]) -> list[ContentBlock]:
+        if not block_ids:
+            return []
+        result = await self._session.execute(select(ContentBlock).where(ContentBlock.id.in_(block_ids)))
         return list(result.scalars().all())
 
     async def list_block_provenance_by_ids(

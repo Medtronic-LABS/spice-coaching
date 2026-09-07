@@ -1,7 +1,8 @@
 """Middleware that validates SPICE JWTs via auth-service ``/authenticate``.
 
 Also resolves the selected tenant from authenticate
-``userDetail.country.tenantId`` (request ``TenantId`` is ignored for selection).
+``userDetail.country.tenantId``. When auth is disabled, ``TenantId`` header
+is used instead (default ``0`` when absent).
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from starlette.responses import Response
 from platform_service.auth.hierarchy_auth import enforce_hierarchy_principal
 from platform_service.auth.tenant_context import (
     DEFAULT_SELECTED_TENANT_ID,
+    resolve_selected_tenant_when_auth_disabled,
     selected_tenant_from_user,
     set_context_selected_tenant_id,
 )
@@ -68,7 +70,7 @@ class SpiceAuthMiddleware(BaseHTTPMiddleware):
         if not settings.spice_auth_enabled:
             _set_tenant_context(
                 request,
-                selected_tenant_id=DEFAULT_SELECTED_TENANT_ID,
+                selected_tenant_id=resolve_selected_tenant_when_auth_disabled(request.headers),
             )
             return await call_next(request)
 

@@ -1,4 +1,10 @@
-"""Ingestion pipeline run state — constants, claims, steps, and service."""
+"""Ingestion pipeline run-state constants.
+
+``RunStateService`` lives in ``run_state.service`` and is re-exported from
+``platform_service.services.run_state_service``. This package init only
+re-exports constants so importing ``run_state.constants`` does not pull the
+service graph (generation-counts / error-summary would otherwise cycle).
+"""
 
 from platform_service.services.run_state.constants import (
     ALL_STAGES,
@@ -7,7 +13,6 @@ from platform_service.services.run_state.constants import (
     BATCH_QUEUED,
     BATCH_RUNNING,
     BATCH_SUCCEEDED,
-    FUSION_RUN_TYPE,
     PIPELINE_STAGES,
     POST_PUBLISH_STAGES,
     RUN_FAILED,
@@ -15,9 +20,9 @@ from platform_service.services.run_state.constants import (
     RUN_QUEUED,
     RUN_RUNNING,
     RUN_SUCCEEDED,
+    STAGE_CANDIDATE_MERGE,
     STAGE_CARD_DRAFT,
     STAGE_CARD_SEARCH_METADATA_GENERATION,
-    STAGE_CROSS_SOURCE_FUSION,
     STAGE_EMBEDDING_GENERATION,
     STAGE_EXTRACT,
     STAGE_GAP_CLASSIFICATION,
@@ -32,11 +37,9 @@ from platform_service.services.run_state.constants import (
     STEP_RUNNING,
     STEP_SKIPPED,
     STEP_SUCCEEDED,
-    ConcurrentFusionRunError,
     ConcurrentRunError,
     rollup_batch_status,
 )
-from platform_service.services.run_state.service import RunStateService
 
 __all__ = [
     "ALL_STAGES",
@@ -45,9 +48,7 @@ __all__ = [
     "BATCH_QUEUED",
     "BATCH_RUNNING",
     "BATCH_SUCCEEDED",
-    "ConcurrentFusionRunError",
     "ConcurrentRunError",
-    "FUSION_RUN_TYPE",
     "PIPELINE_STAGES",
     "POST_PUBLISH_STAGES",
     "RUN_FAILED",
@@ -55,10 +56,9 @@ __all__ = [
     "RUN_QUEUED",
     "RUN_RUNNING",
     "RUN_SUCCEEDED",
-    "RunStateService",
     "STAGE_CARD_DRAFT",
     "STAGE_CARD_SEARCH_METADATA_GENERATION",
-    "STAGE_CROSS_SOURCE_FUSION",
+    "STAGE_CANDIDATE_MERGE",
     "STAGE_EMBEDDING_GENERATION",
     "STAGE_EXTRACT",
     "STAGE_GAP_CLASSIFICATION",

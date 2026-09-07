@@ -1,0 +1,405 @@
+[
+  {
+    "id": "Q016",
+    "question_en": "What advice should be given for the newborn in postnatal care (PNC)?",
+    "expected_answer_en": "Exclusive breastfeeding for 6 months, apply chlorhexidine to the navel, no bath for the first 3 days after birth, no haircut for 1 month, wash hands before handling, vaccinations on time, and advise on Kangaroo Mother Care.",
+    "question_bn": "প্রসব পরবর্তী সেবায় (PNC) তে নবজাতকের জন্য কি কি পরামর্শ দিতে হবে?",
+    "expected_answer_bn": "৬ মাস পর্যন্ত শুধুমাত্র বুকের দুধ খাওয়াতে হবে, নাভীতে ক্লোরোহেক্সিডিন ব্যবহার করতে হবে, জন্মের পর ৩ দিন গোসল না করানো, ১ মাস চুল না কাটা, হাত ধোয়ার অভ্যাস করা, সময়মতো টিকা দেওয়া এবং ক্যাঙ্গারু মাদার কেয়ার সম্পর্কে পরামর্শ দিতে হবে।",
+    "source_card_id": [
+      "a05420f1-e40e-4d86-a4ed-9a0ccf6758fb",
+      "2744ec06-2aee-49ce-a763-d76b0466626d",
+      "bafddfcf-e4d4-449e-8a96-083459245c98",
+      "d1cb2b4d-b278-43a9-aea8-c716bcf1a017",
+      "f532e43c-b3fa-4893-a013-fbab3409f373",
+      "bfcf4b47-8c14-4ff9-a688-4733b9ef731f"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Newborn Care Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "bb5fb8d0-56ec-4134-b9ba-35317227e91b",
+      "ef6d104b-161b-491f-b853-b772ffaf97a4"
+    ]
+  },
+  {
+    "id": "Q017",
+    "question_en": "What are the danger signs for a newborn and when should they be referred?",
+    "expected_answer_en": "Poor breastfeeding, lethargy, respiratory distress, seizures, abnormal fever or hypothermia, pus in eyes, redness around the navel, jaundice within 24 hours of birth, or more than 10 pus-filled spots on skin—refer immediately if any of these occur.",
+    "question_bn": "নবজাতকের বিপদজনক লক্ষণ গুলো কি কি এবং কখন রেফার করতে হবে?",
+    "expected_answer_bn": "বুকের দুধ কম টানা, নিস্তেজ ভাব, শ্বাসকষ্ট, খিঁচুনি, অস্বাভাবিক জ্বর বা শরীরের তাপমাত্রা কমে যাওয়া, চোখে পুঁজ পড়া, নাভির চারপাশ লাল হওয়া, জন্মের ২৪ ঘন্টার মধ্যে জন্ডিস, বা ত্বকে ১০টির বেশি পুঁজবটি দেখা দিলে দ্রুত রেফার করতে হবে।",
+    "source_card_id": [
+      "df8b88bd-d1dd-4c5c-844d-d52a0aa4ce18",
+      "f532e43c-b3fa-4893-a013-fbab3409f373",
+      "e0ecece8-56ae-43be-8e93-19c0c03118fb"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Danger Signs & Referral Criteria",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6",
+      "bb5fb8d0-56ec-4134-b9ba-35317227e91b",
+      "ef6d104b-161b-491f-b853-b772ffaf97a4"
+    ]
+  },
+  {
+    "id": "Q019",
+    "question_en": "It has been 2 weeks since the birth. The baby's umbilical cord has not dried yet. As a health worker, what should I do?",
+    "expected_answer_en": "The cord not drying or falling off can be a cause for concern. Check for signs of infection and refer the baby to the nearest hospital or Upazila Health Complex for evaluation.",
+    "question_bn": "প্রসবের ২ সপ্তাহ হয়ে গিয়েছে। এখনো বাচ্চার নাভি শুকায় নি। একজন স্বাস্থ্যকর্মী হিসেবে আমার কি করনীয়?",
+    "expected_answer_bn": "নাভি না শুকানো বা নাভি না পড়া উদ্বেগের বিষয় হতে পারে। সংক্রমণের লক্ষণ আছে কি না যাচাই করুন এবং শিশুটিকে মূল্যায়নের জন্য নিকটস্থ হাসপাতালে বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+    "source_card_id": [
+      "bfcf4b47-8c14-4ff9-a688-4733b9ef731f",
+      "df8b88bd-d1dd-4c5c-844d-d52a0aa4ce18",
+      "267c0c6a-357b-447b-8b6e-04884814670d",
+      "e0ecece8-56ae-43be-8e93-19c0c03118fb"
+    ],
+    "query_type": "Scenario-based",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Problem Identification & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa",
+      "6fa7a48b-fce5-48f6-8eaa-afbb56438bf6",
+      "ef6d104b-161b-491f-b853-b772ffaf97a4"
+    ]
+  },
+  {
+    "question_en": "What parameters should be checked during a newborn physical examination?",
+    "question_bn": "নবজাতকের শারীরিক পরীক্ষার সময় কী কী পরীক্ষা করতে হবে?",
+    "expected_answer_en": "Check the newborn's weight, respiratory rate, cyanosis (bluish skin colour), temperature, jaundice, umbilicus, and urine and stool passage.",
+    "expected_answer_bn": "নবজাতকের ওজন, শ্বাসের গতি, সাইনোসিস (শরীরের রং নীলচে হওয়া), তাপমাত্রা, জন্ডিস, নাভী এবং প্রস্রাব-পায়খানা পরীক্ষা করতে হবে।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "2314ffa7-6000-4c6b-b068-73564567f390"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q356"
+  },
+  {
+    "question_en": "During a home visit on day 2, the mother says the baby is not suckling well. What breastfeeding advice should I give?",
+    "question_bn": "দ্বিতীয় দিনে বাড়ি পরিদর্শনে মা বলছেন বাচ্চা ভালোভাবে দুধ চোষছে না। বুকের দুধ সম্পর্কে কী পরামর্শ দেব?",
+    "expected_answer_en": "Ensure colostrum is given during the first three days after birth. Teach the mother the correct breastfeeding technique. From birth until six months, the baby should receive only breast milk, fed 10 to 12 times per day.",
+    "expected_answer_bn": "জন্মের প্রথম তিন দিন পর্যন্ত শালদুধ খাওয়ানো নিশ্চিত করতে হবে। মাকে বুকের দুধ খাওয়ানোর সঠিক পদ্ধতি শেখাতে হবে। ছয় মাস পর্যন্ত শুধুমাত্র বুকের দুধ দিনে দশ থেকে বারো বার খাওয়ানো উচিত।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "fec74792-87f3-469a-98be-76d6b9d9be1e"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Newborn Care Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q357"
+  },
+  {
+    "question_en": "How should I care for a newborn's umbilical cord after birth?",
+    "question_bn": "জন্মের পর নবজাতকের নাভীর যত্ন কীভাবে করতে হবে?",
+    "expected_answer_en": "Apply 7.1% chlorhexidine to the umbilicus once after birth and do not apply anything else. The cord should fall off within 7 to 10 days.",
+    "expected_answer_bn": "জন্মের পর নবজাতকের নাভীতে সাত দশমিক এক শতাংশ ক্লোরোহেক্সিডিন লাগানোর পর আর কিছু লাগানো যাবে না। নাভী সাত থেকে দশ দিনের মধ্যে শরীর থেকে পড়ে যাবে।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "267c0c6a-357b-447b-8b6e-04884814670d"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q358"
+  },
+  {
+    "question_en": "A newborn weighs 2.2 kg at birth. What category is this and what special care should be started?",
+    "question_bn": "একটি নবজাতকের জন্ম ওজন ২.২ কেজি। এটিকে কোন শ্রেণিতে রাখব এবং কী বিশেষ যত্ন শুরু করব?",
+    "expected_answer_en": "This is a low birth weight baby (below 2.5 kg). Start special care: keep the baby skin-to-skin on the mother's chest until weight is normal, wrap the entire body including the head in clean soft cloth, breastfeed frequently, do not bathe before 7 days, wash hands with soap before handling, and if the baby cannot suckle, express breast milk into a bowl and feed with a spoon.",
+    "expected_answer_bn": "এটি কম জন্ম ওজনের শিশু (২.৫ কেজির নিচে)। বিশেষ যত্ন শুরু করুন: শিশুর ওজন স্বাভাবিক না হওয়া পর্যন্ত মায়ের বুকের ত্বকের সঙ্গে লাগিয়ে রাখুন, পরিষ্কার ও নরম কাপড় দিয়ে মাথাসহ সমস্ত শরীর মুড়ে দিন, ঘন ঘন বুকের দুধ খাওয়ান, সাত দিনের আগে গোসল করাবেন না, শিশু ধরার পূর্বে সাবান দিয়ে হাত ধুয়ে নিন, এবং বুকের দুধ টেনে খেতে না পারলে চেপে দুধ বের করে বাটিতে করে চামচ দিয়ে খাওয়ান।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "c5a2efb2-56a7-4239-9682-e9b1af9e4bbf",
+      "74bfa570-bb65-4105-be7c-611d65b68ed0",
+      "a2cf6ad5-197b-42be-ba24-65b2f0c4b42c"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Clinical Protocol & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q359"
+  },
+  {
+    "question_en": "What is the definition of a low birth weight baby?",
+    "question_bn": "কম জন্ম ওজনের শিশু বলতে কাকে বোঝায়?",
+    "expected_answer_en": "Babies whose weight is below 2.5 kg are called low birth weight babies.",
+    "expected_answer_bn": "যে সকল শিশুদের ওজন দুই দশমিক পাঁচ কেজির নিচে তাদেরকে কম জন্ম ওজনের শিশু বলা হয়।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "c5a2efb2-56a7-4239-9682-e9b1af9e4bbf"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q360"
+  },
+  {
+    "question_en": "What are the steps to provide Kangaroo Mother Care to a newborn?",
+    "question_bn": "নবজাতককে ক্যাঙ্গারু মাদার কেয়ার দেওয়ার ধাপগুলো কী কী?",
+    "expected_answer_en": "First, have the mother wear loose clothing or a blouse. Second, put a nappy or diaper and a cap on the baby. Third, place the baby upright between the mother's breasts with the head turned to one side. Fourth, keep the baby's knees bent on the mother's abdomen with arms folded over the breasts. Fifth, wrap a large cloth so the baby's skin stays in contact with the mother's skin.",
+    "expected_answer_bn": "প্রথমে মাকে ঢিলে ঢালা কাপড় বা ব্লাউজ পড়তে হবে। দ্বিতীয় ধাপে বাচ্চাকে ন্যাপি বা ডায়াপার এবং মাথায় টুপি পরাতে হবে। তৃতীয় ধাপে মায়ের দুই স্তনের মাঝে শিশুকে সোজা করে রেখে মাথাটা এক পাশে ঘুরিয়ে দিতে হবে। চতুর্থ ধাপে মায়ের পেটে শিশুর হাঁটু ভাঁজ করা থাকবে এবং হাত দুটো মায়ের দুই স্তনের উপর ভাঁজ করা থাকবে। পঞ্চম ধাপে শিশুর চামড়া যেন মায়ের চামড়ার সাথে লেগে থাকে এজন্য বড় কাপড় দিয়ে বেঁধে দিতে হবে।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "5bce77d1-a26b-4532-b418-60b791667b96"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q361"
+  },
+  {
+    "question_en": "What hygiene, feeding, and umbilical care advice should I give a family during the first week after birth?",
+    "question_bn": "জন্মের পর প্রথম সপ্তাহে পরিবারকে পরিচ্ছন্নতা, বুকের দুধ ও নাভীর যত্ন সম্পর্কে কী কী পরামর্শ দেব?",
+    "expected_answer_en": "Wash hands well with soap before and after handling the newborn. Do not bathe the baby for the first 3 days and do not cut hair for 1 month. Ensure colostrum during the first 3 days and exclusive breastfeeding 10–12 times daily until 6 months. Apply 7.1% chlorhexidine to the umbilicus once and apply nothing else; the cord falls off in 7–10 days.",
+    "expected_answer_bn": "নবজাতককে ধরার আগে ও পরে সাবান দিয়ে ভালো করে হাত ধুতে হবে। তিন দিন পর্যন্ত গোসল করানো যাবে না এবং এক মাস পর্যন্ত চুল কাটা যাবে না। প্রথম তিন দিন শালদুধ নিশ্চিত করুন এবং ছয় মাস পর্যন্ত দিনে দশ থেকে বারো বার শুধুমাত্র বুকের দুধ দিন। নাভীতে একবার সাত দশমিক এক শতাংশ ক্লোরোহেক্সিডিন লাগানোর পর আর কিছু লাগাবেন না; নাভী সাত থেকে দশ দিনের মধ্যে পড়ে যাবে।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "f6bee9de-1c16-4f0c-9ccc-4a19cad0bf98",
+      "fec74792-87f3-469a-98be-76d6b9d9be1e",
+      "267c0c6a-357b-447b-8b6e-04884814670d"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Newborn Care Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q362"
+  },
+  {
+    "question_en": "The grandmother wants to bathe the 1-day-old baby and cut the newborn's hair. How should I counsel the family?",
+    "question_bn": "ঠাকুরমা এক দিনের বাচ্চাকে গোসল করাতে ও চুল কাটতে চাইছেন। পরিবারকে কীভাবে বোঝাব?",
+    "expected_answer_en": "Counsel that the newborn must not be bathed for the first 3 days after birth and hair must not be cut for 1 month. Most body heat is lost through the head, so delaying a haircut is better, especially in the first month. Always wash hands with soap before and after handling the baby.",
+    "expected_answer_bn": "জন্মের পর তিন দিন পর্যন্ত নবজাতককে গোসল করানো যাবে না এবং এক মাস পর্যন্ত চুল কাটা যাবে না। শিশু বেশিরভাগ তাপ মাথার মাধ্যমে হারায়, তাই বিশেষ করে প্রথম মাসে চুল না কাটাই ভালো। নবজাতককে ধরার আগে ও পরে সাবান দিয়ে ভালো করে হাত ধুতে হবে।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "f6bee9de-1c16-4f0c-9ccc-4a19cad0bf98"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q363"
+  },
+  {
+    "question_en": "What concentration of chlorhexidine should be applied to a newborn's umbilical cord?",
+    "question_bn": "নবজাতকের নাভীতে কত শতাংশ ক্লোরোহেক্সিডিন লাগাতে হবে?",
+    "expected_answer_en": "Apply 7.1% chlorhexidine to the umbilicus once after birth. Do not apply anything else to the cord.",
+    "expected_answer_bn": "জন্মের পর নবজাতকের নাভীতে সাত দশমিক এক শতাংশ ক্লোরোহেক্সিডিন একবার লাগাতে হবে। এরপর নাভীতে আর কিছু লাগানো যাবে না।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "267c0c6a-357b-447b-8b6e-04884814670d"
+    ],
+    "query_type": "Drug / Dosage",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q364"
+  },
+  {
+    "question_en": "A preterm low birth weight baby is 5 days old and the family wants to give a bath. What should I advise?",
+    "question_bn": "একটি অপরিণত কম জন্ম ওজনের শিশুর বয়স পাঁচ দিন। পরিবার গোসল করাতে চাইছে। কী পরামর্শ দেব?",
+    "expected_answer_en": "Do not bathe a low birth weight baby before 7 days. Continue Kangaroo Mother Care—keep the baby skin-to-skin on the mother's chest to maintain warmth and prevent infection. Breastfeed frequently and wash hands with soap before handling the baby.",
+    "expected_answer_bn": "কম জন্ম ওজনের শিশুকে সাত দিনের আগে গোসল করাবেন না। ক্যাঙ্গারু মাদার কেয়ার চালিয়ে যান—শিশুকে উষ্ণ রাখতে ও সংক্রমণ প্রতিরোধ করতে মায়ের ত্বকের সাথে লাগিয়ে রাখুন। ঘন ঘন বুকের দুধ খাওয়ান এবং শিশু ধরার পূর্বে সাবান দিয়ে হাত ধুয়ে নিন।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "74bfa570-bb65-4105-be7c-611d65b68ed0",
+      "a2cf6ad5-197b-42be-ba24-65b2f0c4b42c",
+      "f6bee9de-1c16-4f0c-9ccc-4a19cad0bf98"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Counseling & Home Management",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q365"
+  },
+  {
+    "question_en": "How long should Kangaroo Mother Care be given each day, and until when should it continue?",
+    "question_bn": "ক্যাঙ্গারু মাদার কেয়ার দিনে কতক্ষণ এবং কতদিন পর্যন্ত দিতে হবে?",
+    "expected_answer_en": "Give Kangaroo Mother Care at least 20 hours every day and night. Continue until the baby's weight reaches 2500 grams (2.5 kg).",
+    "expected_answer_bn": "ক্যাঙ্গারু মাদার কেয়ার দিন-রাত্রি সবসময় কমপক্ষে বিশ ঘন্টা দিতে হবে। বাচ্চার ওজন দুই হাজার পাঁচশ গ্রাম বা দুই দশমিক পাঁচ কেজি না হওয়া পর্যন্ত এই সেবা দিতে হবে।",
+    "module_id": [
+      "0d157214-3387-49a6-abb3-06bc7e42a6aa"
+    ],
+    "source_card_id": [
+      "0513b4ad-2d5e-4137-af99-91c86351eb38"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Patient Education",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q366"
+  },
+  {
+    "question_en": "A baby was born at 35 weeks gestation. What physical characteristics would you expect in this preterm newborn?",
+    "question_bn": "একটি শিশু গর্ভের ৩৫ সপ্তাহে জন্ম নিয়েছে। এই অপরিণত নবজাতকের কী কী শারীরিক বৈশিষ্ট্য দেখা যাবে?",
+    "expected_answer_en": "A preterm baby is born before full 37 weeks of gestation. Expect length less than 50 cm, a small head, underdeveloped ears, breasts and genitals, and the body covered with fine hair (lanugo).",
+    "expected_answer_bn": "অপরিণত শিশু হলো যারা গর্ভের পূর্ণ ৩৭ সপ্তাহের পূর্বে জন্ম নেয়। এদের লম্বা ৫০ সেন্টিমিটারের কম হয়, মাথা ছোট থাকে, কান, স্তন ও জননাঙ্গ অপরিণত থাকে এবং সারা শরীর লোমে আবৃত থাকে।",
+    "module_id": [
+      "ef6d104b-161b-491f-b853-b772ffaf97a4"
+    ],
+    "source_card_id": [
+      "f29d8b77-a0f1-47af-a828-9400d4230e11"
+    ],
+    "query_type": "Situational",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q367"
+  },
+  {
+    "question_en": "What essential care must be provided to a newborn in the first 6 hours after birth?",
+    "question_bn": "জন্মের পর প্রথম ৬ ঘন্টায় নবজাতকের কী কী অত্যাবশ্যকীয় সেবা দিতে হবে?",
+    "expected_answer_en": "In the first 6 hours: wipe the baby immediately with clean dry soft cotton cloth without rubbing; maintain warmth with skin-to-skin contact and wrap head and body in cloth; initiate breastfeeding within 1 hour after cleaning the mother's nipple; cut and tie the cord with sterile thread and blade at specified distances; and do not bathe the baby within the first 3 days.",
+    "expected_answer_bn": "প্রথম ৬ ঘন্টায়: জন্মের সাথে সাথে পরিষ্কার শুকনো নরম সুতি কাপড় দিয়ে শিশুকে মুছতে হবে, ঘষা দেওয়া যাবে না; মোছানোর সাথে সাথে মায়ের ত্বকে ত্বক স্পর্শে রাখতে হবে এবং মাথা ও শরীর কাপড়ে জড়িয়ে উষ্ণ রাখতে হবে; মায়ের স্তনের বোঁটা পরিষ্কার করে ১ ঘন্টার মধ্যেই বুকের দুধ খাওয়াতে হবে; পরিষ্কার জীবানুমুক্ত সুতা ও ব্লেড দিয়ে নির্দিষ্ট দূরত্বে নাভী কাটতে হবে; এবং জন্মের তিন দিনের মধ্যে গোসল করানো যাবে না।",
+    "module_id": [
+      "ef6d104b-161b-491f-b853-b772ffaf97a4"
+    ],
+    "source_card_id": [
+      "b5e525b1-f036-45e7-87ee-4ed2470133f6"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Clinical Protocol & Escalation",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q368"
+  },
+  {
+    "question_en": "During a home visit I find a 3-day-old baby breathing fast with the chest pulling in. What should I do?",
+    "question_bn": "বাড়ি পরিদর্শনে ৩ দিনের এক শিশুকে দ্রুত শ্বাস নিতে দেখছি এবং বুকের খাঁচা ভেতরের দিকে ধসে যাচ্ছে। আমার কী করণীয়?",
+    "expected_answer_en": "Fast breathing with chest indrawing is a danger sign in a newborn. Refer the baby immediately to a hospital or Upazila Health Complex.",
+    "expected_answer_bn": "দ্রুত শ্বাসের সাথে বুকের খাঁচা দেবে যাওয়া নবজাতকের একটি বিপদচিহ্ন। শিশুটিকে সাথে সাথে হাসপাতালে বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+    "module_id": [
+      "ef6d104b-161b-491f-b853-b772ffaf97a4"
+    ],
+    "source_card_id": [
+      "df8b88bd-d1dd-4c5c-844d-d52a0aa4ce18"
+    ],
+    "query_type": "Referral Decision",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Emergency Management & Referral",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q369"
+  },
+  {
+    "question_en": "What should be assessed when examining a newborn during a postnatal visit?",
+    "question_bn": "প্রসব পরবর্তী পরিদর্শনে নবজাতকের পরীক্ষা-নিরীক্ষায় কী কী দেখতে হবে?",
+    "expected_answer_en": "Examine the newborn's weight, respiratory rate, cyanosis (bluish skin colour), temperature, jaundice, umbilicus, and urine and stool passage.",
+    "expected_answer_bn": "নবজাতকের ওজন, শ্বাসের গতি, সাইনোসিস (শরীরের রং নীলচে হওয়া), তাপমাত্রা, জন্ডিস, নাভী ও প্রস্রাব-পায়খানা পরীক্ষা করতে হয়।",
+    "module_id": [
+      "bb5fb8d0-56ec-4134-b9ba-35317227e91b"
+    ],
+    "source_card_id": [
+      "a0e5387f-fe69-49c6-86ee-da491a04b6ac"
+    ],
+    "query_type": "Factual",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Physiological Assessment",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q370"
+  },
+  {
+    "question_en": "How should I care for a newborn's umbilical cord stump after delivery?",
+    "question_bn": "প্রসবের পর নবজাতকের নাভীর যত্ন কীভাবে করব?",
+    "expected_answer_en": "Apply 7.1% chlorhexidine to the umbilicus once after birth and do not apply anything else. The cord should fall off within 7 to 10 days.",
+    "expected_answer_bn": "জন্মের পর নাভীতে ৭.১% ক্লোরোহেক্সিডিন লাগানোর পর আর কিছু লাগানো যাবে না। নাভী সাত থেকে দশ দিনের মধ্যে শরীর থেকে পড়ে যাবে।",
+    "module_id": [
+      "bb5fb8d0-56ec-4134-b9ba-35317227e91b"
+    ],
+    "source_card_id": [
+      "2744ec06-2aee-49ce-a763-d76b0466626d"
+    ],
+    "query_type": "Procedural",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Treatment Protocol",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q371"
+  },
+  {
+    "question_en": "What complete newborn care advice should I give a mother during the first month after birth?",
+    "question_bn": "জন্মের পর প্রথম মাসে মাকে নবজাতকের সম্পূর্ণ যত্ন সম্পর্কে কী কী পরামর্শ দেব?",
+    "expected_answer_en": "Ensure colostrum in the first 3 days and exclusive breastfeeding 10–12 times daily until 6 months. Apply 7.1% chlorhexidine to the umbilicus once only. Do not bathe for 3 days or cut hair for 1 month; wash hands with soap before and after handling. Give BCG vaccine as soon as possible after birth, then attend the vaccination centre 5 times from 1.5 to 15–18 months for vaccines against 10 diseases. For low birth weight babies, advise Kangaroo Mother Care and refer immediately to hospital or Upazila Health Complex if danger signs appear.",
+    "expected_answer_bn": "প্রথম তিন দিন শালদুধ নিশ্চিত করুন এবং ছয় মাস পর্যন্ত দিনে দশ থেকে বারো বার শুধুমাত্র বুকের দুধ খাওয়ান। নাভীতে একবার ৭.১% ক্লোরোহেক্সিডিন লাগান, এরপর আর কিছু নয়। তিন দিন গোসল করাবেন না, এক মাস চুল কাটবেন না; শিশু ধরার আগে ও পরে সাবান দিয়ে হাত ধুবেন। জন্মের পর যত তাড়াতাড়ি সম্ভব বিসিজি টিকা দিন, এরপর দেড় মাস থেকে পনেরো থেকে আঠারো মাস পর্যন্ত মোট পাঁচ বার টিকা কেন্দ্রে গিয়ে দশটি রোগের টিকা নিন। কম জন্ম ওজনের শিশুর জন্য ক্যাঙ্গারু মাদার কেয়ার পরামর্শ দিন এবং বিপদচিহ্ন দেখা দিলে সাথে সাথে হাসপাতালে বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+    "module_id": [
+      "bb5fb8d0-56ec-4134-b9ba-35317227e91b"
+    ],
+    "source_card_id": [
+      "a05420f1-e40e-4d86-a4ed-9a0ccf6758fb",
+      "2744ec06-2aee-49ce-a763-d76b0466626d",
+      "bafddfcf-e4d4-449e-8a96-083459245c98",
+      "d1cb2b4d-b278-43a9-aea8-c716bcf1a017",
+      "f532e43c-b3fa-4893-a013-fbab3409f373"
+    ],
+    "query_type": "Cross-card Synthesis",
+    "linguistic_variation": "Standard Written Bengali",
+    "chw_pattern": "Newborn Care Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q372"
+  },
+  {
+    "question_en": "A mother with a low birth weight newborn asks what special care she should follow at home. What should I counsel?",
+    "question_bn": "কম জন্ম ওজনের নবজাতকের মা জিজ্ঞেস করছেন বাড়িতে কী বিশেষ যত্ন নিতে হবে। তাকে কী পরামর্শ দেব?",
+    "expected_answer_en": "Counsel on special care for low birth weight newborns, including Kangaroo Mother Care. Also explain that if any danger signs appear, refer the baby immediately to a hospital or Upazila Health Complex.",
+    "expected_answer_bn": "কম জন্ম ওজনের নবজাতকের জন্য বিশেষ যত্ন (ক্যাঙ্গারু মাদার কেয়ার) সম্পর্কে পরামর্শ দিন। এছাড়া বিপদচিহ্ন দেখা দিলে সাথে সাথে হাসপাতালে বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করতে বলুন।",
+    "module_id": [
+      "bb5fb8d0-56ec-4134-b9ba-35317227e91b"
+    ],
+    "source_card_id": [
+      "f532e43c-b3fa-4893-a013-fbab3409f373"
+    ],
+    "query_type": "Counseling",
+    "linguistic_variation": "Colloquial Spoken Bengali",
+    "chw_pattern": "Newborn Care Counseling",
+    "answerable": "yes",
+    "confidence": "high",
+    "id": "Q373"
+  }
+]

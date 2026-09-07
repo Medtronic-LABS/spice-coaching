@@ -1,4 +1,4 @@
-"""W-7 — LlmCallCacheService + CachingAIRuntimeClient tests."""
+"""LlmCallCacheService + CachingAIRuntimeClient tests."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from mc_contracts.internal_ai import (
     PromptSpec,
     TokenUsage,
 )
+from platform_service.auth.tenant_context import using_selected_tenant
 from platform_service.db.models.llm_call_cache import LlmCallCache
 from platform_service.services import llm_call_cache_service as llm_call_cache_mod
 from platform_service.services.llm_call_cache_service import (
@@ -93,14 +94,21 @@ def test_hash_differs_for_different_image() -> None:
     assert compute_input_hash(r1) != compute_input_hash(r2)
 
 
-def test_hash_includes_cache_key_version_2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cache key shape v2 excludes model/budgets; version bump must change hashes."""
+def test_hash_differs_for_use_local_flag() -> None:
+    r1 = _make_request()
+    r2 = _make_request()
+    r2.use_local = True
+    assert compute_input_hash(r1) != compute_input_hash(r2)
+
+
+def test_hash_includes_cache_key_version_3(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cache key shape v3 includes use_local; version bump must change hashes."""
     request = _make_request()
+    hash_v3 = compute_input_hash(request)
+    monkeypatch.setattr(llm_call_cache_mod, "_CACHE_KEY_VERSION", 2)
     hash_v2 = compute_input_hash(request)
-    monkeypatch.setattr(llm_call_cache_mod, "_CACHE_KEY_VERSION", 1)
-    hash_v1 = compute_input_hash(request)
-    assert hash_v1 != hash_v2
-    assert llm_call_cache_mod._CACHE_KEY_VERSION == 1
+    assert hash_v2 != hash_v3
+    assert llm_call_cache_mod._CACHE_KEY_VERSION == 2
 
 
 # ── LlmCallCacheService put / get (integration) ─────────────────────────
@@ -172,8 +180,6 @@ async def test_caching_client_first_call_misses_then_caches(db_session: AsyncSes
 @requires_db
 async def test_caching_client_isolates_tenants(db_session: AsyncSession) -> None:
     """Same prompt hash under different ContextVar tenants must not share cache hits."""
-    from platform_service.auth.tenant_context import using_selected_tenant
-
     inner = AsyncMock()
     request = _make_request(prompt_text=f"tenant-iso-{uuid4().hex}")
     inner.generate.side_effect = lambda req: _make_response(req, raw=f"t{inner.generate.call_count}")

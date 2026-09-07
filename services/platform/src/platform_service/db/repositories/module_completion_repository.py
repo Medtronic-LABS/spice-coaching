@@ -1,4 +1,4 @@
-"""W-10 — chw_module_completion repository.
+"""chw_module_completion repository.
 
 CRUD for the per-CHW per-module-family completion table. Captures
 module-level engagement (started/completed timestamps, attempt count,

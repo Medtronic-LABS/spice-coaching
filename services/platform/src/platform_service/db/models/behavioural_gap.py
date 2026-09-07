@@ -1,11 +1,11 @@
-"""v3.3 behavioural_gap — registry of CHW behaviour patterns.
+"""behavioural_gap — registry of CHW behaviour patterns.
 
-Per Data Model v3.3 §6.1. Seeded from Annex 1 of the 27 Feb 2026 requirements
+See `docs/concepts/modules-cards-families.md` Seeded from Annex 1 of the 27 Feb 2026 requirements
 PDF (drop System + Coaching rows) plus 2-3 BRAC clinical lead additions.
 Pilot target 8-12 active gaps.
 
 Detection rule lives in detection_rule_jsonb; consumed by the gap-detection
-worker (W-8) and synced to device for SDK-side visit-time evaluation
+worker and synced to device for SDK-side visit-time evaluation
 (Architecture R9 hybrid trigger evaluation).
 """
 

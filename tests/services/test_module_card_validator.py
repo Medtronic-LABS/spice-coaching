@@ -1,4 +1,4 @@
-"""W-11 — module_card_validator tests (pure-unit)."""
+"""module_card_validator tests (pure-unit)."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def test_empty_block_list_body_bn_is_hard_violation() -> None:
     assert any("body is empty" in v for v in res.hard_violations)
 
 
-# ── Card: forbidden patterns (reused regex from v3.0 validator) ─────────
+# ── Card: forbidden patterns ─────────
 
 
 def test_dosage_mention_is_hard_violation() -> None:

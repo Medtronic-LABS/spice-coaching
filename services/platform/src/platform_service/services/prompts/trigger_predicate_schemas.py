@@ -1,4 +1,4 @@
-"""W-8 — Trigger predicate shape definitions.
+"""Trigger predicate shape definitions.
 
 One per `trigger_kind`. Hand-rolled rather than using `jsonschema`: the
 shapes are tiny and stable, and we want validation errors that point at the
@@ -62,7 +62,7 @@ GAP_PREDICATE_SCHEMA: dict[str, Any] = {
 # Workflow event trigger fires when a SPICE workflow event matching the
 # spice_event_code is observed for the CHW. The optional `filter_predicate`
 # narrows the match (e.g. "outcome=referred" or "patient_age_group=child").
-# `spice_event_code` values come from the SPICE SDK research (W-12).
+# `spice_event_code` values come from the SPICE SDK integration.
 WORKFLOW_EVENT_PREDICATE_SCHEMA: dict[str, Any] = {
     "kind": "workflow_event",
     "required": ("spice_event_code",),

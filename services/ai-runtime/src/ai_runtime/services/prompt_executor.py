@@ -6,7 +6,7 @@ transcribe) via ``Settings.ai_provider``. Model id and generation budgets
 in ``ai_runtime.generation_profiles``; platform sends only the role plus
 prompt/content constraints.
 
-v3.3 additions:
+Additions:
 - Decodes optional `image_attachments` (base64) from InferenceRequest into
   `ProviderImage` (raw bytes) and forwards to the provider for multimodal
   calls (VISION_EXTRACTION).
@@ -29,11 +29,13 @@ from mc_contracts.enums import GenerationType
 from mc_contracts.internal_ai import InferenceImage, InferenceRequest, InferenceResponse, TokenUsage
 
 from ai_runtime.config import get_settings
-from ai_runtime.generation_profiles import resolve_profile
+from ai_runtime.generation_profiles import resolve_local_profile, resolve_profile
 from ai_runtime.providers.base import BaseProvider, ProviderImage
 from ai_runtime.providers.google import GoogleProvider
 from ai_runtime.services.embedding_vector import align_embedding_dimension
 from ai_runtime.services.llm_response_logging import log_llm_raw_text
+from ai_runtime.services.local_embedding import get_local_embedding_service
+from ai_runtime.services.local_generation import get_local_generation_service
 from ai_runtime.services.response_parser import extract_json
 from ai_runtime.services.transient_errors import is_transient_provider_error
 
@@ -186,22 +188,20 @@ class PromptExecutor:
 
     async def execute(self, request: InferenceRequest) -> InferenceResponse:
         settings = self._settings
-        provider_name = settings.ai_provider
-        profile = resolve_profile(request.generation_type, settings)
-        model = profile.model
+        use_local = request.use_local
+        if use_local:
+            profile = resolve_local_profile(request.generation_type, settings)
+            provider_name = "local"
+            model = settings.local_generation_model_id
+        else:
+            profile = resolve_profile(request.generation_type, settings)
+            provider_name = settings.ai_provider
+            model = profile.model
         max_tokens = profile.max_tokens
         temperature = profile.temperature
+        json_parse_retries = settings.json_parse_retries_local if use_local else settings.json_parse_retries
 
-        # Decode image attachments before timing the provider call so that
-        # base64 errors are surfaced as a clean InferenceResponse.
-        try:
-            provider_images = _decode_image_attachments(request.image_attachments)
-        except ValueError as exc:
-            logger.error(
-                "Image attachment decode failed request_id=%s: %s",
-                request.request_id,
-                exc,
-            )
+        if use_local and request.image_attachments:
             return InferenceResponse(
                 request_id=request.request_id,
                 generation_type=request.generation_type,
@@ -212,28 +212,65 @@ class PromptExecutor:
                 raw_text="",
                 parsed_json=None,
                 latency_ms=0,
-                error=str(exc),
+                error="local generation does not support image_attachments",
             )
 
-        provider = _get_provider(provider_name)
-        start_ms = time.monotonic()
-
-        try:
-            raw_text, input_tokens, output_tokens = await _call_with_transient_retry(
-                log_context=f"generate request_id={request.request_id}",
-                provider_name=provider_name,
-                model=model,
-                operation=lambda: provider.generate(
-                    system_prompt=request.prompt.resolved_system_prompt,
-                    human_message=request.prompt.resolved_human_message,
+        provider_images: list[ProviderImage] = []
+        if not use_local:
+            try:
+                provider_images = _decode_image_attachments(request.image_attachments)
+            except ValueError as exc:
+                logger.error(
+                    "Image attachment decode failed request_id=%s: %s",
+                    request.request_id,
+                    exc,
+                )
+                return InferenceResponse(
+                    request_id=request.request_id,
+                    generation_type=request.generation_type,
+                    provider=provider_name,
                     model=model,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    images=provider_images or None,
+                    raw_text="",
+                    parsed_json=None,
+                    latency_ms=0,
+                    error=str(exc),
+                )
+
+        async def _run_generate() -> tuple[str, int, int]:
+            if use_local:
+                return await get_local_generation_service().generate(
+                    system_prompt=request.prompt.resolved_system_prompt,
+                    human_message=request.prompt.resolved_human_message,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
                     output_format=request.constraints.output_format,
-                    json_root=_json_root_for_generation(request.generation_type),
-                ),
+                )
+            provider = _get_provider(provider_name)
+            return await provider.generate(
+                system_prompt=request.prompt.resolved_system_prompt,
+                human_message=request.prompt.resolved_human_message,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                images=provider_images or None,
+                output_format=request.constraints.output_format,
+                json_root=_json_root_for_generation(request.generation_type),
             )
+
+        start_ms = time.monotonic()
+
+        try:
+            if use_local:
+                raw_text, input_tokens, output_tokens = await _run_generate()
+            else:
+                raw_text, input_tokens, output_tokens = await _call_with_transient_retry(
+                    log_context=f"generate request_id={request.request_id}",
+                    provider_name=provider_name,
+                    model=model,
+                    operation=_run_generate,
+                )
         except Exception as exc:
             latency_ms = int((time.monotonic() - start_ms) * 1000)
             return InferenceResponse(
@@ -268,23 +305,18 @@ class PromptExecutor:
             parsed_json = extract_json(raw_text)
             if parsed_json is None and not error:
                 # Retry once on JSON parse failure
-                if settings.json_parse_retries > 0:
+                if json_parse_retries > 0:
                     logger.info("JSON parse failed, retrying request_id=%s", request.request_id)
                     try:
-                        raw_text2, it2, ot2 = await _call_with_transient_retry(
-                            log_context=f"json_parse_retry request_id={request.request_id}",
-                            provider_name=provider_name,
-                            model=model,
-                            operation=lambda: provider.generate(
-                                system_prompt=request.prompt.resolved_system_prompt,
-                                human_message=request.prompt.resolved_human_message,
+                        if use_local:
+                            raw_text2, it2, ot2 = await _run_generate()
+                        else:
+                            raw_text2, it2, ot2 = await _call_with_transient_retry(
+                                log_context=f"json_parse_retry request_id={request.request_id}",
+                                provider_name=provider_name,
                                 model=model,
-                                max_tokens=max_tokens,
-                                temperature=temperature,
-                                images=provider_images or None,
-                                output_format=request.constraints.output_format,
-                            ),
-                        )
+                                operation=_run_generate,
+                            )
                         parsed_json = extract_json(raw_text2)
                         if parsed_json is not None:
                             raw_text = raw_text2
@@ -323,14 +355,17 @@ class PromptExecutor:
             error=error,
         )
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
-        """Return embeddings aligned to the configured corpus dimension.
+    async def embed(self, texts: list[str], *, use_local: bool = False) -> list[list[float]]:
+        """Return embeddings for ``texts``.
 
-        Alignment runs once here — platform-side helpers assert against
-        the same dimension rather than truncating again, so a misconfigured
-        provider surfaces as an ``EmbeddingDimensionError`` instead of a
-        silent double truncation.
+        When ``use_local`` is true, runs EmbeddingGemma locally and returns
+        native-dimension vectors without cloud provider calls or corpus
+        alignment. Otherwise uses the configured cloud provider and aligns
+        to ``embedding_dimension``.
         """
+        if use_local:
+            return await get_local_embedding_service().embed(texts)
+
         settings = self._settings
         provider = _get_provider(settings.ai_provider)
         model = settings.google_embedding_model

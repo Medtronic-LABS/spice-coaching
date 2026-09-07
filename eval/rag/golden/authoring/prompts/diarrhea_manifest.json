@@ -1,0 +1,13 @@
+{
+  "domain": "diarrhea",
+  "batch_count": 1,
+  "total_expected_records": 24,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "diarrhea_batch0.prompt.json",
+      "prompt_md": "diarrhea_batch0.prompt.md",
+      "expected_record_count": 24
+    }
+  ]
+}

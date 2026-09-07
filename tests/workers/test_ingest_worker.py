@@ -7,7 +7,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from platform_service.workers.ingest_worker import IngestJob, run_ingest_batch_job
+from platform_service.auth.tenant_context import require_selected_tenant_id
+from platform_service.services.candidate_merge_runner import CandidateMergeSummary
+from platform_service.workers.ingest_worker import (
+    IngestJob,
+    _merge_and_draft_batch,
+    run_ingest_batch_job,
+)
 
 _BUCKET = "medtronics-storage"
 
@@ -33,7 +39,9 @@ def _mock_thumbnail_polling(*, get_source_document: AsyncMock):
 
     @asynccontextmanager
     async def _session_local():
-        yield MagicMock()
+        session = MagicMock()
+        session.commit = AsyncMock()
+        yield session
 
     with (
         patch(
@@ -61,22 +69,17 @@ async def test_batch_continues_when_thumbnail_task_fails() -> None:
     settings.ingest_thumbnail_wait_seconds = 0
 
     with (
-        patch("platform_service.celery_tasks.generate_source_thumbnail_task") as mock_thumb_task,
+        patch("platform_service.celery_enqueue.enqueue_source_thumbnail") as mock_thumb_task,
         _mock_thumbnail_polling(get_source_document=get_source_document),
         patch("platform_service.workers.ingest_worker.get_settings", return_value=settings),
         patch(
             "platform_service.workers.ingest_worker.run_pipeline_for_source_job",
             new_callable=AsyncMock,
         ) as mock_pipeline,
-        patch(
-            "platform_service.workers.ingest_worker.run_cross_source_fusion_job",
-            new_callable=AsyncMock,
-        ),
     ):
         await run_ingest_batch_job(_job_payload(job))
 
-    mock_thumb_task.apply_async.assert_not_called()
-    mock_thumb_task.delay.assert_not_called()
+    mock_thumb_task.assert_not_called()
     mock_pipeline.assert_awaited_once()
 
 
@@ -111,7 +114,7 @@ async def test_batch_waits_for_thumbnail_before_pipeline() -> None:
         call_order.append("pipeline")
 
     with (
-        patch("platform_service.celery_tasks.generate_source_thumbnail_task") as mock_thumb_task,
+        patch("platform_service.celery_enqueue.enqueue_source_thumbnail") as mock_thumb_task,
         _mock_thumbnail_polling(get_source_document=AsyncMock(side_effect=get_source_document)),
         patch("platform_service.workers.ingest_worker.get_settings", return_value=settings),
         patch(
@@ -122,15 +125,10 @@ async def test_batch_waits_for_thumbnail_before_pipeline() -> None:
             "platform_service.workers.ingest_worker.run_pipeline_for_source_job",
             side_effect=record_pipeline,
         ),
-        patch(
-            "platform_service.workers.ingest_worker.run_cross_source_fusion_job",
-            new_callable=AsyncMock,
-        ),
     ):
         await run_ingest_batch_job(_job_payload(job))
 
-    mock_thumb_task.apply_async.assert_not_called()
-    mock_thumb_task.delay.assert_not_called()
+    mock_thumb_task.assert_not_called()
     assert call_order.index("pipeline") > call_order.index("thumbnail_poll")
     assert poll_count >= 2
 
@@ -150,15 +148,11 @@ async def test_batch_logs_thumbnail_wait_lifecycle(caplog: pytest.LogCaptureFixt
     settings.ingest_thumbnail_wait_seconds = 30
 
     with (
-        patch("platform_service.celery_tasks.generate_source_thumbnail_task"),
+        patch("platform_service.celery_enqueue.enqueue_source_thumbnail"),
         _mock_thumbnail_polling(get_source_document=AsyncMock(return_value=doc_with_thumb)),
         patch("platform_service.workers.ingest_worker.get_settings", return_value=settings),
         patch(
             "platform_service.workers.ingest_worker.run_pipeline_for_source_job",
-            new_callable=AsyncMock,
-        ),
-        patch(
-            "platform_service.workers.ingest_worker.run_cross_source_fusion_job",
             new_callable=AsyncMock,
         ),
         caplog.at_level("INFO", logger="platform_service.workers.ingest_worker"),
@@ -181,26 +175,23 @@ async def test_batch_skips_thumbnail_wait_for_unsupported_source_type() -> None:
     get_source_document = AsyncMock()
 
     with (
-        patch("platform_service.celery_tasks.generate_source_thumbnail_task") as mock_thumb_task,
+        patch("platform_service.celery_enqueue.enqueue_source_thumbnail") as mock_thumb_task,
         _mock_thumbnail_polling(get_source_document=get_source_document),
         patch(
             "platform_service.workers.ingest_worker.run_pipeline_for_source_job",
             new_callable=AsyncMock,
         ) as mock_pipeline,
-        patch(
-            "platform_service.workers.ingest_worker.run_cross_source_fusion_job",
-            new_callable=AsyncMock,
-        ),
     ):
         await run_ingest_batch_job(_job_payload(job))
 
     get_source_document.assert_not_called()
-    mock_thumb_task.apply_async.assert_not_called()
+    mock_thumb_task.assert_not_called()
     mock_pipeline.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_batch_fuses_when_two_or_more_jobs() -> None:
+async def test_batch_identifies_then_merges_for_two_jobs() -> None:
+    batch_id = uuid4()
     jobs = [
         IngestJob(
             source_document_id=uuid4(),
@@ -219,29 +210,38 @@ async def test_batch_fuses_when_two_or_more_jobs() -> None:
     settings.ingest_thumbnail_wait_seconds = 0
     doc = MagicMock()
     doc.thumbnail_storage_path = None
+    payload = _job_payload(*jobs)
+    payload["batch_id"] = str(batch_id)
 
     with (
-        patch("platform_service.celery_tasks.generate_source_thumbnail_task"),
+        patch("platform_service.celery_enqueue.enqueue_source_thumbnail"),
         _mock_thumbnail_polling(get_source_document=AsyncMock(return_value=doc)),
         patch("platform_service.workers.ingest_worker.get_settings", return_value=settings),
         patch(
             "platform_service.workers.ingest_worker.run_pipeline_for_source_job",
             new_callable=AsyncMock,
-        ),
+        ) as mock_pipeline,
         patch(
-            "platform_service.workers.ingest_worker.run_cross_source_fusion_job",
+            "platform_service.workers.ingest_worker._merge_and_draft_batch",
             new_callable=AsyncMock,
-        ) as mock_fusion,
+        ) as mock_merge,
+        patch(
+            "platform_service.workers.ingest_worker.RunStateService",
+            return_value=MagicMock(refresh_batch_status=AsyncMock()),
+        ),
     ):
-        await run_ingest_batch_job(_job_payload(*jobs))
+        await run_ingest_batch_job(payload)
 
-    mock_fusion.assert_awaited_once()
-    fusion_payload = mock_fusion.await_args[0][0]
-    assert fusion_payload["source_document_ids"] == [str(j.source_document_id) for j in jobs]
+    assert mock_pipeline.await_count == 2
+    for call in mock_pipeline.await_args_list:
+        identify_job: IngestJob = call.args[0]
+        assert identify_job.stop_after_identify is True
+    mock_merge.assert_awaited_once_with(batch_id)
 
 
 @pytest.mark.asyncio
-async def test_batch_skips_fusion_for_single_job() -> None:
+async def test_batch_merges_for_single_job() -> None:
+    batch_id = uuid4()
     job = IngestJob(
         source_document_id=uuid4(),
         source_path=f"{_BUCKET}/ingest/x.pdf",
@@ -252,20 +252,66 @@ async def test_batch_skips_fusion_for_single_job() -> None:
     settings.ingest_thumbnail_wait_seconds = 0
     doc = MagicMock()
     doc.thumbnail_storage_path = None
+    payload = _job_payload(job)
+    payload["batch_id"] = str(batch_id)
 
     with (
-        patch("platform_service.celery_tasks.generate_source_thumbnail_task"),
+        patch("platform_service.celery_enqueue.enqueue_source_thumbnail"),
         _mock_thumbnail_polling(get_source_document=AsyncMock(return_value=doc)),
         patch("platform_service.workers.ingest_worker.get_settings", return_value=settings),
         patch(
             "platform_service.workers.ingest_worker.run_pipeline_for_source_job",
             new_callable=AsyncMock,
+        ) as mock_pipeline,
+        patch(
+            "platform_service.workers.ingest_worker._merge_and_draft_batch",
+            new_callable=AsyncMock,
+        ) as mock_merge,
+        patch(
+            "platform_service.workers.ingest_worker.RunStateService",
+            return_value=MagicMock(refresh_batch_status=AsyncMock()),
+        ),
+    ):
+        await run_ingest_batch_job(payload)
+
+    identify_job: IngestJob = mock_pipeline.await_args.args[0]
+    assert identify_job.stop_after_identify is True
+    mock_merge.assert_awaited_once_with(batch_id)
+
+
+@pytest.mark.asyncio
+async def test_merge_and_draft_binds_batch_tenant() -> None:
+    """Candidate merge requires require_selected_tenant_id; bind from ingest_batch."""
+    batch_id = uuid4()
+    bound: list[int] = []
+
+    async def capture_merge(_batch_id):
+        bound.append(require_selected_tenant_id())
+        return CandidateMergeSummary(
+            input_candidate_count=0,
+            group_count=0,
+            merged_candidate_count=0,
+            unmerged_candidate_count=0,
+            skipped=True,
+            succeeded=True,
+        )
+
+    with (
+        patch(
+            "platform_service.workers.ingest_worker.ingest_batch_tenant_id",
+            new_callable=AsyncMock,
+            return_value=42,
         ),
         patch(
-            "platform_service.workers.ingest_worker.run_cross_source_fusion_job",
+            "platform_service.workers.ingest_worker.CandidateMergeRunner.run_staged",
+            side_effect=capture_merge,
+        ),
+        patch(
+            "platform_service.workers.ingest_worker._draft_jobs_for_batch",
             new_callable=AsyncMock,
-        ) as mock_fusion,
+            return_value=[],
+        ),
     ):
-        await run_ingest_batch_job(_job_payload(job))
+        await _merge_and_draft_batch(batch_id)
 
-    mock_fusion.assert_not_awaited()
+    assert bound == [42]

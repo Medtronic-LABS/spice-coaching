@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from mc_contracts.enums import GenerationType
 
-AiProvider = Literal["google"]
+AiProvider = Literal["google", "local"]
 
 GEMINI_INLINE_TRANSCRIPTION_MAX_BYTES = 20_000_000
 # Base64 expands payload ~4/3; cap string length at the inline media limit.
@@ -48,7 +48,7 @@ class TraceContext(BaseModel):
     event_id: str | None = None
     chw_id: int | None = None
     visit_id: str | None = None
-    # v3.3 content pipeline references
+    # Content pipeline references
     ingestion_run_id: str | None = None
     ingestion_run_step_id: str | None = None
     source_document_id: str | None = None
@@ -85,6 +85,9 @@ class InferenceRequest(BaseModel):
     # Optional multimodal attachments — used by VISION_EXTRACTION and future
     # vision-capable types. Empty for text-only generation.
     image_attachments: list[InferenceImage] = Field(default_factory=list, max_length=_MAX_IMAGE_ATTACHMENTS)
+    # When true, ai-runtime runs the configured local generation model (Qwen3)
+    # instead of the cloud provider. Multimodal attachments are not supported.
+    use_local: bool = False
 
 
 class TokenUsage(BaseModel):
@@ -95,7 +98,7 @@ class TokenUsage(BaseModel):
 class InferenceResponse(BaseModel):
     """Raw response from ai-runtime. Platform validates and shapes the final output.
 
-    `parsed_json` widened to dict | list in v3.3 because some new generation
+    `parsed_json` widened to dict | list because some generation
     types return top-level JSON arrays (module_identification candidate list,
     distractor_critique scores, outline_inference sections).
     """
@@ -136,6 +139,7 @@ class EmbedRequest(BaseModel):
     """Platform → ai-runtime embed contract."""
 
     texts: list[str]
+    use_local: bool = False
 
 
 class EmbedResponse(BaseModel):

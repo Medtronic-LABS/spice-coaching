@@ -1,4 +1,4 @@
-"""W-4 — content_block_parser unit tests."""
+"""content_block_parser unit tests."""
 
 from uuid import uuid4
 

@@ -1,4 +1,4 @@
-"""W-10 — telemetry_buffer tests (mocked Redis)."""
+"""telemetry_buffer tests (mocked Redis)."""
 
 from __future__ import annotations
 

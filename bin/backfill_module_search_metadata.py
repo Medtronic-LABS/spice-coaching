@@ -39,7 +39,7 @@ import asyncio
 import sys
 from uuid import UUID
 
-from platform_service.celery_tasks import generate_module_search_metadata_task
+from platform_service.celery_enqueue import enqueue_module_search_metadata
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.module_read_repository import ModuleReadRepository
@@ -121,7 +121,7 @@ async def _run(
 
     enqueued = 0
     for mid, title in modules:
-        generate_module_search_metadata_task.delay(str(mid), chain_downstream=False)
+        enqueue_module_search_metadata(str(mid), chain_downstream=False)
         print(f"enqueued {mid}  {title!r}")
         enqueued += 1
     print(f"Done. enqueued={enqueued}")

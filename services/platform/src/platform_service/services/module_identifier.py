@@ -1,6 +1,6 @@
 """Stage 2 — corpus-level module identification.
 
-Per `docs/ARCHITECTURE_RESET.md`. Builds a single LLM call (via ai-runtime,
+See `docs/content-administration/ingest-pipeline.md`. Builds a single LLM call (via ai-runtime,
 GenerationType.MODULE_IDENTIFICATION) with the full corpus + outline +
 already-published modules. Returns parsed candidate dicts ready to be
 filtered and persisted.
@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 
 # Required fields on every parsed candidate (validation gate). Note:
-# `behavioural_gap_code` was a v3.3 field; the architecture reset dropped
+# `behavioural_gap_code` was a dropped field; the architecture reset dropped
 # it because Stage 2 no longer reasons about gaps.
 _REQUIRED_CANDIDATE_FIELDS = (
     "proposed_title",

@@ -114,7 +114,7 @@ def test_fully_resolvable_record_has_no_issues() -> None:
     assert issues == []
 
 
-def test_v2_loads_localized_question_dict(tmp_path: Path) -> None:
+def test_loads_localized_question_dict(tmp_path: Path) -> None:
     module_id = str(_MODULE_ID)
     dataset = tmp_path / "localized_question.json"
     dataset.write_text(
@@ -147,6 +147,8 @@ def test_canonical_loads_single_bn_row(tmp_path: Path) -> None:
         [
           {{
             "id": "Q001",
+            "question_en": "What is hypertension?",
+            "expected_answer_en": "High blood pressure.",
             "question_bn": "উচ্চ রক্তচাপ কী?",
             "expected_answer_bn": "উচ্চ রক্তচাপ হলো রক্তচাপ বেশি থাকা।",
             "source_card_id": ["{card_id}"],
@@ -163,8 +165,34 @@ def test_canonical_loads_single_bn_row(tmp_path: Path) -> None:
     record = records[0]
     assert record.id == "Q001"
     assert record.question_lang == "bn"
+    assert record.question == "উচ্চ রক্তচাপ কী?"
     assert record.expected_module_id == _MODULE_ID
     assert record.expected_card_ids == (_CARD_ID,)
+
+
+def test_canonical_loads_en_row(tmp_path: Path) -> None:
+    module_id = str(_MODULE_ID)
+    dataset = tmp_path / "canonical_en.json"
+    dataset.write_text(
+        f"""
+        [
+          {{
+            "id": "Q001",
+            "question_en": "What is hypertension?",
+            "expected_answer_en": "High blood pressure.",
+            "question_bn": "উচ্চ রক্তচাপ কী?",
+            "expected_answer_bn": "উচ্চ রক্তচাপ হলো রক্তচাপ বেশি থাকা।",
+            "module_id": ["{module_id}"]
+          }}
+        ]
+        """,
+        encoding="utf-8",
+    )
+    records = load_golden_dataset(dataset, language="en")
+    assert len(records) == 1
+    record = records[0]
+    assert record.question_lang == "en"
+    assert record.question == "What is hypertension?"
 
 
 def test_multi_card_resolution_fails_when_any_card_missing() -> None:

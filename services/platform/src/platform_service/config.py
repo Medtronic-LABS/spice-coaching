@@ -1,6 +1,6 @@
 """Platform service settings.
 
-Per `docs/ARCHITECTURE_RESET.md`. Service code reads from `Settings`;
+See `docs/content-administration/ingest-pipeline.md`. Service code reads from `Settings`;
 nothing reads `os.environ` directly. All thresholds and feature flags live
 here so they are env-overridable and unit-testable.
 """
@@ -98,7 +98,7 @@ class Settings(BaseAppSettings):
 
     # ── Embedding / vector store ──────────────────────────────
     embedding_dimension: int = 768
-    top_k: int = 5
+    top_k: int = 2
     retrieval_require_validated: bool = False
     # Durable vector backend. Call sites use mc_foundation.VectorStore;
     # only ``pgvector`` is implemented today (vectors stay on module.embedding).
@@ -232,6 +232,9 @@ class Settings(BaseAppSettings):
     # How many per-chunk identification calls run in parallel. 2 is
     # conservative against Vertex per-project quota.
     stage_c_section_concurrency: int = 2
+    # Max tokens of cited-block excerpt sent to the batch candidate-merge LLM
+    # per candidate. Keeps the merge call bounded vs full-corpus identify.
+    candidate_merge_excerpt_max_tokens: int = 400
     # Max characters for optional admin ingestion steering text (Stage C).
     ingestion_instructions_max_length: int = 2000
 
@@ -316,7 +319,7 @@ class Settings(BaseAppSettings):
 
     # ── Stage 2-draft — published-module merge tuning ───────────
     # Stage D always attempts merge into a similar active (non-retired)
-    # published module (fusion drafts opt out via StageDOrchestrator).
+    # published module (skip_merge remains an internal opt-out).
     # Pre-filter existing modules by title similarity before sending to the LLM.
     stage_d_published_merge_prefilter_limit: int = 25
     # Deterministic content gate: fraction of existing cards that must match
@@ -378,6 +381,7 @@ class Settings(BaseAppSettings):
 
     # ── Coaching RAG ────────────────────────────────────────────
     coaching_rag_module_limit: int = Field(default=5, ge=1, le=20)
+    coaching_local_rag_card_limit: int = Field(default=5, ge=1, le=20)
     coaching_rag_presigned_url_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
     coaching_rag_context_max_chars: int = Field(default=28_000, ge=1_000, le=100_000)
 

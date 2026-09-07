@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from platform_service.db.models.ingestion_run import IngestionRun, IngestionRunGenerationCounts
-from platform_service.services.run_state.constants import FUSION_RUN_TYPE, now_utc
+from platform_service.services.run_state.constants import now_utc
 
 
 class IngestionRunGenerationCountsRepository:
@@ -75,18 +75,13 @@ class IngestionRunGenerationCountsRepository:
         batch_id: UUID,
         source_document_ids: list[UUID],
     ) -> list[IngestionRun]:
-        """Non-fusion pipeline runs in ``batch_id`` for the given source documents."""
+        """Pipeline runs in ``batch_id`` for the given source documents."""
         if not source_document_ids:
             return []
         result = await self._session.execute(
             select(IngestionRun).where(
                 IngestionRun.ingest_batch_id == batch_id,
                 IngestionRun.source_document_id.in_(source_document_ids),
-                or_(
-                    IngestionRun.error_jsonb.is_(None),
-                    IngestionRun.error_jsonb["type"].astext.is_(None),
-                    IngestionRun.error_jsonb["type"].astext != FUSION_RUN_TYPE,
-                ),
             )
         )
         return list(result.scalars().all())

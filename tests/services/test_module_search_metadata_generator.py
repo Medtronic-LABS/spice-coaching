@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from mc_contracts.enums import GenerationType
 from mc_contracts.internal_ai import InferenceResponse, TokenUsage
+from platform_service.config import Settings
 from platform_service.db.models.module import Module
 from platform_service.services.module_search_metadata_generator import (
     ModuleSearchMetadataGenerator,
@@ -131,9 +132,7 @@ class TestNormalizeSearchMetadata:
         }
         with patch(
             "platform_service.services.module_search_metadata_generator.get_settings",
-            return_value=__import__("platform_service.config", fromlist=["Settings"]).Settings(
-                deployment_primary_locale=primary
-            ),
+            return_value=Settings(deployment_primary_locale=primary),
         ):
             out = normalize_search_metadata(
                 payload,

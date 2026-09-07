@@ -4,7 +4,7 @@ import enum
 
 
 class ContentDomain(str, enum.Enum):
-    """Source document content domain (v3.3 ingest / Stage C branching).
+    """Source document content domain (ingest / module-identify branching).
 
     One value per ingest. Display labels for Learning Library / Practice Zone:
     Clinical (default), Digital, Operational.
@@ -69,8 +69,8 @@ class LearningPathSource(str, enum.Enum):
 class GenerationType(str, enum.Enum):
     """Internal AI runtime generation task types.
 
-    Legacy types (counselling, it_help, extraction, quiz) drive the v1
-    coaching surface. v3.3 types drive the new content pipeline:
+    Counselling, it_help, extraction, and quiz types remain for internal
+    generation. Content-pipeline types:
     - OUTLINE_INFERENCE  — Stage B LLM fallback when markdown headings are weak
     - MODULE_IDENTIFICATION — Stage C corpus-level module candidate identification
     - CARD_DRAFTING      — Stage D bilingual card drafting
@@ -80,16 +80,12 @@ class GenerationType(str, enum.Enum):
     - VISION_EXTRACTION  — Stage A vision fallback (page image → markdown)
     """
 
-    # v3.3 content pipeline types
+    # Content pipeline types
     OUTLINE_INFERENCE = "outline_inference"
     MODULE_IDENTIFICATION = "module_identification"
-    # Stage 2b: cross-source fusion. Operates on per-source candidate metadata
-    # (titles + scopes + source_document_id) — NOT raw corpus content. Identifies
-    # candidate pairs/triples that cover the same CHW behavioural unit from
-    # different angles (e.g., clinical reasoning from a training manual + the
-    # corresponding app workflow from a digital workflow guide) and merges them
-    # into a fused candidate citing source_provenance from each constituent.
-    CROSS_SOURCE_FUSION = "cross_source_fusion"
+    # After per-chunk identification: merge candidates that cover the same
+    # behavioural topic across chunks and documents in one ingest batch.
+    CANDIDATE_MERGE = "candidate_merge"
     CARD_DRAFTING = "card_drafting"
     # Stage 2-draft: match a new candidate to an existing published module and
     # merge card sets (new content wins on conflict).
@@ -98,14 +94,20 @@ class GenerationType(str, enum.Enum):
     DISTRACTOR_CRITIQUE = "distractor_critique"
     BILINGUAL_TRANSLATION = "bilingual_translation"
     VISION_EXTRACTION = "vision_extraction"
-    # Grounded coaching Q&A over the published v3.3 module corpus
+    # Grounded coaching Q&A over the published module corpus
     # (platform /coaching/rag-query). Replaces the prior IT_HELP misuse.
     COACHING_RAG = "coaching_rag"
     # Pre-RAG router for /coaching/rag-query: classify chit-chat / crisis /
     # coaching_question and optionally draft a warm or safety reply.
     COACHING_CHAT_ROUTE = "coaching_chat_route"
+    # Card-level local RAG for /coaching/local-rag-query (retrieved cards only).
+    COACHING_LOCAL_CARD_RAG = "coaching_local_card_rag"
+    # Pre-RAG router for /coaching/local-rag-query (compact local model prompt).
+    COACHING_LOCAL_CARD_CHAT_ROUTE = "coaching_local_card_chat_route"
     # Eval harness: LLM-as-judge scoring for RAG golden-dataset runs.
     RAG_EVAL_JUDGE = "rag_eval_judge"
+    # Eval harness: generate bilingual golden expansion records from corpus.
+    GOLDEN_EXPANSION = "golden_expansion"
     # Post-publish: map a drafted module to seeded behavioural_gap registry codes.
     MODULE_GAP_CLASSIFICATION = "module_gap_classification"
     # Post-publish: map a drafted module to assessment-due topic triggers.
@@ -166,7 +168,7 @@ class CoachingEventType(str, enum.Enum):
     SESSION_END = "session_end"
     SYNC_STARTED = "sync_started"
     SYNC_COMPLETED = "sync_completed"
-    # ── v3.3 module-pipeline events (W-10) ─────────────────────────────
+    # ── Module-pipeline events ─────────────────────────────
     # Carry module_family_id (UUID) on the TelemetryEvent. Distinct from the
     # scenario-level CARD_* / QUIZ_* events above which carry scenario_id.
     # MODULE_DELIVERED:   the module surfaced in the CHW's morning rotation.
@@ -222,11 +224,10 @@ class CardType(str, enum.Enum):
 class TriggerType(str, enum.Enum):
     """What caused this telemetry event.
 
-    Two axes mixed for backward compatibility:
-    - rule strength + surface (`hard`, `soft`, `morning`) — used by the
-      legacy v3.0 scenario flow when a card was surfaced
+    Two axes mixed for compatibility:
+    - rule strength + surface (`hard`, `soft`, `morning`) — used when a card was surfaced
     - causal source (`gap`, `workflow_event`, `user_action`) — used by
-      v3.3 module events and clinical-observation events
+      module events and clinical-observation events
     """
 
     HARD = "hard"

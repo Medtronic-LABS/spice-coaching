@@ -66,7 +66,7 @@ class TelemetryEvent(BaseModel):
     timestamp_utc: int | None = None
     timestamp_local: int
 
-    # ── v3.3 module-pipeline fields (W-10) ─────────────────────────────
+    # ── Module-pipeline fields ─────────────────────────────
     # Set by the SDK on MODULE_DELIVERED / MODULE_CARD_VIEWED /
     # MODULE_QUIZ_ATTEMPTED. Optional on every other
     # event_type so older SDK versions and legacy scenario events keep
@@ -98,8 +98,8 @@ class TelemetryBatch(BaseModel):
 class TelemetryAckResponse(BaseModel):
     """Acknowledgement response for a telemetry batch ingest request.
 
-    `accepted`, `rejected`, and `duplicates` (W-10) are **event IDs** from the
-    submitted batch, not counts. `buffered` (W-10) lists IDs that were stored
+    `accepted`, `rejected`, and `duplicates` are **event IDs** from the
+    submitted batch, not counts. `buffered` lists IDs that were stored
     in the retry queue because the analytics sink was unreachable — they
     will be flushed by the retry worker; the SDK should treat them as
     successfully ingested. `errors` contains human-readable reasons for

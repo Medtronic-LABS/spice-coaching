@@ -140,6 +140,35 @@ def metadata_text_for_search(metadata: dict[str, Any] | None) -> list[str]:
     return parts
 
 
+def card_text_for_search(
+    card: dict[str, Any],
+    *,
+    settings: Settings | None = None,
+) -> str:
+    """Concatenate one card's searchable fields (no module-level metadata)."""
+    if not isinstance(card, dict):
+        return ""
+    s = settings or get_settings()
+    primary = deployment_locales(s)
+    parts: list[str] = []
+    migrated_card = migrate_legacy_card(dict(card), primary=primary)
+    for field in LOCALIZED_CARD_TEXT_FIELDS:
+        value = migrated_card.get(field)
+        if not value:
+            continue
+        if field == "body" and isinstance(value, dict):
+            for locale_value in value.values():
+                text = card_body_plain_text(locale_value)
+                if text:
+                    parts.append(text)
+        elif isinstance(value, dict):
+            parts.extend(_localized_values(value, settings=s))
+        else:
+            parts.append(str(value))
+    parts.extend(card_metadata_text_for_search(card.get("search_metadata")))
+    return "\n".join(parts)
+
+
 def module_text_for_search(
     module: Module,
     *,
@@ -157,23 +186,8 @@ def module_text_for_search(
     parts.extend(_localized_values(module.description_localized, settings=s))
     parts.extend(metadata_text_for_search(module.search_metadata_jsonb))
     card_dicts = cards if cards is not None else []
-    primary = deployment_locales(s)
     for card in card_dicts:
-        if not isinstance(card, dict):
-            continue
-        migrated_card = migrate_legacy_card(dict(card), primary=primary)
-        for field in LOCALIZED_CARD_TEXT_FIELDS:
-            value = migrated_card.get(field)
-            if not value:
-                continue
-            if field == "body" and isinstance(value, dict):
-                for locale_value in value.values():
-                    text = card_body_plain_text(locale_value)
-                    if text:
-                        parts.append(text)
-            elif isinstance(value, dict):
-                parts.extend(_localized_values(value, settings=s))
-            else:
-                parts.append(str(value))
-        parts.extend(card_metadata_text_for_search(card.get("search_metadata")))
+        card_text = card_text_for_search(card, settings=s)
+        if card_text:
+            parts.append(card_text)
     return "\n".join(parts)

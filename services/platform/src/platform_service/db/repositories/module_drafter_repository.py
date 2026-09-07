@@ -1,7 +1,7 @@
 """Stage 2 module-drafter repository.
 
 Persists Stage 2 output: a Module row with cards inlined as a JSON array on
-`module_json` (per `docs/ARCHITECTURE_RESET.md`). The Module is created
+`module_json` (see `docs/content-administration/ingest-pipeline.md`). The Module is created
 auto-published (`lifecycle_status='published'`, `clinically_reviewed=false`)
 and the orchestrator enqueues post-publish embedding + quiz workers.
 

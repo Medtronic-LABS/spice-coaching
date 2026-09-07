@@ -1,6 +1,6 @@
-"""v3.3 module_family — stable identifier for a logical module across versions.
+"""module_family — stable identifier for a logical module across versions.
 
-Per Data Model v3.3 §5.1. Every reviewer-approved version of the same logical
+See `docs/concepts/modules-cards-families.md` Every reviewer-approved version of the same logical
 module shares this `module_family_id`. `current_published_module_id` is updated
 on each new published version; older versions remain queryable.
 """

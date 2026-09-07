@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 from collections.abc import AsyncIterator, Iterator
 from unittest.mock import AsyncMock
@@ -14,7 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from mc_contracts.errors import ErrorCode
 from platform_service.auth.spice_auth_middleware import SpiceAuthMiddleware
 from platform_service.auth.spice_context import SpiceContexts
-from platform_service.auth.tenant_context import HEADER_TENANT_ID
+from platform_service.auth.tenant_context import DEFAULT_SELECTED_TENANT_ID, HEADER_TENANT_ID
 from platform_service.config import Settings, get_settings
 from platform_service.integrations.spice_auth_client import (
     SpiceAuthClient,
@@ -102,6 +103,50 @@ async def test_disabled_auth_allows_request_without_token(monkeypatch: pytest.Mo
         resp = await client.get(f"{API_ROOT}/openapi.json")
     assert resp.status_code == 200
     get_settings.cache_clear()
+
+
+@pytest_asyncio.fixture
+async def disabled_auth_middleware_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncIterator[AsyncClient]:
+    monkeypatch.setenv("SPICE_AUTH_ENABLED", "false")
+    monkeypatch.setenv("API_ROOT_PATH", "/medtronics-api")
+    get_settings.cache_clear()
+
+    app = FastAPI()
+    app.add_middleware(SpiceAuthMiddleware)
+
+    @app.get(f"{API_ROOT}/probe")
+    async def probe(request: Request) -> dict[str, int | None]:
+        return {
+            "ok": 1,
+            "selected_tenant_id": getattr(request.state, "selected_tenant_id", None),
+        }
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.mark.asyncio
+async def test_disabled_auth_defaults_tenant_to_zero(
+    disabled_auth_middleware_app: AsyncClient,
+) -> None:
+    resp = await disabled_auth_middleware_app.get(f"{API_ROOT}/probe")
+    assert resp.status_code == 200
+    assert resp.json()["selected_tenant_id"] == DEFAULT_SELECTED_TENANT_ID
+
+
+@pytest.mark.asyncio
+async def test_disabled_auth_uses_tenant_header(
+    disabled_auth_middleware_app: AsyncClient,
+) -> None:
+    resp = await disabled_auth_middleware_app.get(
+        f"{API_ROOT}/probe",
+        headers={HEADER_TENANT_ID: "42"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["selected_tenant_id"] == 42
 
 
 @pytest.mark.asyncio
@@ -248,8 +293,6 @@ async def test_web_client_auth_cookie_resolution_and_set_cookie(
     middleware_app: AsyncClient,
     mock_spice_client: SpiceAuthClient,
 ) -> None:
-    import base64
-
     token_raw = "test.jwt.token"
     encoded_token = base64.b64encode(token_raw.encode("utf-8")).decode("utf-8")
 

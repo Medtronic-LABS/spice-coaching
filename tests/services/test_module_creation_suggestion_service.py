@@ -15,6 +15,9 @@ from platform_service.services.module_creation_suggestion_service import (
     ModuleCreationSuggestionService,
 )
 from platform_service.services.unattributed_demand_aggregator import DedupedEvidence
+from platform_service.workers.module_creation_suggestions_worker import (
+    refresh_module_creation_suggestions_job,
+)
 
 
 @pytest.mark.asyncio
@@ -138,10 +141,6 @@ async def test_refresh_does_not_replace_when_llm_fails() -> None:
 
 @pytest.mark.asyncio
 async def test_worker_processes_scopes() -> None:
-    from platform_service.workers.module_creation_suggestions_worker import (
-        refresh_module_creation_suggestions_job,
-    )
-
     service = MagicMock()
     service.list_scopes = AsyncMock(return_value=[None, uuid4()])
     service.refresh_for_day = AsyncMock(side_effect=[2, 0])

@@ -1,6 +1,6 @@
 """ModuleCandidateDraft — ephemeral Stage 2 pipeline state.
 
-Per `docs/ARCHITECTURE_RESET.md`. The W-6 reviewer queue was deleted; this
+See `docs/content-administration/ingest-pipeline.md`. The reviewer queue was deleted; this
 table now serves only as a debugging trail for Stage 2 (proposals + their
 quality flags) and as the per-candidate retry surface for Stage 2-draft.
 There are no claim, expiry, or review-status workflow fields — those were

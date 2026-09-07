@@ -12,12 +12,13 @@ from platform_service.exceptions import EmbeddingDimensionError
 from platform_service.integrations.ai_runtime_client import AIRuntimeClient
 from platform_service.services.embedding_vector import assert_embedding_dimension
 from platform_service.services.module_search_text import module_text_for_search
-from platform_service.vectorstore import MODULES_COLLECTION, get_vector_store
+from platform_service.vectorstore import MODULES_COLLECTION, MODULES_LOCAL_COLLECTION, get_vector_store
 from sqlalchemy import select
 
 from eval.rag.corpus import (
     _title_parts_from_localized,
     count_embedded_published_modules,
+    count_local_embedded_published_modules,
     load_cards_by_module_ids,
 )
 
@@ -43,8 +44,10 @@ class EmbeddingRetriever:
         client: AIRuntimeClient | None = None,
         base_url: str | None = None,
         token: str | None = None,
+        use_local: bool = False,
     ) -> None:
         self._tenant_id = tenant_id
+        self._use_local = use_local
         self._settings = get_settings()
         self._client = client or AIRuntimeClient(base_url=base_url, token=token)
         self._owns_client = client is None
@@ -52,11 +55,14 @@ class EmbeddingRetriever:
 
     async def embedded_count(self) -> int:
         if self._embedded_count is None:
-            self._embedded_count = await count_embedded_published_modules(tenant_id=self._tenant_id)
+            if self._use_local:
+                self._embedded_count = await count_local_embedded_published_modules(tenant_id=self._tenant_id)
+            else:
+                self._embedded_count = await count_embedded_published_modules(tenant_id=self._tenant_id)
         return self._embedded_count
 
     async def search(self, query: str, *, k: int) -> list[EmbeddingHit]:
-        vectors = await self._client.embed([query])
+        vectors = await self._client.embed([query], use_local=self._use_local)
         if not vectors:
             raise RuntimeError("ai-runtime returned no embedding for query")
 
@@ -65,13 +71,15 @@ class EmbeddingRetriever:
         except EmbeddingDimensionError as exc:
             raise RuntimeError(str(exc)) from exc
 
+        collection = MODULES_LOCAL_COLLECTION if self._use_local else MODULES_COLLECTION
+
         async with SessionLocal() as session:
             filters: dict[str, object] = {"lifecycle_status": "published"}
             if self._tenant_id is not None:
                 filters["tenant_id"] = self._tenant_id
             store = get_vector_store(session)
             matches = await store.search(
-                MODULES_COLLECTION,
+                collection,
                 vec,
                 top_k=k,
                 filters=filters,

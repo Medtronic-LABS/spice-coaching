@@ -1,0 +1,43 @@
+{
+  "records": [
+    {
+      "question_en": "A baby was born at 35 weeks gestation. What physical characteristics would you expect in this preterm newborn?",
+      "question_bn": "একটি শিশু গর্ভের ৩৫ সপ্তাহে জন্ম নিয়েছে। এই অপরিণত নবজাতকের কী কী শারীরিক বৈশিষ্ট্য দেখা যাবে?",
+      "expected_answer_en": "A preterm baby is born before full 37 weeks of gestation. Expect length less than 50 cm, a small head, underdeveloped ears, breasts and genitals, and the body covered with fine hair (lanugo).",
+      "expected_answer_bn": "অপরিণত শিশু হলো যারা গর্ভের পূর্ণ ৩৭ সপ্তাহের পূর্বে জন্ম নেয়। এদের লম্বা ৫০ সেন্টিমিটারের কম হয়, মাথা ছোট থাকে, কান, স্তন ও জননাঙ্গ অপরিণত থাকে এবং সারা শরীর লোমে আবৃত থাকে।",
+      "module_id": ["ef6d104b-161b-491f-b853-b772ffaf97a4"],
+      "source_card_id": ["f29d8b77-a0f1-47af-a828-9400d4230e11"],
+      "query_type": "Situational",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Physiological Assessment",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "What essential care must be provided to a newborn in the first 6 hours after birth?",
+      "question_bn": "জন্মের পর প্রথম ৬ ঘন্টায় নবজাতকের কী কী অত্যাবশ্যকীয় সেবা দিতে হবে?",
+      "expected_answer_en": "In the first 6 hours: wipe the baby immediately with clean dry soft cotton cloth without rubbing; maintain warmth with skin-to-skin contact and wrap head and body in cloth; initiate breastfeeding within 1 hour after cleaning the mother's nipple; cut and tie the cord with sterile thread and blade at specified distances; and do not bathe the baby within the first 3 days.",
+      "expected_answer_bn": "প্রথম ৬ ঘন্টায়: জন্মের সাথে সাথে পরিষ্কার শুকনো নরম সুতি কাপড় দিয়ে শিশুকে মুছতে হবে, ঘষা দেওয়া যাবে না; মোছানোর সাথে সাথে মায়ের ত্বকে ত্বক স্পর্শে রাখতে হবে এবং মাথা ও শরীর কাপড়ে জড়িয়ে উষ্ণ রাখতে হবে; মায়ের স্তনের বোঁটা পরিষ্কার করে ১ ঘন্টার মধ্যেই বুকের দুধ খাওয়াতে হবে; পরিষ্কার জীবানুমুক্ত সুতা ও ব্লেড দিয়ে নির্দিষ্ট দূরত্বে নাভী কাটতে হবে; এবং জন্মের তিন দিনের মধ্যে গোসল করানো যাবে না।",
+      "module_id": ["ef6d104b-161b-491f-b853-b772ffaf97a4"],
+      "source_card_id": ["b5e525b1-f036-45e7-87ee-4ed2470133f6"],
+      "query_type": "Procedural",
+      "linguistic_variation": "Standard Written Bengali",
+      "chw_pattern": "Clinical Protocol & Escalation",
+      "answerable": "yes",
+      "confidence": "high"
+    },
+    {
+      "question_en": "During a home visit I find a 3-day-old baby breathing fast with the chest pulling in. What should I do?",
+      "question_bn": "বাড়ি পরিদর্শনে ৩ দিনের এক শিশুকে দ্রুত শ্বাস নিতে দেখছি এবং বুকের খাঁচা ভেতরের দিকে ধসে যাচ্ছে। আমার কী করণীয়?",
+      "expected_answer_en": "Fast breathing with chest indrawing is a danger sign in a newborn. Refer the baby immediately to a hospital or Upazila Health Complex.",
+      "expected_answer_bn": "দ্রুত শ্বাসের সাথে বুকের খাঁচা দেবে যাওয়া নবজাতকের একটি বিপদচিহ্ন। শিশুটিকে সাথে সাথে হাসপাতালে বা উপজেলা স্বাস্থ্য কেন্দ্রে রেফার করুন।",
+      "module_id": ["ef6d104b-161b-491f-b853-b772ffaf97a4"],
+      "source_card_id": ["df8b88bd-d1dd-4c5c-844d-d52a0aa4ce18"],
+      "query_type": "Referral Decision",
+      "linguistic_variation": "Colloquial Spoken Bengali",
+      "chw_pattern": "Emergency Management & Referral",
+      "answerable": "yes",
+      "confidence": "high"
+    }
+  ]
+}

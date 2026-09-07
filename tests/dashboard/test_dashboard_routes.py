@@ -20,7 +20,14 @@ from mc_contracts.dashboard import (
     DigitalHelpModuleRequestsResponse,
     DigitalHelpModuleUsageItem,
     DigitalHelpModuleUsageResponse,
+    ModuleCreationSuggestionDetailResponse,
+    ModuleCreationSuggestionEvidenceItem,
+    ModuleCreationSuggestionListItem,
+    ModuleCreationSuggestionListResponse,
+    ModuleDemandPatternItem,
+    ModuleDemandSummaryResponse,
 )
+from mc_contracts.enums import DashboardActorView
 from mc_foundation.problem import register_problem_handlers
 from platform_service.api.dashboard import router as dashboard_router
 from platform_service.config import get_settings
@@ -302,8 +309,6 @@ class TestDigitalHelpModuleUsageRoute:
         mock_apply_view: AsyncMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.enums import DashboardActorView
-
         mock_resolve.return_value = frozenset({3001, 3002})
         mock_apply_view.return_value = frozenset({3001})
         mock_get.return_value = DigitalHelpModuleUsageResponse(
@@ -479,11 +484,6 @@ class TestModuleCreationSuggestionsRoutes:
         mock_service_cls: MagicMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.dashboard import (
-            ModuleCreationSuggestionListItem,
-            ModuleCreationSuggestionListResponse,
-        )
-
         suggestion_id = uuid4()
         mock_service = MagicMock()
         mock_service.list_suggestions = AsyncMock(
@@ -531,8 +531,6 @@ class TestModuleCreationSuggestionsRoutes:
         mock_resolve: AsyncMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.dashboard import ModuleCreationSuggestionListResponse
-
         mock_resolve.return_value = frozenset({3001})
         mock_service = MagicMock()
         mock_service.list_suggestions = AsyncMock(
@@ -563,9 +561,6 @@ class TestModuleCreationSuggestionsRoutes:
         mock_apply_view: AsyncMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.dashboard import ModuleCreationSuggestionListResponse
-        from mc_contracts.enums import DashboardActorView
-
         mock_resolve.return_value = frozenset({3001, 3002})
         mock_apply_view.return_value = frozenset({3002})
         mock_service = MagicMock()
@@ -608,13 +603,6 @@ class TestModuleCreationSuggestionsRoutes:
         mock_service_cls: MagicMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.dashboard import (
-            DashboardUserSummary,
-            ModuleCreationSuggestionDetailResponse,
-            ModuleCreationSuggestionEvidenceItem,
-            ModuleCreationSuggestionListItem,
-        )
-
         suggestion_id = uuid4()
         mock_service = MagicMock()
         mock_service.get_detail = AsyncMock(
@@ -669,12 +657,6 @@ class TestModuleCreationSuggestionsRoutes:
         mock_apply_view: AsyncMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.dashboard import (
-            ModuleCreationSuggestionDetailResponse,
-            ModuleCreationSuggestionListItem,
-        )
-        from mc_contracts.enums import DashboardActorView
-
         suggestion_id = uuid4()
         mock_resolve.return_value = frozenset({3001, 3002})
         mock_apply_view.return_value = frozenset({3001})
@@ -730,8 +712,6 @@ class TestModuleDemandSummaryRoute:
         mock_get: AsyncMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.dashboard import ModuleDemandPatternItem, ModuleDemandSummaryResponse
-
         mock_get.return_value = ModuleDemandSummaryResponse(
             from_date=date(2026, 7, 1),
             to_date=date(2026, 7, 31),
@@ -771,8 +751,6 @@ class TestModuleDemandSummaryRoute:
         mock_get: AsyncMock,
         client: AsyncClient,
     ) -> None:
-        from mc_contracts.dashboard import ModuleDemandSummaryResponse
-
         mock_get.return_value = ModuleDemandSummaryResponse(
             from_date=date(2026, 7, 1),
             to_date=date(2026, 7, 31),

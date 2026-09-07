@@ -1,6 +1,6 @@
-"""W-4 — markdown-to-ContentBlock parser.
+"""Markdown-to-ContentBlock parser.
 
-Per Data Model v3.3 §3.3. Splits a page's markdown_content into semantic
+See `docs/concepts/modules-cards-families.md` Splits a page's markdown_content into semantic
 content_block rows: heading | paragraph | list | table | figure | callout.
 
 These become the citation primitives downstream: Stage C module candidates

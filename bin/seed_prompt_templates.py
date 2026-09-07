@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Seed (or refresh) prompt_template rows from seed/prompt_templates.json.
 
-Idempotent — upserts by (template_id, variant_key, version). Existing rows
-with the same key have their prompt body and metadata updated; new ones are
+Idempotent — upserts by (tenant_id, template_id, variant_key, version). Existing
+rows with the same key have their prompt body and metadata updated; new ones are
 inserted with the stable seed UUID. Nothing is deleted.
 
 Usage:
-    uv run python bin/seed_prompt_templates.py [--file PATH]
+    uv run python bin/seed_prompt_templates.py [--file PATH] [--tenant-id ID]
 
-Defaults to seed/prompt_templates.json relative to the repo root.
+Defaults to seed/prompt_templates.json relative to the repo root and
+``DEFAULT_TENANT_ID`` (0). Per-entry ``tenant_id`` in the JSON overrides the CLI
+default when present.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import uuid
 from pathlib import Path
 
 from platform_service.db.base import SessionLocal
+from platform_service.db.default_tenant import DEFAULT_TENANT_ID
 from platform_service.db.models.prompt_template import PromptTemplate
 from sqlalchemy import select
 
@@ -34,7 +37,7 @@ def _variant_filter(variant_key: str | None):
     return PromptTemplate.variant_key == variant_key
 
 
-async def _seed(path: Path) -> None:
+async def _seed(path: Path, *, default_tenant_id: int) -> None:
     rows = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(rows, list) or not rows:
         print("No prompt templates in seed file — nothing to do.")
@@ -47,8 +50,10 @@ async def _seed(path: Path) -> None:
             template_id = entry["template_id"]
             version = int(entry["version"])
             variant_key = entry.get("variant_key")
+            tenant_id = int(entry.get("tenant_id", default_tenant_id))
             result = await session.execute(
                 select(PromptTemplate).where(
+                    PromptTemplate.tenant_id == tenant_id,
                     PromptTemplate.template_id == template_id,
                     PromptTemplate.version == version,
                     _variant_filter(variant_key),
@@ -61,6 +66,7 @@ async def _seed(path: Path) -> None:
                 session.add(
                     PromptTemplate(
                         id=uuid.UUID(entry["id"]),
+                        tenant_id=tenant_id,
                         template_id=template_id,
                         version=version,
                         variant_key=variant_key,
@@ -97,11 +103,17 @@ def main() -> int:
         default=DEFAULT_SEED,
         help=f"Path to seed JSON (default: {DEFAULT_SEED})",
     )
+    parser.add_argument(
+        "--tenant-id",
+        type=int,
+        default=DEFAULT_TENANT_ID,
+        help=f"Tenant for rows without per-entry tenant_id (default: {DEFAULT_TENANT_ID})",
+    )
     args = parser.parse_args()
     if not args.file.exists():
         print(f"Seed file not found: {args.file}", file=sys.stderr)
         return 1
-    asyncio.run(_seed(args.file))
+    asyncio.run(_seed(args.file, default_tenant_id=args.tenant_id))
     return 0
 
 

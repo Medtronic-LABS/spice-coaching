@@ -1,6 +1,6 @@
 """ModuleQuizQuestion — quiz item linked directly to one module version.
 
-Per `docs/ARCHITECTURE_RESET.md`:
+See `docs/content-administration/ingest-pipeline.md`:
 
 - Cards live inline on `module.module_json`; quiz questions stay relational
   because `chw_quiz_attempt` rows carry FKs into them and per-question

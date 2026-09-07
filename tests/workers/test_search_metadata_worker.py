@@ -69,7 +69,7 @@ class TestSearchMetadataWorker:
                 AsyncMock(return_value=SearchMetadataResult(metadata=metadata)),
             ),
             patch(
-                "platform_service.celery_tasks.generate_module_embedding_task",
+                "platform_service.workers.search_metadata_worker.enqueue_module_embedding",
                 mock_embed,
             ),
         ):
@@ -82,7 +82,7 @@ class TestSearchMetadataWorker:
         await db_session.refresh(module)
         assert module.search_metadata_jsonb is not None
         assert module.search_metadata_jsonb["keywords"]["bn"] == ["cough"]
-        mock_embed.delay.assert_called_once()
+        mock_embed.assert_called_once()
 
     async def test_chains_embedding_on_generation_failure(self, db_session: AsyncSession) -> None:
         module = await _seed_module(db_session)
@@ -94,7 +94,7 @@ class TestSearchMetadataWorker:
                 AsyncMock(return_value=SearchMetadataResult(metadata=None, error="invalid_json")),
             ),
             patch(
-                "platform_service.celery_tasks.generate_module_embedding_task",
+                "platform_service.workers.search_metadata_worker.enqueue_module_embedding",
                 mock_embed,
             ),
         ):
@@ -103,20 +103,20 @@ class TestSearchMetadataWorker:
         assert ok is False
         await db_session.refresh(module)
         assert module.search_metadata_jsonb is None
-        mock_embed.delay.assert_called_once()
+        mock_embed.assert_called_once()
 
     async def test_chains_embedding_when_module_missing(self) -> None:
         mock_embed = MagicMock()
         missing_id = uuid4()
 
         with patch(
-            "platform_service.celery_tasks.generate_module_embedding_task",
+            "platform_service.workers.search_metadata_worker.enqueue_module_embedding",
             mock_embed,
         ):
             ok = await generate_search_metadata_for_module(missing_id, embedding_step_id=uuid4())
 
         assert ok is False
-        mock_embed.delay.assert_called_once()
+        mock_embed.assert_called_once()
 
     async def test_chain_downstream_false_skips_embedding(self, db_session: AsyncSession) -> None:
         module = await _seed_module(db_session)
@@ -138,7 +138,7 @@ class TestSearchMetadataWorker:
                 AsyncMock(return_value=SearchMetadataResult(metadata=metadata)),
             ),
             patch(
-                "platform_service.celery_tasks.generate_module_embedding_task",
+                "platform_service.workers.search_metadata_worker.enqueue_module_embedding",
                 mock_embed,
             ),
         ):
@@ -151,4 +151,4 @@ class TestSearchMetadataWorker:
         assert ok is True
         await db_session.refresh(module)
         assert module.search_metadata_jsonb is not None
-        mock_embed.delay.assert_not_called()
+        mock_embed.assert_not_called()

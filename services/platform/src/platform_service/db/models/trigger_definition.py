@@ -1,12 +1,12 @@
-"""v3.3 trigger_definition + module_trigger_binding — unified trigger schema.
+"""trigger_definition + module_trigger_binding — unified trigger schema.
 
-Per Data Model v3.3 §6.2, §6.3. Replaces the gap-only `module_gap_mapping`
+See `docs/concepts/modules-cards-families.md`, §6.3. Replaces the gap-only `module_gap_mapping`
 shape with a unified registry covering all three trigger classes:
 - gap (telemetry-detected behavioural-gap pattern)
 - workflow_event (SPICE workflow event)
 - content_push (new module version published)
 
-predicate_jsonb shape is per-kind; validated by application layer (W-8) using
+predicate_jsonb shape is per-kind; validated by application layer using
 JSON Schema validators per trigger_kind.
 """
 

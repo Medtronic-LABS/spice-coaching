@@ -12,6 +12,7 @@ from __future__ import annotations
 # Load .env before any module-level config reads. Pydantic-settings handles
 # declared fields, but the Google SDK looks up GOOGLE_APPLICATION_CREDENTIALS
 # directly from os.environ — this ensures it's populated.
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -39,11 +40,21 @@ from ai_runtime.api.internal_embed import router as embed_router  # noqa: E402
 from ai_runtime.api.internal_generate import router as generate_router  # noqa: E402
 from ai_runtime.api.internal_transcribe import router as transcribe_router  # noqa: E402
 from ai_runtime.config import get_settings  # noqa: E402
+from ai_runtime.services.local_preload import preload_local_models  # noqa: E402
 from ai_runtime.services.prompt_executor import close_providers  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    try:
+        await preload_local_models()
+    except Exception:
+        logger.exception(
+            "Local model preload failed; first use_local request will retry load "
+            "(set LOCAL_PRELOAD_ON_STARTUP=false to skip)"
+        )
     yield
     await close_providers()
 

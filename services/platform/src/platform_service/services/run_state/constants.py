@@ -10,6 +10,7 @@ from platform_service.db.models.ingestion_run import IngestionRunStep
 
 STAGE_EXTRACT = "extract"
 STAGE_MODULE_IDENTIFY = "module_identify"
+STAGE_CANDIDATE_MERGE = "candidate_merge"
 STAGE_CARD_DRAFT = "card_draft"
 STAGE_QUIZ_GENERATION = "quiz_generation"
 STAGE_EMBEDDING_GENERATION = "embedding_generation"
@@ -17,7 +18,6 @@ STAGE_SEARCH_METADATA_GENERATION = "search_metadata_generation"
 STAGE_CARD_SEARCH_METADATA_GENERATION = "card_search_metadata_generation"
 STAGE_GAP_CLASSIFICATION = "gap_classification"
 STAGE_TRIGGER_BINDING = "trigger_binding"
-STAGE_CROSS_SOURCE_FUSION = "cross_source_fusion"
 STAGE_THUMBNAIL = "thumbnail"
 
 PIPELINE_STAGES = (STAGE_EXTRACT, STAGE_MODULE_IDENTIFY, STAGE_CARD_DRAFT)
@@ -26,9 +26,7 @@ POST_PUBLISH_STAGES = (
     STAGE_GAP_CLASSIFICATION,
     STAGE_TRIGGER_BINDING,
 )
-ALL_STAGES = PIPELINE_STAGES + POST_PUBLISH_STAGES + (STAGE_CROSS_SOURCE_FUSION, STAGE_THUMBNAIL)
-
-FUSION_RUN_TYPE = "cross_source_fusion"
+ALL_STAGES = PIPELINE_STAGES + POST_PUBLISH_STAGES + (STAGE_CANDIDATE_MERGE, STAGE_THUMBNAIL)
 
 RUN_QUEUED = "queued"
 RUN_RUNNING = "running"
@@ -71,18 +69,6 @@ class ConcurrentRunError(Exception):
         self.existing_run_id = existing_run_id
 
 
-class ConcurrentFusionRunError(Exception):
-    """Raised when a fusion run is already active for an overlapping document set."""
-
-    def __init__(self, source_document_id: UUID, existing_run_id: UUID) -> None:
-        super().__init__(
-            f"source_document {source_document_id} already participates in an active "
-            f"fusion run ({existing_run_id}); refuse to start a second concurrent fusion"
-        )
-        self.source_document_id = source_document_id
-        self.existing_run_id = existing_run_id
-
-
 def now_utc() -> datetime:
     return datetime.now(UTC)
 
@@ -98,7 +84,7 @@ def as_error_object(error_jsonb: Any) -> dict[str, Any]:
 
 
 def rollup_batch_status(run_statuses: list[str]) -> str:
-    """Derive batch status from child ingestion_run statuses (incl. fusion)."""
+    """Derive batch status from child ingestion_run statuses."""
     if not run_statuses:
         return BATCH_QUEUED
     if any(s == RUN_RUNNING for s in run_statuses):

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microcoaching.local/eval/rag/golden/golden_record.schema.json",
+  "title": "BilingualGoldenRecord",
+  "type": "object",
+  "required": [
+    "id",
+    "question_en",
+    "question_bn",
+    "expected_answer_en",
+    "expected_answer_bn",
+    "module_id",
+    "source_card_id",
+    "query_type",
+    "answerable"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^Q[0-9]{3,}$"
+    },
+    "question_en": { "type": "string", "minLength": 1 },
+    "question_bn": { "type": "string", "minLength": 1 },
+    "expected_answer_en": { "type": "string", "minLength": 1 },
+    "expected_answer_bn": { "type": "string", "minLength": 1 },
+    "module_id": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "source_card_id": {
+      "type": "array",
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "query_type": { "type": "string", "minLength": 1 },
+    "linguistic_variation": { "type": "string" },
+    "chw_pattern": { "type": "string" },
+    "answerable": { "type": "string", "enum": ["yes", "no", "partial"] },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+  }
+}

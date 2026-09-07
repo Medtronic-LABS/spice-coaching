@@ -40,7 +40,7 @@ import asyncio
 import sys
 from uuid import UUID
 
-from platform_service.celery_tasks import generate_module_card_search_metadata_batch_task
+from platform_service.celery_enqueue import enqueue_module_card_search_metadata_batch
 from platform_service.db.base import SessionLocal
 from platform_service.db.models.module import Module
 from platform_service.db.repositories.module_read_repository import ModuleReadRepository
@@ -121,7 +121,7 @@ async def _run(
     enqueued = 0
     force = not missing_only
     for mid, card_count, title in targets:
-        generate_module_card_search_metadata_batch_task.delay(
+        enqueue_module_card_search_metadata_batch(
             str(mid),
             force=force,
             chain_downstream=False,

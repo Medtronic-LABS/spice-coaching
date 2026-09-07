@@ -1,6 +1,6 @@
-"""v3.3 content_block — semantic unit within a SourcePage.
+"""content_block — semantic unit within a SourcePage.
 
-Per Data Model v3.3 §3.3. Citation primitive every downstream artefact (cards,
+See `docs/concepts/modules-cards-families.md` Citation primitive every downstream artefact (cards,
 quiz questions, snippets) references. heading_path_jsonb carries the inherited
 heading hierarchy at this block (used by Stage C corpus identification).
 """

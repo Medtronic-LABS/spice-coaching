@@ -1,10 +1,10 @@
-"""W-2 Stage A — text-extraction quality heuristic.
+"""Stage A — text-extraction quality heuristic.
 
-Per Pipeline v3.3 §4.2. Pure-function deterministic scoring on text-extracted
+See `docs/content-administration/ingest-pipeline.md` Pure-function deterministic scoring on text-extracted
 output. No LLM calls. Decides whether vision fallback is needed for a page.
 
 The heuristic produces a single binary pass/fail with no ambiguous middle
-zone (the v3.3 fix for Pipeline §4.2's previous 20-70% gap):
+zone (the 20-70% quality band):
 - text_empty: < min_chars extracted → fail
 - encoding_integrity (when document language has a known native script):
   native-script codepoint density < min AND non-ASCII byte rate > max → fail

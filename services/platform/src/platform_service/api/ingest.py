@@ -1,14 +1,13 @@
-"""Admin v3.3 ingest endpoint — drives a real source document through the
-PipelineOrchestrator (Stage A → B → C → D) and exposes batch status polling.
+"""Admin ingest endpoint — drives a real source document through the
+PipelineOrchestrator (extract → identify → merge → draft) and exposes batch status polling.
 
-Distinct from the legacy `POST /admin/documents/upload` (scenarios pipeline
-on the Document/Scenario tables); this endpoint operates on the v3.3
+This endpoint operates on the
 `source_document` + `ingestion_run` + `module_candidate_draft` tables.
 
 Endpoints:
   POST /admin/ingest/upload        — upload one or more files (stage source_document rows)
   POST /admin/ingest               — queue ingest for staged source_document_ids
-  GET  /admin/ingest/batches/{batch_id} — poll batch tree progress across sources (+ fusion)
+  GET  /admin/ingest/batches/{batch_id} — poll batch tree progress across sources
   POST /admin/ingest/batches/{batch_id}/retry — retry every retryable failed stage in the batch
   POST /admin/ingest/modules/{module_id}/override-merge — promote secondary dual-path merge module
   POST /admin/ingest/modules/{module_id}/split-merge — keep primary dual-path merge module, retire secondary
@@ -259,7 +258,7 @@ async def get_ingest_batch_status(
     batch_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Poll tree-shaped progress for one ingest batch (all sources + optional fusion)."""
+    """Poll tree-shaped progress for one ingest batch (all sources)."""
     presenter = IngestBatchPollPresenter(db)
     payload = await presenter.present_batch(batch_id)
     if payload is None:

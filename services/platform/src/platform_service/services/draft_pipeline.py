@@ -1,4 +1,4 @@
-"""Shared draft / validate / publish steps for Stage D and fusion drafting."""
+"""Shared draft / validate / publish steps for Stage D."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from mc_contracts.errors import ErrorCode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from platform_service.celery_tasks import (
-    bind_assessment_triggers_task,
-    classify_module_gaps_task,
-    generate_module_quiz_task,
+from platform_service.celery_enqueue import (
+    enqueue_bind_assessment_triggers,
+    enqueue_classify_module_gaps,
+    enqueue_module_quiz,
 )
 from platform_service.config import get_settings
 from platform_service.db.models.content_block import ContentBlock
@@ -62,7 +62,7 @@ class CardDraftOutcome:
 
 
 class DraftPipeline:
-    """Draft, validate, and post-publish steps shared by Stage D and fusion."""
+    """Draft, validate, and post-publish steps shared by Stage D."""
 
     def __init__(
         self,
@@ -252,18 +252,18 @@ class DraftPipeline:
 
         try:
             if quiz_step_id is not None:
-                generate_module_quiz_task.delay(
+                enqueue_module_quiz(
                     str(module_id),
                     str(quiz_step_id),
                     quiz_size=quiz_size,
                 )
             if trigger_binding_step_id is not None:
-                bind_assessment_triggers_task.delay(
+                enqueue_bind_assessment_triggers(
                     str(module_id),
                     str(trigger_binding_step_id),
                 )
             if gap_step_id is not None:
-                classify_module_gaps_task.delay(str(module_id), str(gap_step_id))
+                enqueue_classify_module_gaps(str(module_id), str(gap_step_id))
         except Exception:
             logger.exception(
                 "Draft pipeline: failed to enqueue post-publish jobs for module %s "

@@ -1,0 +1,25 @@
+{
+  "domain": "pnc",
+  "batch_count": 3,
+  "total_expected_records": 39,
+  "batches": [
+    {
+      "batch_index": 0,
+      "prompt_json": "pnc_batch0.prompt.json",
+      "prompt_md": "pnc_batch0.prompt.md",
+      "expected_record_count": 25
+    },
+    {
+      "batch_index": 1,
+      "prompt_json": "pnc_batch1.prompt.json",
+      "prompt_md": "pnc_batch1.prompt.md",
+      "expected_record_count": 4
+    },
+    {
+      "batch_index": 2,
+      "prompt_json": "pnc_batch2.prompt.json",
+      "prompt_md": "pnc_batch2.prompt.md",
+      "expected_record_count": 10
+    }
+  ]
+}

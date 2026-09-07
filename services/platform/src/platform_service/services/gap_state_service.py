@@ -1,4 +1,4 @@
-"""W-8 — Per-CHW gap state service (v3.3 path).
+"""Per-CHW gap state service.
 
 Operates on `chw_behavioural_gap_state`. Each telemetry observation of a
 behavioural-gap pattern increments occurrence_count (or resets it to 1 if
