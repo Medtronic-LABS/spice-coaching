@@ -307,17 +307,19 @@ class SourceRepository:
         document_ids: list[UUID],
         *,
         since: datetime,
+        source_types: list[str] | None = None,
     ) -> list[SourceDocument]:
         """Return non-retired docs in ``document_ids`` with ``updated_at > since``."""
         if not document_ids:
             return []
-        result = await self._session.execute(
-            select(SourceDocument).where(
-                SourceDocument.id.in_(document_ids),
-                SourceDocument.updated_at > since,
-                SourceDocument.status != "retired",
-            )
+        stmt = select(SourceDocument).where(
+            SourceDocument.id.in_(document_ids),
+            SourceDocument.updated_at > since,
+            SourceDocument.status != "retired",
         )
+        if source_types:
+            stmt = stmt.where(SourceDocument.source_type.in_(source_types))
+        result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
     async def list_sync_published_visible_documents(
