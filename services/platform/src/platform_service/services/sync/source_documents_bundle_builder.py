@@ -44,7 +44,7 @@ class SourceDocumentsBundleBuilder:
         source_repo = SourceRepository(self._session)
 
         module_doc_ids = await self._module_linked_document_ids(tenant_id=tenant_id)
-        module_docs = await source_repo.list_by_ids_updated_since(module_doc_ids, since=since)
+        module_docs = await source_repo.list_by_ids_updated_since(module_doc_ids, since=since, source_types=["pdf"])
         module_docs_by_id = {doc.id: doc for doc in module_docs}
 
         assigned_at_by_id: dict[UUID, datetime] = {}
