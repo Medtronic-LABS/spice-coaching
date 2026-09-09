@@ -76,12 +76,15 @@ def _endpoint_url(endpoint: str | None, *, secure: bool) -> str | None:
     if not endpoint or not endpoint.strip():
         return None
     raw = endpoint.strip()
-    parsed = urlparse(raw if "://" in raw else f"{'https' if secure else 'http'}://{raw}")
+    explicit_scheme = "://" in raw
+    parsed = urlparse(raw if explicit_scheme else f"{'https' if secure else 'http'}://{raw}")
     if parsed.path not in ("", "/"):
         raise ValueError("object storage endpoint must not include a path")
     if not parsed.netloc:
         raise ValueError("object storage endpoint is invalid")
-    scheme = "https" if secure else "http"
+    # Honor an explicit scheme (e.g. https:// in presigned_endpoint) even when secure=False.
+    # Bare hostnames (no "://") fall back to the secure flag.
+    scheme = parsed.scheme if explicit_scheme else ("https" if secure else "http")
     return f"{scheme}://{parsed.netloc}"
 
 
