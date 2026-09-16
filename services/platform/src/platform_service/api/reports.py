@@ -79,6 +79,49 @@ def _local_time(row: dict[str, Any]) -> str:
     return str(ts)[11:16]
 
 
+# --- behavioural fields carried in the free-form ``payload_json`` --------------
+# These keys are populated once the micro-coaching SDK emits them (LEAP-43
+# Tier B). The backend stores payload_json verbatim, so no contract/migration
+# change is needed — reading these keys here is all that's required. Absent →
+# empty cell (never fabricated). The SDK must emit these exact key names.
+
+
+def _p_int(payload: dict[str, Any], key: str) -> Any:
+    v = payload.get(key)
+    return int(v) if isinstance(v, int) and not isinstance(v, bool) else ""
+
+
+def _p_yn(payload: dict[str, Any], key: str) -> str:
+    v = payload.get(key)
+    return "Y" if v is True else ("N" if v is False else "")
+
+
+def _p_minutes(payload: dict[str, Any], key: str) -> Any:
+    """A milliseconds value in payload → minutes (1 dp), or ''."""
+    v = payload.get(key)
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return ""
+    return round(v / 60000, 1)
+
+
+def _p_offset(payload: dict[str, Any], key: str) -> str:
+    """A milliseconds offset in payload → ``M:SS`` time offset, or ''."""
+    v = payload.get(key)
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return ""
+    total = int(v // 1000)
+    return f"{total // 60}:{total % 60:02d}"
+
+
+def _p_time(payload: dict[str, Any], key: str) -> str:
+    """A ``HH:MM[:SS]`` / ISO time string in payload → ``HH:MM``, or ''."""
+    v = payload.get(key)
+    if not isinstance(v, str) or not v:
+        return ""
+    # Accept "HH:MM", "HH:MM:SS", or an ISO datetime → keep the HH:MM.
+    return v[11:16] if len(v) >= 16 and v[10] in " T" else v[:5]
+
+
 def _csv_response(header: Sequence[str], rows: Iterable[Sequence[Any]], filename: str) -> Response:
     """Stream the rows as a downloadable CSV."""
 
@@ -172,7 +215,7 @@ async def lessons_report(
         from_date=from_date,
         to_date=to_date,
         tenant_id=tenant_id,
-        select="chw_id, module_id, event_type, quiz_score_pct, outcome, timestamp_local, timestamp_utc",
+        select="chw_id, module_id, event_type, quiz_score_pct, outcome, payload_json, timestamp_local, timestamp_utc",
     )
     module_ids = {str(r["module_id"]) for r in rows if r.get("module_id")}
     titles = await _module_titles(session, module_ids)
@@ -182,15 +225,19 @@ async def lessons_report(
             is_quiz = r["event_type"] in (_QUIZ_ATTEMPT_EVENT, _QUIZ_VIEW_EVENT)
             mid = str(r["module_id"]) if r.get("module_id") else ""
             score = r.get("quiz_score_pct")
+            p = _payload(r)
+            # payload keys (Tier B, when the SDK emits them): attempt_number,
+            # started_at (HH:MM/ISO), exited_at (HH:MM/ISO). Fall back to the
+            # event time for Start Time when the SDK has not sent started_at.
             yield [
                 r.get("chw_id"),                       # SK ID
                 mid,                                   # Lesson ID
                 titles.get(mid, ""),                   # Lesson Name
                 "Quiz" if is_quiz else "Lesson",       # Activity Type
                 round(score * 100, 1) if is_quiz and score is not None else "",  # Score
-                "",                                    # Attempt # (SDK does not emit)
-                _local_time(r),                        # Start Time
-                "",                                    # Exit/Drop-off Time (SDK does not emit)
+                _p_int(p, "attempt_number"),           # Attempt #
+                _p_time(p, "started_at") or _local_time(r),  # Start Time
+                _p_time(p, "exited_at"),               # Exit/Drop-off Time
                 r.get("outcome") or "",                # Completion Status
             ]
 
@@ -230,14 +277,15 @@ async def pdf_usage_report(
             info = meta.get(doc_id)
             if info and info["source_type"] and info["source_type"] != "pdf":
                 continue
+            # payload keys (Tier B): downloaded (bool), time_spent_ms (int).
             yield [
                 doc_id,                                # PDF ID
                 str(r["module_id"]) if r.get("module_id") else "",  # Lesson ID
                 r.get("chw_id"),                       # SK ID
                 "Y",                                   # Opened? (this IS an open event)
-                "",                                    # Downloaded? (SDK does not emit)
+                _p_yn(p, "downloaded"),                # Downloaded?
                 _local_dt(r),                          # Timestamp
-                "",                                    # Time Spent (min) (SDK does not emit)
+                _p_minutes(p, "time_spent_ms"),        # Time Spent (min)
             ]
 
     return _csv_response(
@@ -268,15 +316,17 @@ async def video_usage_report(
     def _out() -> Iterable[Sequence[Any]]:
         for r in rows:
             p = _payload(r)
+            # payload keys (Tier B): started_at, watch_duration_ms, pause_count,
+            # rewatch_count, drop_off_ms. End Time falls back to the event time.
             yield [
                 str(p.get("source_document_id") or ""),  # Video ID
                 r.get("chw_id"),                          # SK ID
-                "",                                       # Start Time (SDK does not emit)
-                _local_time(r),                           # End Time (progress event time)
-                "",                                       # Total Watch Duration (min) (SDK does not emit)
-                "",                                       # Pause Count (SDK does not emit)
-                "",                                       # Rewatch Count (SDK does not emit)
-                "",                                       # Drop-off Point (SDK does not emit)
+                _p_time(p, "started_at"),                 # Start Time
+                _p_time(p, "ended_at") or _local_time(r),  # End Time
+                _p_minutes(p, "watch_duration_ms"),       # Total Watch Duration (min)
+                _p_int(p, "pause_count"),                 # Pause Count
+                _p_int(p, "rewatch_count"),               # Rewatch Count
+                _p_offset(p, "drop_off_ms"),              # Drop-off Point
             ]
 
     return _csv_response(
