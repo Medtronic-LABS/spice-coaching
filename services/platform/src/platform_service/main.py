@@ -52,6 +52,7 @@ from platform_service.api.knowledge import router as knowledge_router  # noqa: E
 from platform_service.api.modules import router as modules_router  # noqa: E402
 from platform_service.api.morning import router as morning_router  # noqa: E402
 from platform_service.api.prompts import router as prompts_router  # noqa: E402
+from platform_service.api.reports import router as reports_router  # noqa: E402
 from platform_service.api.source_documents import router as source_documents_router  # noqa: E402
 from platform_service.api.sync import router as sync_router  # noqa: E402
 from platform_service.api.telemetry import router as telemetry_router  # noqa: E402
@@ -147,6 +148,7 @@ def create_app() -> FastAPI:
     api_router.include_router(badges_router)
     api_router.include_router(hierarchy_router)
     api_router.include_router(dashboard_router)
+    api_router.include_router(reports_router)
     api_router.include_router(morning_router)
     api_router.include_router(sync_router)
 
