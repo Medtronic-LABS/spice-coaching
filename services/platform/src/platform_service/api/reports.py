@@ -215,31 +215,55 @@ async def lessons_report(
         from_date=from_date,
         to_date=to_date,
         tenant_id=tenant_id,
-        select="chw_id, module_id, event_type, quiz_score_pct, outcome, payload_json, timestamp_local, timestamp_utc",
+        select="chw_id, module_id, event_type, quiz_score_pct, outcome, session_id, "
+        "timestamp_local, timestamp_utc",
     )
     module_ids = {str(r["module_id"]) for r in rows if r.get("module_id")}
     titles = await _module_titles(session, module_ids)
 
+    # Lessons are per-event; quizzes are aggregated into one row per attempt.
+    # The SDK emits per-question module_quiz_attempted events, so an "attempt" is
+    # the burst of quiz events sharing (chw, module, session). rows arrive oldest
+    # -first (see _events ORDER BY), so first-seen = start, last-seen = exit.
+    lesson_rows: list[Sequence[Any]] = []
+    attempts: dict[tuple, dict[str, Any]] = {}
+    for r in rows:
+        mid = str(r["module_id"]) if r.get("module_id") else ""
+        if r["event_type"] in (_LESSON_EVENT, _LESSON_DELIVERED):
+            lesson_rows.append([
+                r.get("chw_id"), mid, titles.get(mid, ""), "Lesson", "", "",
+                _local_time(r), "", r.get("outcome") or "",
+            ])
+            continue
+        key = (r.get("chw_id"), mid, r.get("session_id") or "")
+        a = attempts.get(key)
+        if a is None:
+            a = {"chw": r.get("chw_id"), "mid": mid, "start": _local_time(r),
+                 "start_utc": r.get("timestamp_utc")}
+            attempts[key] = a
+        a["exit"] = _local_time(r)          # last event wins
+        a["outcome"] = r.get("outcome") or ""
+        if r.get("quiz_score_pct") is not None:
+            a["score"] = r["quiz_score_pct"]
+
+    # Attempt # = chronological rank of each attempt within its (chw, module).
+    ranked: dict[tuple, int] = {}
+    for key, a in sorted(attempts.items(), key=lambda kv: (kv[1]["chw"], kv[1]["mid"],
+                                                           str(kv[1]["start_utc"]))):
+        cm = (a["chw"], a["mid"])
+        ranked[cm] = ranked.get(cm, 0) + 1
+        a["attempt"] = ranked[cm]
+
+    quiz_rows = [
+        [a["chw"], a["mid"], titles.get(a["mid"], ""), "Quiz",
+         round(a["score"] * 100, 1) if a.get("score") is not None else "",
+         a["attempt"], a["start"], a["exit"], a.get("outcome", "")]
+        for a in attempts.values()
+    ]
+
     def _out() -> Iterable[Sequence[Any]]:
-        for r in rows:
-            is_quiz = r["event_type"] in (_QUIZ_ATTEMPT_EVENT, _QUIZ_VIEW_EVENT)
-            mid = str(r["module_id"]) if r.get("module_id") else ""
-            score = r.get("quiz_score_pct")
-            p = _payload(r)
-            # payload keys (Tier B, when the SDK emits them): attempt_number,
-            # started_at (HH:MM/ISO), exited_at (HH:MM/ISO). Fall back to the
-            # event time for Start Time when the SDK has not sent started_at.
-            yield [
-                r.get("chw_id"),                       # SK ID
-                mid,                                   # Lesson ID
-                titles.get(mid, ""),                   # Lesson Name
-                "Quiz" if is_quiz else "Lesson",       # Activity Type
-                round(score * 100, 1) if is_quiz and score is not None else "",  # Score
-                _p_int(p, "attempt_number"),           # Attempt #
-                _p_time(p, "started_at") or _local_time(r),  # Start Time
-                _p_time(p, "exited_at"),               # Exit/Drop-off Time
-                r.get("outcome") or "",                # Completion Status
-            ]
+        yield from lesson_rows
+        yield from quiz_rows
 
     return _csv_response(
         ["SK ID", "Lesson ID", "Lesson Name", "Activity Type", "Score",
@@ -303,24 +327,36 @@ async def video_usage_report(
     ch: Any = Depends(get_clickhouse_client),
     session: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Raw log — one row per video-progress event."""
+    """Raw log — one row per video-watch session."""
     rows = await _events(
         ch,
         event_types=[_VIDEO_PROGRESS],
         from_date=from_date,
         to_date=to_date,
         tenant_id=tenant_id,
-        select="chw_id, payload_json, timestamp_local, timestamp_utc",
+        select="chw_id, payload_json, session_id, timestamp_local, timestamp_utc",
     )
 
+    # One row per session: the SDK emits many progress events per watch, each
+    # carrying the running behavioural aggregates, so the LAST event per
+    # (chw, session, video) holds the final counts. rows are oldest-first, so a
+    # dict keyed on that tuple keeps the last write.
+    sessions: dict[tuple, dict[str, Any]] = {}
+    for r in rows:
+        p = _payload(r)
+        vid = str(p.get("source_document_id") or "")
+        key = (r.get("chw_id"), r.get("session_id") or "", vid)
+        sessions[key] = {"chw": r.get("chw_id"), "vid": vid, "p": p, "row": r}
+
     def _out() -> Iterable[Sequence[Any]]:
-        for r in rows:
-            p = _payload(r)
-            # payload keys (Tier B): started_at, watch_duration_ms, pause_count,
-            # rewatch_count, drop_off_ms. End Time falls back to the event time.
+        for s in sessions.values():
+            p, r = s["p"], s["row"]
+            # payload keys (Tier B): started_at, ended_at, watch_duration_ms,
+            # pause_count, rewatch_count, drop_off_ms. End Time falls back to the
+            # last event time.
             yield [
-                str(p.get("source_document_id") or ""),  # Video ID
-                r.get("chw_id"),                          # SK ID
+                s["vid"],                                 # Video ID
+                s["chw"],                                 # SK ID
                 _p_time(p, "started_at"),                 # Start Time
                 _p_time(p, "ended_at") or _local_time(r),  # End Time
                 _p_minutes(p, "watch_duration_ms"),       # Total Watch Duration (min)
