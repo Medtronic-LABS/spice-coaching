@@ -230,34 +230,56 @@ async def lessons_report(
     for r in rows:
         mid = str(r["module_id"]) if r.get("module_id") else ""
         if r["event_type"] in (_LESSON_EVENT, _LESSON_DELIVERED):
-            lesson_rows.append([
-                r.get("chw_id"), mid, titles.get(mid, ""), "Lesson", "", "",
-                _local_time(r), "", r.get("outcome") or "",
-            ])
+            lesson_rows.append(
+                [
+                    r.get("chw_id"),
+                    mid,
+                    titles.get(mid, ""),
+                    "Lesson",
+                    "",
+                    "",
+                    _local_time(r),
+                    "",
+                    r.get("outcome") or "",
+                ]
+            )
             continue
         key = (r.get("chw_id"), mid, r.get("session_id") or "")
         a = attempts.get(key)
         if a is None:
-            a = {"chw": r.get("chw_id"), "mid": mid, "start": _local_time(r),
-                 "start_utc": r.get("timestamp_utc")}
+            a = {
+                "chw": r.get("chw_id"),
+                "mid": mid,
+                "start": _local_time(r),
+                "start_utc": r.get("timestamp_utc"),
+            }
             attempts[key] = a
-        a["exit"] = _local_time(r)          # last event wins
+        a["exit"] = _local_time(r)  # last event wins
         a["outcome"] = r.get("outcome") or ""
         if r.get("quiz_score_pct") is not None:
             a["score"] = r["quiz_score_pct"]
 
     # Attempt # = chronological rank of each attempt within its (chw, module).
     ranked: dict[tuple, int] = {}
-    for key, a in sorted(attempts.items(), key=lambda kv: (kv[1]["chw"], kv[1]["mid"],
-                                                           str(kv[1]["start_utc"]))):
+    for key, a in sorted(
+        attempts.items(), key=lambda kv: (kv[1]["chw"], kv[1]["mid"], str(kv[1]["start_utc"]))
+    ):
         cm = (a["chw"], a["mid"])
         ranked[cm] = ranked.get(cm, 0) + 1
         a["attempt"] = ranked[cm]
 
     quiz_rows = [
-        [a["chw"], a["mid"], titles.get(a["mid"], ""), "Quiz",
-         round(a["score"] * 100, 1) if a.get("score") is not None else "",
-         a["attempt"], a["start"], a["exit"], a.get("outcome", "")]
+        [
+            a["chw"],
+            a["mid"],
+            titles.get(a["mid"], ""),
+            "Quiz",
+            round(a["score"] * 100, 1) if a.get("score") is not None else "",
+            a["attempt"],
+            a["start"],
+            a["exit"],
+            a.get("outcome", ""),
+        ]
         for a in attempts.values()
     ]
 
@@ -266,8 +288,17 @@ async def lessons_report(
         yield from quiz_rows
 
     return _csv_response(
-        ["SK ID", "Lesson ID", "Lesson Name", "Activity Type", "Score",
-         "Attempt #", "Start Time", "Exit/Drop-off Time", "Completion Status"],
+        [
+            "SK ID",
+            "Lesson ID",
+            "Lesson Name",
+            "Activity Type",
+            "Score",
+            "Attempt #",
+            "Start Time",
+            "Exit/Drop-off Time",
+            "Completion Status",
+        ],
         _out(),
         f"microcoaching_lessons_{from_date}_{to_date}.csv",
     )
@@ -290,7 +321,9 @@ async def pdf_usage_report(
         tenant_id=tenant_id,
         select="chw_id, module_id, payload_json, timestamp_local, timestamp_utc",
     )
-    doc_ids = {str(_payload(r).get("source_document_id")) for r in rows if _payload(r).get("source_document_id")}
+    doc_ids = {
+        str(_payload(r).get("source_document_id")) for r in rows if _payload(r).get("source_document_id")
+    }
     meta = await _document_meta(session, doc_ids)
 
     def _out() -> Iterable[Sequence[Any]]:
@@ -303,13 +336,13 @@ async def pdf_usage_report(
                 continue
             # payload keys (Tier B): downloaded (bool), time_spent_ms (int).
             yield [
-                doc_id,                                # PDF ID
+                doc_id,  # PDF ID
                 str(r["module_id"]) if r.get("module_id") else "",  # Lesson ID
-                r.get("chw_id"),                       # SK ID
-                "Y",                                   # Opened? (this IS an open event)
-                _p_yn(p, "downloaded"),                # Downloaded?
-                _local_dt(r),                          # Timestamp
-                _p_minutes(p, "time_spent_ms"),        # Time Spent (min)
+                r.get("chw_id"),  # SK ID
+                "Y",  # Opened? (this IS an open event)
+                _p_yn(p, "downloaded"),  # Downloaded?
+                _local_dt(r),  # Timestamp
+                _p_minutes(p, "time_spent_ms"),  # Time Spent (min)
             ]
 
     return _csv_response(
@@ -355,19 +388,27 @@ async def video_usage_report(
             # pause_count, rewatch_count, drop_off_ms. End Time falls back to the
             # last event time.
             yield [
-                s["vid"],                                 # Video ID
-                s["chw"],                                 # SK ID
-                _p_time(p, "started_at"),                 # Start Time
+                s["vid"],  # Video ID
+                s["chw"],  # SK ID
+                _p_time(p, "started_at"),  # Start Time
                 _p_time(p, "ended_at") or _local_time(r),  # End Time
-                _p_minutes(p, "watch_duration_ms"),       # Total Watch Duration (min)
-                _p_int(p, "pause_count"),                 # Pause Count
-                _p_int(p, "rewatch_count"),               # Rewatch Count
-                _p_offset(p, "drop_off_ms"),              # Drop-off Point
+                _p_minutes(p, "watch_duration_ms"),  # Total Watch Duration (min)
+                _p_int(p, "pause_count"),  # Pause Count
+                _p_int(p, "rewatch_count"),  # Rewatch Count
+                _p_offset(p, "drop_off_ms"),  # Drop-off Point
             ]
 
     return _csv_response(
-        ["Video ID", "SK ID", "Start Time", "End Time", "Total Watch Duration (min)",
-         "Pause Count", "Rewatch Count", "Drop-off Point"],
+        [
+            "Video ID",
+            "SK ID",
+            "Start Time",
+            "End Time",
+            "Total Watch Duration (min)",
+            "Pause Count",
+            "Rewatch Count",
+            "Drop-off Point",
+        ],
         _out(),
         f"microcoaching_video_usage_{from_date}_{to_date}.csv",
     )
