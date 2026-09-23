@@ -20,7 +20,8 @@ class GenerationProfile:
     temperature: float
 
 
-_DEFAULT_MODEL = "gemini-2.5-flash"
+# LEAP-55: migrated off gemini-2.5-flash to the recommended lite successor.
+_DEFAULT_MODEL = "gemini-3.5-flash-lite"
 _DEFAULT_MAX_TOKENS = 8192
 _DEFAULT_TEMPERATURE = 0.2
 

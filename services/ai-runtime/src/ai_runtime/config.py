@@ -71,7 +71,10 @@ class Settings(BaseAppSettings):
     local_generation_max_input_tokens: int = Field(default=20_000, ge=256, le=131_072)
     local_preload_on_startup: bool = True
 
-    google_transcription_model: str = "gemini-2.5-flash"
+    # LEAP-55: migrated off gemini-2.5-flash (no shutdown announced for this
+    # exact model id, but Google steers new/updated integrations to the 3.x
+    # line) to the recommended lite successor.
+    google_transcription_model: str = "gemini-3.5-flash-lite"
 
     # Target pgvector corpus dimension; the canonical truncation point lives in
     # ``services/embedding_vector.align_embedding_dimension`` and runs once per
@@ -83,7 +86,8 @@ class Settings(BaseAppSettings):
     # Used as fallback when a GenerationType is missing from GENERATION_PROFILES
     # (tests assert the map is complete). Per-type budgets live in
     # ``ai_runtime.generation_profiles``.
-    default_inference_model: str = "gemini-2.5-flash"
+    # LEAP-55: migrated off gemini-2.5-flash to the recommended lite successor.
+    default_inference_model: str = "gemini-3.5-flash-lite"
     default_max_tokens: int = 8192
     default_temperature: float = 0.2
     json_parse_retries: int = 1
