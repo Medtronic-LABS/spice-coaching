@@ -337,6 +337,7 @@ async def pdf_usage_report(
             # payload keys (Tier B): downloaded (bool), time_spent_ms (int).
             yield [
                 doc_id,  # PDF ID
+                info["title"] if info else "",  # PDF Name
                 str(r["module_id"]) if r.get("module_id") else "",  # Lesson ID
                 r.get("chw_id"),  # SK ID
                 "Y",  # Opened? (this IS an open event)
@@ -346,7 +347,16 @@ async def pdf_usage_report(
             ]
 
     return _csv_response(
-        ["PDF ID", "Lesson ID", "SK ID", "Opened?", "Downloaded?", "Timestamp", "Time Spent (min)"],
+        [
+            "PDF ID",
+            "PDF Name",
+            "Lesson ID",
+            "SK ID",
+            "Opened?",
+            "Downloaded?",
+            "Timestamp",
+            "Time Spent (min)",
+        ],
         _out(),
         f"microcoaching_pdf_usage_{from_date}_{to_date}.csv",
     )
@@ -381,14 +391,19 @@ async def video_usage_report(
         key = (r.get("chw_id"), r.get("session_id") or "", vid)
         sessions[key] = {"chw": r.get("chw_id"), "vid": vid, "p": p, "row": r}
 
+    video_ids = {s["vid"] for s in sessions.values() if s["vid"]}
+    meta = await _document_meta(session, video_ids)
+
     def _out() -> Iterable[Sequence[Any]]:
         for s in sessions.values():
             p, r = s["p"], s["row"]
+            info = meta.get(s["vid"])
             # payload keys (Tier B): started_at, ended_at, watch_duration_ms,
             # pause_count, rewatch_count, drop_off_ms. End Time falls back to the
             # last event time.
             yield [
                 s["vid"],  # Video ID
+                info["title"] if info else "",  # Video Name
                 s["chw"],  # SK ID
                 _p_time(p, "started_at"),  # Start Time
                 _p_time(p, "ended_at") or _local_time(r),  # End Time
@@ -401,6 +416,7 @@ async def video_usage_report(
     return _csv_response(
         [
             "Video ID",
+            "Video Name",
             "SK ID",
             "Start Time",
             "End Time",
