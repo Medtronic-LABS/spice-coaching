@@ -108,14 +108,14 @@ services:
       search_metadata_max_tags: ${SEARCH_METADATA_MAX_TAGS:-10}
       # Local compose MinIO (host .env may set localhost:19902 for non-compose runs).
       object_storage_backend: minio
-      object_storage_endpoint: https://agent-qa.beehyv.com
-      object_storage_presigned_endpoint: https://agent-qa.beehyv.com
+      object_storage_endpoint: minio:9000
+      object_storage_presigned_endpoint: https://spice-dev-backend.uhis.labsplatform.com
       object_storage_presign_mode: proxy
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
-      object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-medtronics-storage}
+      object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-dev-micro-coaching-reports}
       object_storage_auto_create_bucket: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-true}
-      object_storage_secure: "true"
+      object_storage_secure: "false"
       object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
       admin_file_allowed_prefixes: ${ADMIN_FILE_ALLOWED_PREFIXES:-uploads,source-documents,media,ingest,module-thumbnails}
       admin_file_upload_prefix: ${ADMIN_FILE_UPLOAD_PREFIX:-uploads}
@@ -201,7 +201,7 @@ services:
       object_storage_presign_mode: proxy
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
-      object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-medtronics-storage}
+      object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-dev-micro-coaching-reports}
       object_storage_auto_create_bucket: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-true}
       object_storage_secure: "false"
       object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
