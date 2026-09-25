@@ -45,6 +45,7 @@ class ModuleQuizQuestionPayload(BaseModel):
     correct_indices: list[int]
     explanation: LocalizedString | None = None
     difficulty: str
+    primary_card_index: int | None = None
 
 
 class SourceDocumentSyncPayload(BaseModel):

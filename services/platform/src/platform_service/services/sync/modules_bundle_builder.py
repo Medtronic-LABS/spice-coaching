@@ -117,9 +117,18 @@ class ModulesBundleBuilder:
                 if row.module_id is None:
                     continue
                 cards_by_module_id.setdefault(row.module_id, []).append(card_row_to_dict(row))
+            card_order_by_family_id: dict[UUID, dict[str, int]] = {
+                module_id: {card["card_family_id"]: card["card_order"] for card in cards}
+                for module_id, cards in cards_by_module_id.items()
+            }
             for row in quiz_rows:
                 if row.module_id is None:
                     continue
+                primary_card_index = None
+                if row.primary_card_family_id is not None:
+                    primary_card_index = card_order_by_family_id.get(row.module_id, {}).get(
+                        str(row.primary_card_family_id)
+                    )
                 quiz_by_module_id.setdefault(row.module_id, []).append(
                     ModuleQuizQuestionPayload(
                         id=row.id,
@@ -130,6 +139,7 @@ class ModulesBundleBuilder:
                         correct_indices=list(row.correct_indices or []),
                         explanation=row.explanation_localized,
                         difficulty=row.difficulty,
+                        primary_card_index=primary_card_index,
                     )
                 )
 
