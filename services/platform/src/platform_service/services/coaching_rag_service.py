@@ -76,6 +76,13 @@ def coaching_rag_response_locales(settings: Settings) -> frozenset[str]:
     return frozenset({settings.deployment_primary_locale}) | settings.deployment_additional_locale_set
 
 
+def _card_id(card: dict[str, Any]) -> UUID | None:
+    try:
+        return UUID(str(card.get("id")))
+    except (ValueError, TypeError):
+        return None
+
+
 def resolve_response_language(
     body: CoachingRagRequest | CoachingLocalRagRequest,
     settings: Settings,
@@ -187,6 +194,7 @@ class CoachingRagService:
             raise CoachingRagError("model JSON missing non-empty 'answer' field")
 
         cited_ids = self._parse_cited_module_ids(payload.get("cited_module_ids") or [])
+        cited_card_ids = self._parse_cited_module_ids(payload.get("cited_card_ids") or [])
         suggested_questions = self._parse_suggested_questions(payload.get("suggested_questions"))
         retrieved_hits = [
             RetrievedModuleHit(
@@ -214,6 +222,7 @@ class CoachingRagService:
             ttl=ttl,
             cards_by_module=cards_by_module,
             tenant_id=tenant_id,
+            cited_card_ids=cited_card_ids,
         )
         return CoachingRagResponse(
             answer=answer,
@@ -306,11 +315,14 @@ class CoachingRagService:
         if not answer:
             raise CoachingRagError("model JSON missing non-empty 'answer' field")
 
+        raw_cited_ids = self._parse_cited_module_ids(payload.get("cited_module_ids") or [])
         cited_ids = self._resolve_cited_ids_for_card_rag(
-            self._parse_cited_module_ids(payload.get("cited_module_ids") or []),
+            raw_cited_ids,
             modules_by_id=modules_by_id,
             card_pairs=card_pairs,
         )
+        card_to_module = {card.id: card.module_id for card, _ in card_pairs}
+        cited_card_ids = [raw_id for raw_id in raw_cited_ids if raw_id in card_to_module]
         suggested_questions = self._parse_suggested_questions(payload.get("suggested_questions"))
         retrieved_hits = self._retrieved_module_hits_from_card_pairs(card_pairs, modules_by_id=modules_by_id)
         generation_context = context if body.include_generation_context else None
@@ -330,6 +342,7 @@ class CoachingRagService:
             ttl=ttl,
             cards_by_module=cards_by_module,
             tenant_id=tenant_id,
+            cited_card_ids=cited_card_ids,
         )
         return CoachingRagResponse(
             answer=answer,
@@ -371,7 +384,7 @@ class CoachingRagService:
                 body_map.get(primary_locale) if isinstance(body_map, dict) else None
             )
             chunk = (
-                f"--- card_index={i} ---\n"
+                f"--- card_index={i} card_id={card.get('id')} ---\n"
                 f"title[{primary_locale}]: {title_primary}\n"
                 f"body[{primary_locale}]: {body_primary}\n"
             )
@@ -620,6 +633,7 @@ class CoachingRagService:
         ttl: int,
         cards_by_module: dict[UUID, list[dict[str, Any]]],
         tenant_id: int | None = None,
+        cited_card_ids: list[UUID] | None = None,
     ) -> list[SourceAttribution]:
         settings = self._settings
         module_repo = ModuleRepository(self._session)
@@ -638,7 +652,11 @@ class CoachingRagService:
                 cards_by_module.setdefault(row.module_id, []).append(card_row_to_dict(row))
 
         doc_id_set, module_ids_per_doc = self._collect_source_document_links(cited_modules)
-        block_ids = self._block_ids_from_modules(cited_modules, cards_by_module)
+        block_ids = self._block_ids_from_modules(
+            cited_modules,
+            cards_by_module,
+            cited_card_ids=set(cited_card_ids) if cited_card_ids else None,
+        )
 
         source_repo = SourceRepository(self._session)
         block_rows = await source_repo.list_block_provenance_by_ids(block_ids)
@@ -723,10 +741,27 @@ class CoachingRagService:
     def _block_ids_from_modules(
         modules: list[Module],
         cards_by_module: dict[UUID, list[dict[str, Any]]],
+        *,
+        cited_card_ids: set[UUID] | None = None,
     ) -> list[UUID]:
         ids: list[UUID] = []
         for mod in modules:
-            for card in cards_by_module.get(mod.id, []):
+            module_cards = cards_by_module.get(mod.id, [])
+            # Narrow to the specific cards the model actually cited, when it told us
+            # which ones — otherwise every card in the module is treated as having
+            # supported the answer, which over-attributes pages the answer never
+            # touched (LEAP-37). Falls back to the whole module only when no cited
+            # card in this module is recognised, so behaviour degrades gracefully
+            # for older prompt versions or models that skip cited_card_ids.
+            if cited_card_ids:
+                narrowed = [
+                    card
+                    for card in module_cards
+                    if isinstance(card, dict) and _card_id(card) in cited_card_ids
+                ]
+                if narrowed:
+                    module_cards = narrowed
+            for card in module_cards:
                 if not isinstance(card, dict):
                     continue
                 for raw in card.get("source_block_ids") or []:
