@@ -1,0 +1,219 @@
+name: Coaching Backend CI and GHCR Push
+
+# Builds the backend images for one environment, pushes them to GHCR and
+# updates the image tags in deploy-scripts.
+#
+# Images built:
+#   services/platform/Dockerfile    -> spice-coaching-platform-api
+#                                      spice-coaching-platform-celery-worker
+#                                      spice-coaching-platform-celery-beat
+#                                      spice-coaching-migrate
+#                                      (same image, pushed under 4 names)
+#   services/ai-runtime/Dockerfile  -> spice-coaching-ai-runtime
+#
+# Environments: dev, training, brac-prod (GitHub Settings -> Environments).
+#   - Push to development builds "dev".
+#   - Push to training builds "training".
+#   - Push to leapwell-main builds "brac-prod".
+#   - Run manually (workflow_dispatch) to pick any of the three.
+#
+# Per-environment variables (set on each GitHub Environment):
+#   Required : DEPLOY_BRANCH   (deploy-scripts branch to update)
+#              MANIFEST_DIR    (folder in deploy-scripts that has the yaml files,
+#                               e.g. kubernetes-manifest/leapwell-dev)
+# Shared (repo level is fine): variable GHCR_ORG
+#                              secrets GHCR_USERNAME, GHCR_TOKEN,
+#                                      CI_BOT_USER, CI_BOT_TOKEN
+
+on:
+  push:
+    branches:
+      - development
+      - training
+      - leapwell-main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to build and update
+        type: choice
+        options:
+          - dev
+          - training
+          - brac-prod
+        default: dev
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: coaching-backend-${{ inputs.environment || (github.ref_name == 'development' && 'dev') || (github.ref_name == 'leapwell-main' && 'brac-prod') || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || (github.ref_name == 'development' && 'dev') || (github.ref_name == 'leapwell-main' && 'brac-prod') || github.ref_name }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: platform
+            dockerfile: services/platform/Dockerfile
+            images: >-
+              spice-coaching-platform-api
+              spice-coaching-platform-celery-worker
+              spice-coaching-platform-celery-beat
+              spice-coaching-migrate
+          - name: ai-runtime
+            dockerfile: services/ai-runtime/Dockerfile
+            images: spice-coaching-ai-runtime
+    env:
+      ENV_NAME: ${{ inputs.environment || (github.ref_name == 'development' && 'dev') || (github.ref_name == 'leapwell-main' && 'brac-prod') || github.ref_name }}
+      GHCR_ORG: ${{ vars.GHCR_ORG }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate pipeline settings
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          missing=""
+          for name in GHCR_ORG GHCR_USERNAME GHCR_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing for environment '${ENV_NAME}':${missing}"
+            exit 1
+          fi
+          echo "Environment: ${ENV_NAME}"
+
+      - name: Set image tags
+        env:
+          IMAGES: ${{ matrix.images }}
+        run: |
+          IMAGE_TAG="${ENV_NAME}-${GITHUB_SHA::7}"
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+          {
+            echo "TAGS<<EOF"
+            for image in ${IMAGES}; do
+              echo "ghcr.io/${GHCR_ORG}/${image}:${IMAGE_TAG}"
+            done
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.TAGS }}
+          cache-from: type=gha,scope=coaching-${{ matrix.name }}-${{ env.ENV_NAME }}
+          cache-to: type=gha,mode=max,scope=coaching-${{ matrix.name }}-${{ env.ENV_NAME }}
+          provenance: false
+
+  # Runs after both images are pushed, so the deploy-scripts push happens once.
+  update-deploy-scripts:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || (github.ref_name == 'development' && 'dev') || (github.ref_name == 'leapwell-main' && 'brac-prod') || github.ref_name }}
+    env:
+      ENV_NAME: ${{ inputs.environment || (github.ref_name == 'development' && 'dev') || (github.ref_name == 'leapwell-main' && 'brac-prod') || github.ref_name }}
+      GHCR_ORG: ${{ vars.GHCR_ORG }}
+      DEPLOY_REPO: bitbucket.org/MDTLabs/deploy-scripts.git
+      DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH }}
+      MANIFEST_DIR: ${{ vars.MANIFEST_DIR }}
+
+    steps:
+      - name: Validate pipeline settings
+        env:
+          CI_BOT_USER: ${{ secrets.CI_BOT_USER }}
+          CI_BOT_TOKEN: ${{ secrets.CI_BOT_TOKEN }}
+        run: |
+          missing=""
+          for name in GHCR_ORG CI_BOT_USER CI_BOT_TOKEN DEPLOY_BRANCH MANIFEST_DIR; do
+            if [ -z "${!name:-}" ]; then
+              missing="${missing} ${name}"
+            fi
+          done
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing for environment '${ENV_NAME}':${missing}"
+            exit 1
+          fi
+
+      - name: Update image tags in deploy-scripts
+        env:
+          CI_BOT_USER: ${{ secrets.CI_BOT_USER }}
+          CI_BOT_TOKEN: ${{ secrets.CI_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="${ENV_NAME}-${GITHUB_SHA::7}"
+          REMOTE="https://${CI_BOT_USER}:${CI_BOT_TOKEN}@${DEPLOY_REPO}"
+
+          git clone --depth 1 -b "${DEPLOY_BRANCH}" "${REMOTE}" deploy-scripts
+          cd deploy-scripts
+
+          # Update the image line in one specific yaml file.
+          #   $1 = yaml file name, $2 = image name
+          # sed only edits the line that has "image: .../<image name>:<tag>",
+          # so busybox/init containers in the same file stay untouched.
+          update_image() {
+            file="${MANIFEST_DIR}/$1"
+            image="$2"
+            new_image="ghcr.io/${GHCR_ORG}/${image}:${IMAGE_TAG}"
+
+            if [ ! -f "${file}" ]; then
+              echo "::error::Missing deploy manifest: ${file}"
+              exit 1
+            fi
+
+            sed -i -E "s|^([[:space:]]*image:[[:space:]]*)ghcr\.io/[^[:space:]]*/${image}:[^[:space:]]*|\1${new_image}|" "${file}"
+
+            if ! grep -qE "^[[:space:]]*image:[[:space:]]*${new_image}\$" "${file}"; then
+              echo "::error::No '${image}' image line found in ${file}"
+              exit 1
+            fi
+            git add "${file}"
+            echo "Updated ${file}"
+            grep -n "image: ghcr.io" "${file}"
+          }
+
+          update_image platform-api.yaml           spice-coaching-platform-api
+          update_image platform-celery-worker.yaml spice-coaching-platform-celery-worker
+          update_image platform-celery-beat.yaml   spice-coaching-platform-celery-beat
+          update_image platform-migrate-job.yaml   spice-coaching-migrate
+          update_image ai-runtime.yaml             spice-coaching-ai-runtime
+
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@bitbucket.org"
+
+          if git diff --cached --quiet; then
+            echo "Image tags already up to date. Nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "ci(${ENV_NAME}): update spice-coaching backend images to ${IMAGE_TAG}"
+          for attempt in 1 2 3; do
+            if git push origin "${DEPLOY_BRANCH}"; then
+              echo "Pushed image tag update to ${DEPLOY_BRANCH}"
+              exit 0
+            fi
+            git pull --rebase origin "${DEPLOY_BRANCH}"
+          done
+          echo "::error::Could not push the image tag update"
+          exit 1
