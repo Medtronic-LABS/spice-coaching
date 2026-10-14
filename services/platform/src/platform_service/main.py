@@ -9,7 +9,9 @@ from __future__ import annotations
 # Load .env before any other import that touches Settings. Pydantic-settings
 # handles declared fields, but environment variables consumed by external
 # SDKs (notably GOOGLE_APPLICATION_CREDENTIALS for google-genai) are read
-# directly from os.environ — this ensures they are populated.
+# directly from os.environ — this ensures they are populated (and that
+# MICROCOACHING_GOOGLE_APPLICATION_CREDENTIALS, when set, takes precedence —
+# see apply_microcoaching_google_credentials_alias).
 from pathlib import Path
 
 try:
@@ -22,6 +24,10 @@ try:
             break
 except ImportError:
     pass
+
+from mc_foundation.config import apply_microcoaching_google_credentials_alias  # noqa: E402
+
+apply_microcoaching_google_credentials_alias()
 
 import logging  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
