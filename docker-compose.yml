@@ -109,7 +109,15 @@ services:
       # Local compose MinIO (host .env may set localhost:19902 for non-compose runs).
       object_storage_backend: minio
       object_storage_endpoint: minio:9000
-      object_storage_presigned_endpoint: https://spice-dev-backend.uhis.labsplatform.com
+      # The public URL browsers use to fetch presigned S3/MinIO links — must
+      # match whichever backend domain this deployment actually serves.
+      # Falls back to UHIS_BACKEND_BASE_URL (the one shared source of truth
+      # for this environment's domain, see spice_auth_base_url below) so the
+      # domain lives in exactly one place. OBJECT_STORAGE_PUBLIC_PRESIGNED_ENDPOINT
+      # is distinct from OBJECT_STORAGE_PRESIGNED_ENDPOINT (.env.example's
+      # host-mode MinIO port) to avoid the same host/container collision that
+      # made SPICE_AUTH_BASE_URL unoverridable.
+      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PUBLIC_PRESIGNED_ENDPOINT:-${UHIS_BACKEND_BASE_URL:-https://uhis-dev-backend.labsplatform.com}}
       object_storage_presign_mode: proxy
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
@@ -132,7 +140,10 @@ services:
       # previous default (spice-dev-backend.uhis.labsplatform.com) is a
       # different domain whose auth-service cannot validate tokens issued by
       # uhis-dev-backend, which silently 401s every sync/* route.
-      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-https://uhis-dev-backend.labsplatform.com/auth-service}
+      # Falls back to UHIS_BACKEND_BASE_URL — the one shared var for this
+      # environment's domain — so changing environments means setting ONE
+      # var instead of hunting down every place the domain was hardcoded.
+      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-${UHIS_BACKEND_BASE_URL:-https://uhis-dev-backend.labsplatform.com}/auth-service}
       spice_auth_timeout_seconds: ${SPICE_AUTH_TIMEOUT_SECONDS:-5}
       spice_auth_default_client: ${SPICE_AUTH_DEFAULT_CLIENT:-web}
       app_env: ${APP_ENV:-development}
