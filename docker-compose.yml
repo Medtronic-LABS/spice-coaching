@@ -125,7 +125,14 @@ services:
       coaching_rag_context_max_chars: ${COACHING_RAG_CONTEXT_MAX_CHARS:-28000}
       # SPICE auth-service (optional; default off for local compose)
       spice_auth_enabled: ${SPICE_AUTH_ENABLED:-true}
-      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-https://spice-dev-backend.uhis.labsplatform.com/auth-service/}
+      # Verified against the uhis-dev-backend environment (2026-10-14): a real
+      # device token round-tripped through POST {base}/authenticate here and
+      # came back "Token expired" (expected for an aged token) rather than
+      # "unauthorized" — confirming this is the matching auth-service. The
+      # previous default (spice-dev-backend.uhis.labsplatform.com) is a
+      # different domain whose auth-service cannot validate tokens issued by
+      # uhis-dev-backend, which silently 401s every sync/* route.
+      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-https://uhis-dev-backend.labsplatform.com/auth-service}
       spice_auth_timeout_seconds: ${SPICE_AUTH_TIMEOUT_SECONDS:-5}
       spice_auth_default_client: ${SPICE_AUTH_DEFAULT_CLIENT:-web}
       app_env: ${APP_ENV:-development}
