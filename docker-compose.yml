@@ -302,7 +302,10 @@ services:
       # ergonomic (CI runners, ephemeral containers, secret stores).
       google_service_account_base64: ${GOOGLE_SERVICE_ACCOUNT_BASE64:-}
       # ── Google: Developer-API auth (fallback when Vertex disabled) ───
-      google_api_key: ${GOOGLE_API_KEY:-${GEMINI_API_KEY:-}}
+      # MICROCOACHING_GEMINI_API_KEY is the preferred host var — bare
+      # GEMINI_API_KEY collides with the same var in sibling Leapfrog
+      # services (e.g. leapfrog-ai-services) when their envs are merged.
+      google_api_key: ${GOOGLE_API_KEY:-${MICROCOACHING_GEMINI_API_KEY:-${GEMINI_API_KEY:-}}}
       # ── Google: embedding / transcription models (generate models are
       # code defaults in ai_runtime.generation_profiles) ─────────────
       google_embedding_model: ${GOOGLE_EMBEDDING_MODEL:-gemini-embedding-001}
