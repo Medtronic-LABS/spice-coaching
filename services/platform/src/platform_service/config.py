@@ -13,7 +13,7 @@ from typing import Self
 from mc_contracts.localized import LocaleConfig
 from mc_foundation.config import BaseAppSettings
 from mc_foundation.locale import LOCALE_REGISTRY, get_supported_locales
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 
 _DEV_AI_RUNTIME_TOKEN = "dev-internal-token"
@@ -36,11 +36,21 @@ class Settings(BaseAppSettings):
     api_root_path: str = "/medtronics-api/"
 
     # ── Database ──────────────────────────────────────────────
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/microcoaching"
+    # MICROCOACHING_DATABASE_URL / MICROCOACHING_DATABASE_PASSWORD are the
+    # preferred names — the bare DATABASE_URL / DATABASE_PASSWORD collide with
+    # the same vars in sibling Leapfrog services (e.g. leapfrog-ai-services)
+    # when their envs are ever merged. Old names kept as fallback aliases.
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/microcoaching",
+        validation_alias=AliasChoices("microcoaching_database_url", "database_url"),
+    )
     # Sourced from env in production. Default None so a missing env var
     # surfaces clearly at first DB connection rather than silently using
     # someone's stale local password.
-    database_password: str | None = "dpkgyl"
+    database_password: str | None = Field(
+        default="dpkgyl",
+        validation_alias=AliasChoices("microcoaching_database_password", "database_password"),
+    )
     database_pool_size: int = 5
     database_max_overflow: int = 10
     database_pool_recycle: int = 3600

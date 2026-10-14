@@ -109,7 +109,15 @@ services:
       # Local compose MinIO (host .env may set localhost:19902 for non-compose runs).
       object_storage_backend: minio
       object_storage_endpoint: minio:9000
-      object_storage_presigned_endpoint: https://spice-dev-backend.uhis.labsplatform.com
+      # The public URL browsers use to fetch presigned S3/MinIO links — must
+      # match whichever backend domain this deployment actually serves.
+      # Falls back to UHIS_BACKEND_BASE_URL (the one shared source of truth
+      # for this environment's domain, see spice_auth_base_url below) so the
+      # domain lives in exactly one place. OBJECT_STORAGE_PUBLIC_PRESIGNED_ENDPOINT
+      # is distinct from OBJECT_STORAGE_PRESIGNED_ENDPOINT (.env.example's
+      # host-mode MinIO port) to avoid the same host/container collision that
+      # made SPICE_AUTH_BASE_URL unoverridable.
+      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PUBLIC_PRESIGNED_ENDPOINT:-${UHIS_BACKEND_BASE_URL:-https://uhis-dev-backend.labsplatform.com}}
       object_storage_presign_mode: proxy
       object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
       object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
@@ -125,7 +133,17 @@ services:
       coaching_rag_context_max_chars: ${COACHING_RAG_CONTEXT_MAX_CHARS:-28000}
       # SPICE auth-service (optional; default off for local compose)
       spice_auth_enabled: ${SPICE_AUTH_ENABLED:-true}
-      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-https://spice-dev-backend.uhis.labsplatform.com/auth-service/}
+      # Verified against the uhis-dev-backend environment (2026-10-14): a real
+      # device token round-tripped through POST {base}/authenticate here and
+      # came back "Token expired" (expected for an aged token) rather than
+      # "unauthorized" — confirming this is the matching auth-service. The
+      # previous default (spice-dev-backend.uhis.labsplatform.com) is a
+      # different domain whose auth-service cannot validate tokens issued by
+      # uhis-dev-backend, which silently 401s every sync/* route.
+      # Falls back to UHIS_BACKEND_BASE_URL — the one shared var for this
+      # environment's domain — so changing environments means setting ONE
+      # var instead of hunting down every place the domain was hardcoded.
+      spice_auth_base_url: ${SPICE_AUTH_BASE_URL:-${UHIS_BACKEND_BASE_URL:-https://uhis-dev-backend.labsplatform.com}/auth-service}
       spice_auth_timeout_seconds: ${SPICE_AUTH_TIMEOUT_SECONDS:-5}
       spice_auth_default_client: ${SPICE_AUTH_DEFAULT_CLIENT:-web}
       app_env: ${APP_ENV:-development}
@@ -295,14 +313,21 @@ services:
       google_use_vertex: ${GOOGLE_USE_VERTEX:-false}
       google_cloud_project: ${GOOGLE_CLOUD_PROJECT:-}
       google_cloud_location: ${GOOGLE_CLOUD_LOCATION:-us-central1}
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/run/secrets/gcp-service-account.json}
+      # MICROCOACHING_GOOGLE_APPLICATION_CREDENTIALS is the preferred host var
+      # — bare GOOGLE_APPLICATION_CREDENTIALS collides with the same var in
+      # sibling Leapfrog services (e.g. leapfrog-ai-services) outside Compose,
+      # where each service's env isn't container-isolated like it is here.
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-${MICROCOACHING_GOOGLE_APPLICATION_CREDENTIALS:-/run/secrets/gcp-service-account.json}}
       # Optional: base64-encoded service-account JSON. When set, the SDK
       # builds credentials in-process and the bind-mounted file path
       # above is ignored. Useful when mounting a JSON file isn't
       # ergonomic (CI runners, ephemeral containers, secret stores).
       google_service_account_base64: ${GOOGLE_SERVICE_ACCOUNT_BASE64:-}
       # ── Google: Developer-API auth (fallback when Vertex disabled) ───
-      google_api_key: ${GOOGLE_API_KEY:-${GEMINI_API_KEY:-}}
+      # MICROCOACHING_GEMINI_API_KEY is the preferred host var — bare
+      # GEMINI_API_KEY collides with the same var in sibling Leapfrog
+      # services (e.g. leapfrog-ai-services) when their envs are merged.
+      google_api_key: ${GOOGLE_API_KEY:-${MICROCOACHING_GEMINI_API_KEY:-${GEMINI_API_KEY:-}}}
       # ── Google: embedding / transcription models (generate models are
       # code defaults in ai_runtime.generation_profiles) ─────────────
       google_embedding_model: ${GOOGLE_EMBEDDING_MODEL:-gemini-embedding-001}
