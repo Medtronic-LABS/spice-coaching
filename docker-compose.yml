@@ -397,6 +397,13 @@ services:
         VITE_ERROR_REPORTING_URL: ${VITE_ERROR_REPORTING_URL:-}
         VITE_ROUTE_PREFIX: ${VITE_ROUTE_PREFIX:-/medtronics-ui}
         VITE_DEPLOYMENT_PRIMARY_LOCALE: ${VITE_DEPLOYMENT_PRIMARY_LOCALE:-bn}
+        # Skips fetchSpiceUserProfile()'s cookie-based SPICE auth check and seeds a
+        # fake TEST_AUTH_USER session instead (see useAuthBootstrap.ts in the
+        # dashboard repo). Dev/local only — defaults off so a real deployment never
+        # silently ships with auth disabled. Vite env vars are baked in at build
+        # time, so toggling this requires rebuilding the image, not just restarting
+        # the container.
+        VITE_DEV_AUTH_BYPASS: ${VITE_DEV_AUTH_BYPASS:-false}
     ports:
       - "${ANALYTICS_DASHBOARD_PORT:-18080}:80"
     depends_on:
