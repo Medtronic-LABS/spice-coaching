@@ -13,7 +13,12 @@ import pytest
 from botocore import UNSIGNED
 from botocore.exceptions import ClientError
 from mc_foundation.objectstore import ObjectNotFoundError, ObjectStorageError, ObjectTooLargeError
-from platform_service.objectstore.s3_store import S3ObjectStore, _GcpServiceAccountSigner, _install_gcp_bearer
+from platform_service.objectstore.s3_store import (
+    S3ObjectStore,
+    _GcpMetadataToken,
+    _GcpServiceAccountSigner,
+    _install_gcp_bearer,
+)
 
 
 def _store() -> S3ObjectStore:
@@ -166,7 +171,7 @@ def test_gcp_auth_uses_pod_service_account(monkeypatch: pytest.MonkeyPatch) -> N
 
     # Call only our hook; emitting the full event also runs botocore's own handlers.
     client = MagicMock()
-    _install_gcp_bearer(client)
+    _install_gcp_bearer(client, lambda: "token-from-sa")
     event, handler = client.meta.events.register.call_args.args
     assert event == "before-sign.s3"
     request = MagicMock()
@@ -325,3 +330,90 @@ async def test_gcp_signing_failure_raises_storage_error(monkeypatch: pytest.Monk
             disposition="inline",
             download_filename=None,
         )
+
+
+def test_gcp_proxy_mode_without_hmac_is_rejected() -> None:
+    with pytest.raises(ValueError, match="requires an HMAC key"):
+        S3ObjectStore(
+            endpoint="storage.googleapis.com",
+            access_key="",
+            secret_key="",
+            bucket_name="leapwell-micro-coaching",
+            backend="minio",
+            region="auto",
+            auth="gcp",
+            presign_mode="proxy",
+        )
+
+
+def test_unknown_auth_mode_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unsupported OBJECT_STORAGE_AUTH"):
+        S3ObjectStore(
+            endpoint="localhost:9100",
+            access_key="k",
+            secret_key="s",
+            bucket_name="b",
+            backend="minio",
+            auth="oauth",  # type: ignore[arg-type]
+        )
+
+
+def test_gcp_metadata_token_is_cached_until_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    class _Response:
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            calls.append(1)
+            return b'{"access_token": "t%d", "expires_in": 3600}' % len(calls)
+
+    monkeypatch.setattr("platform_service.objectstore.s3_store.urlopen", lambda *a, **k: _Response())
+    clock = [1000.0]
+    monkeypatch.setattr("platform_service.objectstore.s3_store.time.monotonic", lambda: clock[0])
+
+    token = _GcpMetadataToken()
+    assert token() == "t1"
+    assert token() == "t1"
+    assert len(calls) == 1
+    clock[0] += 3600
+    assert token() == "t2"
+    assert len(calls) == 2
+
+
+def test_signed_url_lifetime_is_clamped_and_logged(caplog: pytest.LogCaptureFixture) -> None:
+    signer = _GcpServiceAccountSigner(lambda: "token")
+    signer._email = "sa@proj.iam.gserviceaccount.com"
+    signer.sign_blob = lambda email, payload: b"\x01"  # type: ignore[method-assign]
+    with caplog.at_level("WARNING"):
+        url = signer.signed_get_url(
+            endpoint_url="https://storage.googleapis.com",
+            bucket="b",
+            key="k",
+            expires_seconds=30 * 24 * 3600,
+            query={},
+        )
+    assert parse_qs(urlparse(url).query)["X-Goog-Expires"] == [str(7 * 24 * 3600)]
+    assert "clamped" in caplog.text
+
+
+def test_hmac_presign_unchanged_under_when_required_checksums() -> None:
+    store = S3ObjectStore(
+        endpoint="localhost:9100",
+        access_key="k",
+        secret_key="s",
+        bucket_name="b",
+        backend="minio",
+        presign_mode="direct",
+    )
+    url = store._presign_client.generate_presigned_url(
+        "get_object", Params={"Bucket": "b", "Key": "ingest/x.pdf"}, ExpiresIn=60
+    )
+    query = parse_qs(urlparse(url).query)
+    assert query["X-Amz-Algorithm"] == ["AWS4-HMAC-SHA256"]
+    assert "x-amz-checksum-mode" not in {k.lower() for k in query}
+    store.close()

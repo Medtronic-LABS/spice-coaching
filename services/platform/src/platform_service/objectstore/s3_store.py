@@ -8,13 +8,14 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import unicodedata
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, Literal
+from typing import Any, BinaryIO, Literal, get_args
 from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
@@ -139,43 +140,31 @@ def _is_not_found(exc: ClientError) -> bool:
     }
 
 
-def _resolve_storage_auth(auth: str | None) -> ObjectStorageAuth:
-    """Pick HMAC keys or the pod's GCP service account.
-
-    ``auth=None`` reads ``OBJECT_STORAGE_AUTH`` so a running image can switch
-    without a settings-class change. Explicit ``hmac`` / ``gcp`` always wins.
-    """
-    raw = auth if auth is not None else os.environ.get("OBJECT_STORAGE_AUTH", "hmac")
-    resolved = raw.strip().lower()
-    if resolved not in {"hmac", "gcp"}:
-        raise ValueError(f"unsupported OBJECT_STORAGE_AUTH={raw!r}; supported: 'hmac', 'gcp'")
-    return resolved  # type: ignore[return-value]
-
-
 class _GcpMetadataToken:
     """Short-lived access token from the GKE metadata server."""
 
     def __init__(self) -> None:
         self._token = ""
         self._expiry = 0.0
+        self._lock = threading.Lock()
 
     def __call__(self) -> str:
-        now = time.monotonic()
-        if self._token and now < self._expiry:
-            return self._token
-        request = Request(_GCP_METADATA_TOKEN_URL, headers={"Metadata-Flavor": "Google"})
-        with urlopen(request, timeout=5) as response:
-            payload = json.loads(response.read().decode())
-        token = str(payload["access_token"])
-        expires_in = int(payload.get("expires_in") or 3600)
-        self._token = token
-        self._expiry = now + max(expires_in - 60, 30)
-        return token
+        with self._lock:
+            now = time.monotonic()
+            if self._token and now < self._expiry:
+                return self._token
+            request = Request(_GCP_METADATA_TOKEN_URL, headers={"Metadata-Flavor": "Google"})
+            with urlopen(request, timeout=5) as response:
+                payload = json.loads(response.read().decode())
+            token = str(payload["access_token"])
+            expires_in = int(payload.get("expires_in") or 3600)
+            self._token = token
+            self._expiry = now + max(expires_in - 60, 30)
+            return token
 
 
-def _install_gcp_bearer(client: BaseClient) -> None:
+def _install_gcp_bearer(client: BaseClient, get_token: Callable[[], str]) -> None:
     """Send the pod service-account token instead of an HMAC signature."""
-    get_token = _GcpMetadataToken()
 
     def _add_authorization(request: Any, **kwargs: Any) -> None:
         request.headers["Authorization"] = "Bearer " + get_token()
@@ -192,7 +181,8 @@ class _GcpServiceAccountSigner:
 
     The private key never leaves Google: the string to sign goes to the IAM
     ``signBlob`` API. The service account needs ``roles/iam.serviceAccountTokenCreator``
-    on itself for that call to succeed.
+    on itself for that call to succeed. Each link costs one blocking ``signBlob``
+    call, so it counts against the IAM ``signBlob`` quota; keep link batches small.
     """
 
     def __init__(self, get_token: Callable[[], str]) -> None:
@@ -235,12 +225,15 @@ class _GcpServiceAccountSigner:
         stamp = moment.strftime("%Y%m%dT%H%M%SZ")
         scope = f"{moment:%Y%m%d}/auto/storage/goog4_request"
         params = dict(query)
+        lifetime = min(max(expires_seconds, 1), _GCS_MAX_SIGNED_URL_SECONDS)
+        if lifetime != expires_seconds:
+            logger.warning("signed URL lifetime clamped from %ss to %ss", expires_seconds, lifetime)
         params.update(
             {
                 "X-Goog-Algorithm": "GOOG4-RSA-SHA256",
                 "X-Goog-Credential": f"{email}/{scope}",
                 "X-Goog-Date": stamp,
-                "X-Goog-Expires": str(min(max(expires_seconds, 1), _GCS_MAX_SIGNED_URL_SECONDS)),
+                "X-Goog-Expires": str(lifetime),
                 "X-Goog-SignedHeaders": "host",
             }
         )
@@ -269,6 +262,7 @@ def _build_s3_client(
     secret_key: str,
     addressing_style: Literal["auto", "path"] = "auto",
     auth: ObjectStorageAuth = "hmac",
+    get_token: Callable[[], str] | None = None,
 ) -> BaseClient:
     # AWS S3 rejects SigV2; always force AWS4-HMAC-SHA256 for uploads and presigns.
     # GCP auth skips signing and uses the pod service-account bearer token.
@@ -295,7 +289,9 @@ def _build_s3_client(
         kwargs["aws_secret_access_key"] = secret_key
     client = boto3.client(**kwargs)
     if auth == "gcp":
-        _install_gcp_bearer(client)
+        if get_token is None:
+            raise ValueError("get_token is required when auth='gcp'")
+        _install_gcp_bearer(client, get_token)
     return client
 
 
@@ -316,13 +312,16 @@ class S3ObjectStore:
         presign_mode: PresignMode = "direct",
         allowed_prefixes: frozenset[str] | None = None,
         auto_create_bucket: bool = False,
-        auth: str | None = None,
+        auth: ObjectStorageAuth = "hmac",
     ) -> None:
         self.bucket_name = bucket_name
         self.allowed_prefixes = allowed_prefixes or frozenset({"uploads"})
         self._backend = backend
         self._presign_mode = presign_mode
-        self._auth = _resolve_storage_auth(auth)
+        if auth not in get_args(ObjectStorageAuth):
+            raise ValueError(f"unsupported OBJECT_STORAGE_AUTH={auth!r}; supported: {get_args(ObjectStorageAuth)}")
+        self._auth = auth
+        self._gcp_token = _GcpMetadataToken() if auth == "gcp" else None
         self._gcp_signer: _GcpServiceAccountSigner | None = None
         # Auto-create is only allowed for local MinIO; never against AWS.
         self._auto_create_bucket = auto_create_bucket if backend == "minio" else False
@@ -346,10 +345,13 @@ class S3ObjectStore:
             secret_key=secret_key,
             addressing_style=addressing,
             auth=self._auth,
+            get_token=self._gcp_token,
         )
         if self._auth == "gcp":
             logger.info("object storage calls will use the pod GCP service account")
 
+        if presign_mode == "proxy" and self._auth == "gcp" and not (access_key and secret_key):
+            raise ValueError("OBJECT_STORAGE_PRESIGN_MODE=proxy with OBJECT_STORAGE_AUTH=gcp requires an HMAC key")
         if presign_mode == "proxy":
             proxy_endpoint = _endpoint_url(presigned_endpoint or endpoint, secure=secure)
             self._presign_client = _build_s3_client(
@@ -371,7 +373,7 @@ class S3ObjectStore:
         elif self._auth == "gcp":
             # No HMAC key: sign download links with the pod service account instead.
             self._presign_client = self._client
-            self._gcp_signer = _GcpServiceAccountSigner(_GcpMetadataToken())
+            self._gcp_signer = _GcpServiceAccountSigner(self._gcp_token)  # type: ignore[arg-type]
             logger.info("download links will be signed by the pod GCP service account")
         else:
             self._presign_client = self._client
@@ -610,6 +612,8 @@ class S3ObjectStore:
             raise ObjectStorageError(f"failed to generate presigned URL for {normalised!r}") from exc
         except (OSError, KeyError, ValueError) as exc:
             # Metadata server or IAM signBlob failed (e.g. missing Token Creator role).
+            if self._auth != "gcp":
+                raise
             logger.warning("service-account URL signing failed for %r: %s", normalised, exc)
             raise ObjectStorageError(f"failed to generate presigned URL for {normalised!r}") from exc
 

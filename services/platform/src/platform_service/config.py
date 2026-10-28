@@ -505,6 +505,18 @@ class Settings(BaseAppSettings):
                     "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
                     "when OBJECT_STORAGE_BACKEND=minio"
                 )
+        if auth == "gcp":
+            endpoint = (self.object_storage_endpoint or "").strip().lower()
+            if not (self.object_storage_secure or endpoint.startswith("https://")):
+                raise ValueError("OBJECT_STORAGE_SECURE must be true when OBJECT_STORAGE_AUTH=gcp (bearer token)")
+            has_hmac = bool(
+                self.object_storage_access_key.get_secret_value() and self.object_storage_secret_key.get_secret_value()
+            )
+            if mode == "proxy" and not has_hmac:
+                raise ValueError(
+                    "OBJECT_STORAGE_PRESIGN_MODE=proxy requires an HMAC key when OBJECT_STORAGE_AUTH=gcp; "
+                    "use OBJECT_STORAGE_PRESIGN_MODE=direct to sign links with the service account"
+                )
         if backend == "s3":
             # Never auto-create buckets against AWS from the app.
             self.object_storage_auto_create_bucket = False
