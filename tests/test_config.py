@@ -237,6 +237,7 @@ def test_staging_retention_default() -> None:
 def test_object_storage_defaults() -> None:
     s = Settings()
     assert s.object_storage_backend == "minio"
+    assert s.object_storage_auth == "hmac"
     assert s.object_storage_endpoint == "localhost:9100"
     assert s.object_storage_presigned_endpoint is None
     assert s.object_storage_presign_mode == "proxy"
@@ -251,6 +252,19 @@ def test_object_storage_defaults() -> None:
     )
     assert s.admin_file_upload_prefix == "uploads"
     assert s.admin_file_presigned_max_seconds == 24 * 60 * 60
+
+
+def test_object_storage_gcp_auth_allows_empty_keys() -> None:
+    s = Settings(
+        object_storage_backend="minio",
+        object_storage_endpoint="storage.googleapis.com",
+        object_storage_access_key="",
+        object_storage_secret_key="",
+        object_storage_auth="gcp",
+        object_storage_presign_mode="direct",
+        object_storage_auto_create_bucket=False,
+    )
+    assert s.object_storage_auth == "gcp"
 
 
 def test_object_storage_s3_forces_auto_create_off() -> None:

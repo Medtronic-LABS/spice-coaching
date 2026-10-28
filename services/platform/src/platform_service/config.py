@@ -21,6 +21,7 @@ _DEV_OBJECT_STORAGE_ACCESS_KEY = "minioadmin"
 _INSECURE_DB_PASSWORDS = frozenset({"postgres"})
 _DEPLOYED_ENVS = frozenset({"production", "staging"})
 _OBJECT_STORAGE_BACKENDS = frozenset({"minio", "s3"})
+_OBJECT_STORAGE_AUTH_MODES = frozenset({"hmac", "gcp"})
 _OBJECT_STORAGE_PRESIGN_MODES = frozenset({"direct", "proxy"})
 
 
@@ -367,6 +368,8 @@ class Settings(BaseAppSettings):
     # ── Object storage (MinIO or AWS S3 via boto3) ───────────────
     # ``minio`` (local compose default) or ``s3`` (AWS / S3-compatible cloud).
     object_storage_backend: str = "minio"
+    # ``hmac`` uses the access key. ``gcp`` uses the pod's attached service account.
+    object_storage_auth: str = "hmac"
     # Required for backend=minio; optional override for backend=s3.
     object_storage_endpoint: str | None = "localhost:9100"
     object_storage_presigned_endpoint: str | None = None
@@ -476,6 +479,14 @@ class Settings(BaseAppSettings):
             )
         self.object_storage_backend = backend
 
+        auth = self.object_storage_auth.strip().lower()
+        if auth not in _OBJECT_STORAGE_AUTH_MODES:
+            raise ValueError(
+                f"OBJECT_STORAGE_AUTH must be one of {sorted(_OBJECT_STORAGE_AUTH_MODES)}; "
+                f"got {self.object_storage_auth!r}"
+            )
+        self.object_storage_auth = auth
+
         mode = self.object_storage_presign_mode.strip().lower()
         if mode not in _OBJECT_STORAGE_PRESIGN_MODES:
             raise ValueError(
@@ -489,7 +500,7 @@ class Settings(BaseAppSettings):
                 raise ValueError("OBJECT_STORAGE_ENDPOINT is required when OBJECT_STORAGE_BACKEND=minio")
             access = self.object_storage_access_key.get_secret_value()
             secret = self.object_storage_secret_key.get_secret_value()
-            if not access or not secret:
+            if auth != "gcp" and (not access or not secret):
                 raise ValueError(
                     "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
                     "when OBJECT_STORAGE_BACKEND=minio"
@@ -515,7 +526,7 @@ class Settings(BaseAppSettings):
                 errors.append("OBJECT_STORAGE_ACCESS_KEY must not use the dev default in production")
             if secret == _DEV_OBJECT_STORAGE_ACCESS_KEY:
                 errors.append("OBJECT_STORAGE_SECRET_KEY must not use the dev default in production")
-        elif self.object_storage_backend != "s3":
+        elif self.object_storage_backend != "s3" and self.object_storage_auth != "gcp":
             errors.append(
                 "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
                 "in production unless OBJECT_STORAGE_BACKEND=s3 (IAM / default credential chain)"
