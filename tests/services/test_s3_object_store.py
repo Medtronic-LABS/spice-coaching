@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import hashlib
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
 import pytest
+from botocore import UNSIGNED
 from botocore.exceptions import ClientError
-from mc_foundation.objectstore import ObjectNotFoundError, ObjectTooLargeError
-from platform_service.objectstore.s3_store import S3ObjectStore
+from mc_foundation.objectstore import ObjectNotFoundError, ObjectStorageError, ObjectTooLargeError
+from platform_service.objectstore.s3_store import (
+    S3ObjectStore,
+    _GcpMetadataToken,
+    _GcpServiceAccountSigner,
+    _install_gcp_bearer,
+)
 
 
 def _store() -> S3ObjectStore:
@@ -139,3 +147,273 @@ async def test_put_object_from_local_file_ascii_sanitises_key_and_metadata(tmp_p
     assert meta["content-sha256"] == "abc"
     assert meta["original-filename"] == quote(unicode_name, safe="")
     meta["original-filename"].encode("ascii")
+
+
+def test_gcp_auth_uses_pod_service_account(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "platform_service.objectstore.s3_store._GcpMetadataToken.__call__",
+        lambda self: "token-from-sa",
+    )
+    store = S3ObjectStore(
+        endpoint="storage.googleapis.com",
+        access_key="",
+        secret_key="",
+        bucket_name="leapwell-micro-coaching",
+        backend="minio",
+        secure=True,
+        region="auto",
+        auth="gcp",
+        auto_create_bucket=False,
+    )
+    assert store._auth == "gcp"
+    assert store._client.meta.config.signature_version is UNSIGNED
+    store.close()
+
+    # Call only our hook; emitting the full event also runs botocore's own handlers.
+    client = MagicMock()
+    _install_gcp_bearer(client, lambda: "token-from-sa")
+    event, handler = client.meta.events.register.call_args.args
+    assert event == "before-sign.s3"
+    request = MagicMock()
+    request.headers = {}
+    handler(request=request)
+    assert request.headers["Authorization"] == "Bearer token-from-sa"
+
+
+def test_client_only_sends_checksums_when_required() -> None:
+    store = S3ObjectStore(
+        endpoint="storage.googleapis.com",
+        access_key="k",
+        secret_key="s",
+        bucket_name="leapwell-micro-coaching",
+        backend="minio",
+        region="auto",
+    )
+    config = store._client.meta.config
+    assert config.request_checksum_calculation == "when_required"
+    assert config.response_checksum_validation == "when_required"
+    store.close()
+
+
+def _gcp_store_without_hmac(monkeypatch: pytest.MonkeyPatch) -> S3ObjectStore:
+    monkeypatch.setattr(
+        "platform_service.objectstore.s3_store._GcpMetadataToken.__call__",
+        lambda self: "token-from-sa",
+    )
+    store = S3ObjectStore(
+        endpoint="storage.googleapis.com",
+        access_key="",
+        secret_key="",
+        bucket_name="leapwell-micro-coaching",
+        backend="minio",
+        region="auto",
+        auth="gcp",
+        allowed_prefixes=frozenset({"ingest"}),
+    )
+    store._client = MagicMock()
+    store._client.head_object.return_value = {}
+    return store
+
+
+def test_gcp_signer_builds_v4_url_from_service_account() -> None:
+    signed: list[bytes] = []
+    signer = _GcpServiceAccountSigner(lambda: "token")
+    signer._email = "sa@proj.iam.gserviceaccount.com"
+
+    def fake_sign_blob(email: str, payload: bytes) -> bytes:
+        assert email == "sa@proj.iam.gserviceaccount.com"
+        signed.append(payload)
+        return b"\x01\xab"
+
+    signer.sign_blob = fake_sign_blob  # type: ignore[method-assign]
+    url = signer.signed_get_url(
+        endpoint_url="https://storage.googleapis.com",
+        bucket="leapwell-micro-coaching",
+        key="ingest/a b.pdf",
+        expires_seconds=3600,
+        query={"response-content-type": "application/pdf"},
+        now=datetime(2026, 10, 28, 9, 30, 0, tzinfo=UTC),
+    )
+
+    canonical_query = (
+        "X-Goog-Algorithm=GOOG4-RSA-SHA256"
+        "&X-Goog-Credential=sa%40proj.iam.gserviceaccount.com%2F20261028%2Fauto%2Fstorage%2Fgoog4_request"
+        "&X-Goog-Date=20261028T093000Z&X-Goog-Expires=3600&X-Goog-SignedHeaders=host"
+        "&response-content-type=application%2Fpdf"
+    )
+    canonical_request = "\n".join(
+        [
+            "GET",
+            "/leapwell-micro-coaching/ingest/a%20b.pdf",
+            canonical_query,
+            "host:storage.googleapis.com",
+            "",
+            "host",
+            "UNSIGNED-PAYLOAD",
+        ]
+    )
+    expected_string_to_sign = "\n".join(
+        [
+            "GOOG4-RSA-SHA256",
+            "20261028T093000Z",
+            "20261028/auto/storage/goog4_request",
+            hashlib.sha256(canonical_request.encode()).hexdigest(),
+        ]
+    )
+    assert signed == [expected_string_to_sign.encode()]
+    assert url == (
+        "https://storage.googleapis.com/leapwell-micro-coaching/ingest/a%20b.pdf?"
+        f"{canonical_query}&X-Goog-Signature=01ab"
+    )
+
+
+@pytest.mark.asyncio
+async def test_gcp_auth_without_hmac_signs_links_with_service_account(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _gcp_store_without_hmac(monkeypatch)
+    assert store._gcp_signer is not None
+    store._gcp_signer._email = "sa@proj.iam.gserviceaccount.com"
+    store._gcp_signer.sign_blob = lambda email, payload: b"\xff"  # type: ignore[method-assign]
+
+    result = await store.presigned_get_url(
+        object_name="leapwell-micro-coaching/ingest/doc.pdf",
+        expires_seconds=600,
+        disposition="inline",
+        download_filename=None,
+    )
+
+    parsed = urlparse(result.url)
+    query = parse_qs(parsed.query)
+    assert parsed.netloc == "storage.googleapis.com"
+    assert parsed.path == "/leapwell-micro-coaching/ingest/doc.pdf"
+    assert query["X-Goog-Algorithm"] == ["GOOG4-RSA-SHA256"]
+    assert query["X-Goog-Expires"] == ["600"]
+    assert query["X-Goog-Signature"] == ["ff"]
+    assert query["response-content-type"] == ["application/pdf"]
+    store._client.generate_presigned_url.assert_not_called()
+
+
+def test_gcp_auth_with_hmac_keeps_hmac_presign(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "platform_service.objectstore.s3_store._GcpMetadataToken.__call__",
+        lambda self: "token-from-sa",
+    )
+    store = S3ObjectStore(
+        endpoint="storage.googleapis.com",
+        access_key="k",
+        secret_key="s",
+        bucket_name="leapwell-micro-coaching",
+        backend="minio",
+        region="auto",
+        auth="gcp",
+    )
+    assert store._gcp_signer is None
+    assert store._presign_client is not store._client
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_gcp_signing_failure_raises_storage_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    store = _gcp_store_without_hmac(monkeypatch)
+    assert store._gcp_signer is not None
+    store._gcp_signer._email = "sa@proj.iam.gserviceaccount.com"
+
+    def denied(email: str, payload: bytes) -> bytes:
+        raise OSError("HTTP Error 403: Forbidden")
+
+    store._gcp_signer.sign_blob = denied  # type: ignore[method-assign]
+    with pytest.raises(ObjectStorageError):
+        await store.presigned_get_url(
+            object_name="ingest/doc.pdf",
+            expires_seconds=600,
+            disposition="inline",
+            download_filename=None,
+        )
+
+
+def test_gcp_proxy_mode_without_hmac_is_rejected() -> None:
+    with pytest.raises(ValueError, match="requires an HMAC key"):
+        S3ObjectStore(
+            endpoint="storage.googleapis.com",
+            access_key="",
+            secret_key="",
+            bucket_name="leapwell-micro-coaching",
+            backend="minio",
+            region="auto",
+            auth="gcp",
+            presign_mode="proxy",
+        )
+
+
+def test_unknown_auth_mode_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unsupported OBJECT_STORAGE_AUTH"):
+        S3ObjectStore(
+            endpoint="localhost:9100",
+            access_key="k",
+            secret_key="s",
+            bucket_name="b",
+            backend="minio",
+            auth="oauth",  # type: ignore[arg-type]
+        )
+
+
+def test_gcp_metadata_token_is_cached_until_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    class _Response:
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            calls.append(1)
+            return b'{"access_token": "t%d", "expires_in": 3600}' % len(calls)
+
+    monkeypatch.setattr("platform_service.objectstore.s3_store.urlopen", lambda *a, **k: _Response())
+    clock = [1000.0]
+    monkeypatch.setattr("platform_service.objectstore.s3_store.time.monotonic", lambda: clock[0])
+
+    token = _GcpMetadataToken()
+    assert token() == "t1"
+    assert token() == "t1"
+    assert len(calls) == 1
+    clock[0] += 3600
+    assert token() == "t2"
+    assert len(calls) == 2
+
+
+def test_signed_url_lifetime_is_clamped_and_logged(caplog: pytest.LogCaptureFixture) -> None:
+    signer = _GcpServiceAccountSigner(lambda: "token")
+    signer._email = "sa@proj.iam.gserviceaccount.com"
+    signer.sign_blob = lambda email, payload: b"\x01"  # type: ignore[method-assign]
+    with caplog.at_level("WARNING"):
+        url = signer.signed_get_url(
+            endpoint_url="https://storage.googleapis.com",
+            bucket="b",
+            key="k",
+            expires_seconds=30 * 24 * 3600,
+            query={},
+        )
+    assert parse_qs(urlparse(url).query)["X-Goog-Expires"] == [str(7 * 24 * 3600)]
+    assert "clamped" in caplog.text
+
+
+def test_hmac_presign_unchanged_under_when_required_checksums() -> None:
+    store = S3ObjectStore(
+        endpoint="localhost:9100",
+        access_key="k",
+        secret_key="s",
+        bucket_name="b",
+        backend="minio",
+        presign_mode="direct",
+    )
+    url = store._presign_client.generate_presigned_url(
+        "get_object", Params={"Bucket": "b", "Key": "ingest/x.pdf"}, ExpiresIn=60
+    )
+    query = parse_qs(urlparse(url).query)
+    assert query["X-Amz-Algorithm"] == ["AWS4-HMAC-SHA256"]
+    assert "x-amz-checksum-mode" not in {k.lower() for k in query}
+    store.close()
