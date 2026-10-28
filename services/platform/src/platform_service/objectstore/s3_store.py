@@ -319,7 +319,9 @@ class S3ObjectStore:
         self._backend = backend
         self._presign_mode = presign_mode
         if auth not in get_args(ObjectStorageAuth):
-            raise ValueError(f"unsupported OBJECT_STORAGE_AUTH={auth!r}; supported: {get_args(ObjectStorageAuth)}")
+            raise ValueError(
+                f"unsupported OBJECT_STORAGE_AUTH={auth!r}; supported: {get_args(ObjectStorageAuth)}"
+            )
         self._auth = auth
         self._gcp_token = _GcpMetadataToken() if auth == "gcp" else None
         self._gcp_signer: _GcpServiceAccountSigner | None = None
@@ -351,7 +353,9 @@ class S3ObjectStore:
             logger.info("object storage calls will use the pod GCP service account")
 
         if presign_mode == "proxy" and self._auth == "gcp" and not (access_key and secret_key):
-            raise ValueError("OBJECT_STORAGE_PRESIGN_MODE=proxy with OBJECT_STORAGE_AUTH=gcp requires an HMAC key")
+            raise ValueError(
+                "OBJECT_STORAGE_PRESIGN_MODE=proxy with OBJECT_STORAGE_AUTH=gcp requires an HMAC key"
+            )
         if presign_mode == "proxy":
             proxy_endpoint = _endpoint_url(presigned_endpoint or endpoint, secure=secure)
             self._presign_client = _build_s3_client(

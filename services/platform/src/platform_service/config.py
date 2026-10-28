@@ -508,9 +508,12 @@ class Settings(BaseAppSettings):
         if auth == "gcp":
             endpoint = (self.object_storage_endpoint or "").strip().lower()
             if not (self.object_storage_secure or endpoint.startswith("https://")):
-                raise ValueError("OBJECT_STORAGE_SECURE must be true when OBJECT_STORAGE_AUTH=gcp (bearer token)")
+                raise ValueError(
+                    "OBJECT_STORAGE_SECURE must be true when OBJECT_STORAGE_AUTH=gcp (bearer token)"
+                )
             has_hmac = bool(
-                self.object_storage_access_key.get_secret_value() and self.object_storage_secret_key.get_secret_value()
+                self.object_storage_access_key.get_secret_value()
+                and self.object_storage_secret_key.get_secret_value()
             )
             if mode == "proxy" and not has_hmac:
                 raise ValueError(
