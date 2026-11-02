@@ -74,7 +74,7 @@ class Settings(BaseAppSettings):
     spice_auth_enabled: bool = True
     # Auth-service root as seen by platform (direct or reverse-proxy).
     # e.g. http://authservice:8089 or http://gateway/auth-service
-    spice_auth_base_url: str = "https://spice-dev-backend.uhis.labsplatform.com/auth-service/"
+    spice_auth_base_url: str = "https://uhis-dev-backend.labsplatform.com/auth-service/"
     spice_auth_timeout_seconds: float = 5.0
     # Fallback ``client`` header when the caller omits it (SPICE mobile = mob).
     spice_auth_default_client: str = "web"
