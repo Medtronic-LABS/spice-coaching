@@ -9,7 +9,7 @@ This directory holds golden records, the compile manifest, taxonomy, and generat
 | [Golden_Dataset.manifest.json](Golden_Dataset.manifest.json) | Primary modular authoring manifest |
 | [Golden_Dataset.json](Golden_Dataset.json) | Compiled bilingual superset |
 | [pilot_records.json](pilot_records.json) | Hand-curated Q001–Q025 pilot |
-| [golden_dataset.json](golden_dataset.json) | Bangla-only reference rows. UUIDs may not match the current database. |
+| [golden_dataset_bn.json](golden_dataset_bn.json) | Bangla-only reference rows. UUIDs may not match the current database. |
 | [authoring/](authoring/) | Generated corpus inventory for SMEs. Working files, not product docs. |
 
 Compile:
