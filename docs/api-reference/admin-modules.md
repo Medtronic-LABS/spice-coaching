@@ -58,6 +58,14 @@ Requires `expected_version`. Stale version returns `409` `module_version_conflic
 
 Publishes the latest module row in the family.
 
+Optional body field `assign_to_all` (boolean). When provided it is set on the module and on the module's linked source documents of type `video`. Omitted or `null` leaves the current values unchanged.
+
+## PUT /admin/modules/{module_id}/assign-to-all
+
+Body `{ "assign_to_all": true | false }`. Sets the flag on the module and on its linked `video` source documents. Response `200`: `{ "module_id": "...", "assign_to_all": true }`. Unknown module returns `404`.
+
+`assign_to_all` is also returned on module list rows (`GET /admin/modules`) and module detail. New modules default to `true`; modules that existed before the flag was introduced are `false`.
+
 ## POST /admin/modules/{module_id}/deactivate
 
 Deactivates the module. Response is lifecycle state.

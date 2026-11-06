@@ -37,7 +37,7 @@ Pulls published modules and quizzes modified after `since`.
 |---|---|---|
 | `modules` | array | Array of `ModuleSyncPayload` objects: published module details, cards, quizzes, and thumbnail presigned URLs. |
 | `module_families` | array | Array of `ModuleFamilySyncPayload` objects: stable family ID and latest published module ID. |
-| `assigned_module_ids` | array | Array of `{ module_id, assigned_at }` records for the authenticated CHW. |
+| `assigned_module_ids` | array | Array of `{ module_id, assigned_at }` records for the authenticated CHW: published modules with `assign_to_all=true` in the tenant, unioned with the CHW's explicit per-user assignments (de-duplicated by `module_id`). Flagged modules are returned even when no user is resolved (auth disabled). |
 | `requested_modules` | array | Array of self-requested training module records from the CHW's telemetry history. |
 | `server_time_utc` | string | Server time for cursor progression. |
 
@@ -75,14 +75,14 @@ Pulls documents linked to published modules and assigned knowledge library docum
 | Field | Type | Description |
 |---|---|---|
 | `documents` | array | Documents linked to currently published modules updated after `since`. |
-| `assigned_documents` | array | Full snapshot of source documents directly assigned to the CHW (ignores `since`). |
+| `assigned_documents` | array | Full snapshot (ignores `since`): non-retired source documents of any type with `assign_to_all=true` in the tenant (`assigned_at` = the document's `updated_at`), unioned with the CHW's explicit `document_assignment` rows (the explicit row's `assigned_at` wins), de-duplicated by `source_document_id`. Flagged documents are returned even when no user is resolved (auth disabled). |
 | `server_time_utc` | string | Server time for cursor progression. |
 
 Each document record includes `source_document_id`, `title`, `storage_path`, `thumbnail_storage_path`, `duration_ms` (for media), and presigned GET URLs. Clients union both arrays by `source_document_id`.
 
 ## GET /sync/video-progress
 
-Retrieves incremental video watch progress for assigned media.
+Retrieves incremental video watch progress for assigned media. A video counts as assigned when its source document has `assign_to_all=true` (non-retired, same tenant) or the CHW has an explicit document assignment for it.
 
 **Query Parameters**
 

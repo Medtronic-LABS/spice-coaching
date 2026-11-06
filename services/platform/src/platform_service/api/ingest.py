@@ -143,6 +143,14 @@ async def upload_ingest_documents(
             "Allowed: clinical, digital, operational."
         ),
     ),
+    assign_to_all: str | None = Form(
+        None,
+        description=(
+            "Optional JSON array of booleans, one per file in upload order. true (default when "
+            "omitted) delivers the source document to every SK in the tenant; false limits it "
+            "to explicit document assignments."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     storage: ObjectStore = Depends(get_object_storage_client),
 ) -> IngestUploadResponse:
@@ -155,6 +163,7 @@ async def upload_ingest_documents(
     resolved_descriptions = upload_svc.resolve_descriptions_for_files(descriptions, files)
     override_flags = upload_svc.resolve_override_duplicates_for_files(override_duplicates, files)
     resolved_content_domains = upload_svc.resolve_content_domains_for_files(content_domains, files)
+    resolved_assign_to_all = upload_svc.resolve_assign_to_all_for_files(assign_to_all, files)
     uploaded_by = resolve_spice_actor(request)
     params = IngestUploadParams(
         actor=uploaded_by,
@@ -168,6 +177,7 @@ async def upload_ingest_documents(
         params=params,
         override_flags=override_flags,
         content_domains=resolved_content_domains,
+        assign_to_all=resolved_assign_to_all,
     )
 
     await db.commit()

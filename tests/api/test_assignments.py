@@ -117,6 +117,7 @@ async def _seed_module(session: AsyncSession, title: str, *, tenant_id: int = 1)
         lifecycle_status="published",
         module_json={"cards": [{"title": {"bn": "c"}}]},
         published_at=datetime.now(UTC),
+        assign_to_all=False,
         tenant_id=tenant_id,
     )
     session.add(module)
@@ -137,6 +138,7 @@ async def _seed_source_document(
         content_domain="clinical",
         original_storage_path=f"medtronics-storage/knowledge/{uuid4().hex}.pdf",
         original_filename="manual.pdf",
+        assign_to_all=False,
         tenant_id=tenant_id,
     )
     session.add(doc)

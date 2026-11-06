@@ -10,7 +10,9 @@ Upload sources, queue the pipeline, poll progress, and resolve dual-path merges.
 
 Uploads one or more source files. Multipart field `files`, max 10. Creates `source_document` rows with `status=uploaded`. Does not queue the pipeline. `sync_published_visible` is always false.
 
-Optional form fields: `titles`, `descriptions`, `override_duplicates`, `content_domains` (`clinical` | `digital` | `operational`).
+Optional form fields: `titles`, `descriptions`, `override_duplicates`, `content_domains` (`clinical` | `digital` | `operational`), `assign_to_all`.
+
+`assign_to_all` is a JSON array of booleans aligned to `files` (same pattern as `titles`). Omitted means every file defaults to `true` (delivered to all SKs in the tenant). A wrong length or a non-boolean entry returns `400`.
 
 Audio and video files are probed with ffprobe. `duration_ms` is stored in milliseconds. Media upload size is governed by web server / proxy limits (default 100 MB). Duplicate detection uses SHA256 against `uploaded` or `ingested` rows in the selected tenant.
 
@@ -77,7 +79,13 @@ List pipeline runs. Filters include `status`, `q`, `ingested_by`, `limit`, `offs
 
 Admin catalog. Filters include `status`, `sync_published_visible`, `source_type`, `q`, `uploaded_by`, `assigned`, and geography ids.
 
+Each row includes `assign_to_all` (boolean) alongside `assigned` (has explicit assignment rows).
+
 `PATCH /admin/source-documents/{source_document_id}` updates `title` and/or `description` without re-ingest.
+
+## PUT /admin/source-documents/{source_document_id}/assign-to-all
+
+Body `{ "assign_to_all": true | false }`. Response `200`: `{ "source_document_id": "...", "assign_to_all": true }`. Unknown document returns `404`. When `true`, the document appears in every tenant SK's `assigned_documents` on `GET /sync/source-documents`.
 
 ## PUT /admin/source-documents/{source_document_id}/thumbnail
 

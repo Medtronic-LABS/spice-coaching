@@ -196,6 +196,40 @@ def test_resolve_override_duplicates_rejects_non_boolean_entry() -> None:
     assert "boolean" in exc_info.value.message
 
 
+def test_resolve_assign_to_all_defaults_true() -> None:
+    uploads = [_FakeUpload("a.pdf"), _FakeUpload("b.pdf")]
+    assert IngestUploadService.resolve_assign_to_all_for_files(None, uploads) == [True, True]
+
+
+def test_resolve_assign_to_all_parses_json_array() -> None:
+    uploads = [_FakeUpload("a.pdf"), _FakeUpload("b.pdf")]
+    assert IngestUploadService.resolve_assign_to_all_for_files("[false, true]", uploads) == [
+        False,
+        True,
+    ]
+
+
+def test_resolve_assign_to_all_rejects_length_mismatch() -> None:
+    uploads = [_FakeUpload("a.pdf"), _FakeUpload("b.pdf")]
+    with pytest.raises(IngestValidationError) as exc_info:
+        IngestUploadService.resolve_assign_to_all_for_files("[true]", uploads)
+    assert exc_info.value.status_code == 400
+    assert "2 entries" in exc_info.value.message
+
+
+def test_resolve_assign_to_all_rejects_non_boolean_entry() -> None:
+    uploads = [_FakeUpload("a.pdf")]
+    with pytest.raises(IngestValidationError) as exc_info:
+        IngestUploadService.resolve_assign_to_all_for_files('["yes"]', uploads)
+    assert "boolean" in exc_info.value.message
+
+
+def test_resolve_assign_to_all_rejects_invalid_json() -> None:
+    uploads = [_FakeUpload("a.pdf")]
+    with pytest.raises(IngestValidationError):
+        IngestUploadService.resolve_assign_to_all_for_files("not-json", uploads)
+
+
 def test_resolve_content_domains_defaults_to_clinical() -> None:
     uploads = [_FakeUpload("a.pdf"), _FakeUpload("b.pdf")]
     assert IngestUploadService.resolve_content_domains_for_files(None, uploads) == [

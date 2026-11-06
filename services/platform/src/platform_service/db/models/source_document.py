@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, Text, func
+from sqlalchemy import false as sa_false
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,6 +62,14 @@ class SourceDocument(TenantMixin, Base):
     # Device sync inclusion is via published-module links / document_assignment
     # (GET /sync/source-documents), not this flag.
     sync_published_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # When true, every SK in the tenant receives this document via
+    # GET /sync/source-documents ``assigned_documents``; when false only users with an
+    # explicit document_assignment row do. Python default is true for new rows; the
+    # migration backfills existing rows to false.
+    assign_to_all: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=sa_false()
+    )
 
     # uploaded | ingesting | ingested | partially_succeeded | failed | retired
     status: Mapped[str] = mapped_column(Text, nullable=False, default="uploaded")

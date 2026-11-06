@@ -17,6 +17,20 @@ from mc_contracts.localized import LocalizedOptions, LocalizedString
 class ModuleLifecycleActionRequest(BaseModel):
     actor_id: UUID | None = None
     reason: str | None = None
+    # Publish only: when set, applied to the module and its linked video source documents.
+    # None leaves the current value unchanged.
+    assign_to_all: bool | None = None
+
+
+class ModuleAssignToAllRequest(BaseModel):
+    """Body for ``PUT /admin/modules/{module_id}/assign-to-all``."""
+
+    assign_to_all: bool
+
+
+class ModuleAssignToAllResponse(BaseModel):
+    module_id: UUID
+    assign_to_all: bool
 
 
 class ModuleLifecycleStatePayload(BaseModel):
@@ -58,6 +72,8 @@ class ModuleSummary(BaseModel):
     # LLM-generated bilingual keywords, search phrases, and topic tags for retrieval.
     search_metadata: dict[str, Any] | None = None
     chatbot_faqs_only: bool = False
+    # true = visible to every SK in the tenant; false = only explicitly assigned SKs.
+    assign_to_all: bool = False
     thumbnail_storage_path: str | None = None
     thumbnail_presigned_url: str | None = None
     thumbnail_presigned_expires_seconds: int | None = None

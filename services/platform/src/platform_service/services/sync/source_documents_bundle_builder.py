@@ -39,7 +39,12 @@ class SourceDocumentsBundleBuilder:
         user_id: int | None = None,
         settings: Settings | None = None,
     ) -> SourceDocumentsSyncBundle:
-        """Return module-linked (since-filtered) and assigned (full snapshot) docs."""
+        """Return module-linked (since-filtered) and assigned (full snapshot) docs.
+
+        ``assigned_documents`` is the union of ``assign_to_all`` documents in the tenant and
+        the caller's explicit ``document_assignment`` rows, de-duplicated by id (the explicit
+        row's ``assigned_at`` wins).
+        """
         effective_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
         source_repo = SourceRepository(self._session)
 
@@ -51,6 +56,10 @@ class SourceDocumentsBundleBuilder:
 
         assigned_at_by_id: dict[UUID, datetime] = {}
         assigned_docs_by_id: dict[UUID, SourceDocument] = {}
+        # assign_to_all documents go to every SK regardless of user (works with auth off).
+        for doc in await source_repo.list_assign_to_all_documents(tenant_id=effective_tenant):
+            assigned_docs_by_id[doc.id] = doc
+            assigned_at_by_id[doc.id] = doc.updated_at
         if user_id is not None:
             assignments = await DocumentAssignmentRepository(self._session).list_for_user(
                 user_id,
