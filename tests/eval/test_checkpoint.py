@@ -27,7 +27,7 @@ from eval.rag.report import RecordArtifact
 def _sample_config(**overrides: object) -> EvalRunConfig:
     defaults: dict[str, object] = {
         "method": "bm25",
-        "dataset_path": "eval/rag/golden/golden_dataset.json",
+        "dataset_path": "eval/rag/golden/golden_dataset_bn.json",
         "k": 5,
         "language": "bn",
         "tenant_id": None,
