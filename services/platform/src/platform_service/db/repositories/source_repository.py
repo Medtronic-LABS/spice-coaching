@@ -104,6 +104,7 @@ class SourceRepository:
         status: str = "ingesting",
         uploaded_date: datetime | None = None,
         tenant_id: int = DEFAULT_TENANT_ID,
+        assign_to_all: bool = True,
     ) -> SourceDocument:
         """Insert a new source_document and return the persisted row."""
         kwargs: dict[str, Any] = dict(
@@ -124,6 +125,7 @@ class SourceRepository:
             sync_published_visible=sync_published_visible,
             status=status,
             tenant_id=tenant_id,
+            assign_to_all=assign_to_all,
         )
         if uploaded_date is not None:
             kwargs["uploaded_date"] = uploaded_date
@@ -286,6 +288,19 @@ class SourceRepository:
             return []
         result = await self._session.execute(
             select(SourceDocument).where(SourceDocument.id.in_(document_ids))
+        )
+        return list(result.scalars().all())
+
+    async def list_assign_to_all_documents(self, *, tenant_id: int) -> list[SourceDocument]:
+        """Return non-retired ``assign_to_all`` source documents in ``tenant_id`` (any type)."""
+        result = await self._session.execute(
+            select(SourceDocument)
+            .where(
+                SourceDocument.tenant_id == tenant_id,
+                SourceDocument.assign_to_all.is_(True),
+                SourceDocument.status != "retired",
+            )
+            .order_by(SourceDocument.updated_at.asc(), SourceDocument.id.asc())
         )
         return list(result.scalars().all())
 
@@ -481,6 +496,39 @@ class SourceRepository:
             doc.updated_by = updated_by
         await self._session.flush()
         return doc
+
+    async def set_assign_to_all(
+        self,
+        document_id: UUID,
+        *,
+        assign_to_all: bool,
+        updated_by: int | None = None,
+    ) -> SourceDocument | None:
+        """Set the all-SKs flag on one source document; None when it does not exist."""
+        doc = await self.get_source_document(document_id)
+        if doc is None:
+            return None
+        doc.assign_to_all = assign_to_all
+        if updated_by is not None:
+            doc.updated_by = updated_by
+        await self._session.flush()
+        return doc
+
+    async def set_assign_to_all_for_videos(
+        self,
+        document_ids: list[UUID],
+        *,
+        assign_to_all: bool,
+        updated_by: int | None = None,
+    ) -> int:
+        """Set the all-SKs flag on the ``video`` documents among ``document_ids``."""
+        docs = [d for d in await self.list_source_documents_by_ids(document_ids) if d.source_type == "video"]
+        for doc in docs:
+            doc.assign_to_all = assign_to_all
+            if updated_by is not None:
+                doc.updated_by = updated_by
+        await self._session.flush()
+        return len(docs)
 
     # ── source_page ──────────────────────────────────────────────────────
 

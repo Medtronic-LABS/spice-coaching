@@ -244,6 +244,7 @@ class ModuleWriteRepository:
             ingestion_run_id=current.ingestion_run_id,
             thumbnail_storage_path=next_thumbnail,
             urgent_publish=current.urgent_publish,
+            assign_to_all=current.assign_to_all,
             chatbot_faqs_only=chatbot_faqs_only
             if chatbot_faqs_only is not None
             else current.chatbot_faqs_only,

@@ -245,6 +245,7 @@ class KnowledgeUploadService:
                     sync_published_visible=True,
                     status="uploaded",
                     tenant_id=tenant_id,
+                    assign_to_all=False,
                 )
                 if artifact.thumbnail_storage_path is not None:
                     doc.thumbnail_storage_path = artifact.thumbnail_storage_path

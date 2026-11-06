@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from mc_contracts.enums import SourceDocumentType
 from mc_contracts.errors import ErrorCode
 from mc_contracts.source_documents import (
+    SourceDocumentAssignToAllRequest,
+    SourceDocumentAssignToAllResponse,
     SourceDocumentListItem,
     SourceDocumentListResponse,
     SourceDocumentMetadataUpdate,
@@ -62,6 +64,7 @@ def _summary_from_document(doc: SourceDocument) -> SourceDocumentSummary:
         uploaded_date=doc.uploaded_date,
         ingested_at=doc.ingested_at,
         updated_at=doc.updated_at,
+        assign_to_all=doc.assign_to_all,
     )
 
 
@@ -89,6 +92,7 @@ def _list_item_from_document(
         updated_by=to_user_actor_ref(doc.updated_by, users_by_id),
         ingested_by=to_user_actor_ref(doc.ingested_by, users_by_id),
         assigned=doc.id in assigned_ids,
+        assign_to_all=doc.assign_to_all,
     )
 
 
@@ -338,6 +342,31 @@ async def update_source_document_metadata(
     # Re-load server-generated columns (e.g. updated_at onupdate) before sync DTO mapping.
     await session.refresh(doc)
     return _summary_from_document(doc)
+
+
+@router.put(
+    "/source-documents/{source_document_id}/assign-to-all",
+    response_model=SourceDocumentAssignToAllResponse,
+)
+async def set_source_document_assign_to_all(
+    source_document_id: UUID,
+    body: SourceDocumentAssignToAllRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> SourceDocumentAssignToAllResponse:
+    """Toggle delivery of a source document to every SK in the tenant (vs explicit assignment only)."""
+    doc = await SourceRepository(session).set_assign_to_all(
+        source_document_id,
+        assign_to_all=body.assign_to_all,
+        updated_by=resolve_spice_user_id(request),
+    )
+    if doc is None:
+        raise HTTPException(status_code=404, detail="source document not found")
+    await session.commit()
+    return SourceDocumentAssignToAllResponse(
+        source_document_id=doc.id,
+        assign_to_all=doc.assign_to_all,
+    )
 
 
 @router.put("/source-documents/{source_document_id}/thumbnail", response_model=SourceDocumentSummary)

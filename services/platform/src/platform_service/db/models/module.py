@@ -31,6 +31,7 @@ from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, func
+from sqlalchemy import false as sa_false
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSTZRANGE, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -87,6 +88,12 @@ class Module(TenantMixin, Base):
     thumbnail_storage_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     urgent_publish: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # When true, every SK in the tenant sees this module once published (including SKs
+    # added later); when false only users with an explicit module_assignment row do.
+    # Python default is true for new rows; the migration backfills existing rows to false.
+    assign_to_all: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=sa_false()
+    )
     # When true, this module version is FAQ knowledge for chatbot retrieval only
     # and is excluded from CHW training workflows.
     chatbot_faqs_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
