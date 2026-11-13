@@ -30,4 +30,5 @@ def create_object_store(*, settings: Settings | None = None) -> ObjectStore:
         presign_mode=cfg.object_storage_presign_mode,  # type: ignore[arg-type]
         allowed_prefixes=cfg.admin_file_allowed_prefix_set,
         auto_create_bucket=cfg.object_storage_auto_create_bucket,
+        auth=cfg.object_storage_auth,
     )
