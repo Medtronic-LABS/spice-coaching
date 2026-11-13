@@ -1,7 +1,29 @@
 """Base settings — extended by each service with service-specific fields."""
 
-from pydantic import field_validator
+import os
+
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def apply_microcoaching_google_credentials_alias() -> None:
+    """Let MICROCOACHING_GOOGLE_APPLICATION_CREDENTIALS override GOOGLE_APPLICATION_CREDENTIALS.
+
+    The Google SDK reads GOOGLE_APPLICATION_CREDENTIALS directly from
+    os.environ — it never goes through our Settings classes, so an
+    AliasChoices field can't help here. Bare GOOGLE_APPLICATION_CREDENTIALS
+    collides with the same var in sibling Leapfrog services (e.g.
+    leapfrog-ai-services) when both run under one merged environment, each
+    pointing at a different service account's JSON file.
+
+    Call this once at process startup, right after loading .env and before
+    any import that touches the Google SDK. Prefers the MICROCOACHING_-
+    prefixed value when both are set, matching the precedence of every
+    other MICROCOACHING_* alias in this codebase.
+    """
+    prefixed = os.environ.get("MICROCOACHING_GOOGLE_APPLICATION_CREDENTIALS")
+    if prefixed:
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = prefixed
 
 
 class BaseAppSettings(BaseSettings):
@@ -22,7 +44,13 @@ class BaseAppSettings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = True
     log_service_name: str | None = None
-    log_dir: str | None = None
+    # MICROCOACHING_LOG_DIR is the preferred name — LOG_DIR collides with the
+    # same var in sibling Leapfrog services (e.g. leapfrog-ai-services) when
+    # their envs are ever merged. log_dir kept as a fallback alias.
+    log_dir: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("microcoaching_log_dir", "log_dir"),
+    )
     log_max_bytes: int = 50_000_000
     log_backup_count: int = 10
 

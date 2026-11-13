@@ -11,9 +11,10 @@ from __future__ import annotations
 
 # Load .env before any module-level config reads. Pydantic-settings handles
 # declared fields, but the Google SDK looks up GOOGLE_APPLICATION_CREDENTIALS
-# directly from os.environ — this ensures it's populated.
+# directly from os.environ — this ensures it's populated (and that
+# MICROCOACHING_GOOGLE_APPLICATION_CREDENTIALS, when set, takes precedence —
+# see apply_microcoaching_google_credentials_alias).
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -27,7 +28,10 @@ try:
             break
 except ImportError:
     pass
-_ = os  # keep import alive for downstream use
+
+from mc_foundation.config import apply_microcoaching_google_credentials_alias  # noqa: E402
+
+apply_microcoaching_google_credentials_alias()
 
 import uvicorn  # noqa: E402
 from fastapi import FastAPI, HTTPException  # noqa: E402

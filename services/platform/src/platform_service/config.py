@@ -13,7 +13,7 @@ from typing import Self
 from mc_contracts.localized import LocaleConfig
 from mc_foundation.config import BaseAppSettings
 from mc_foundation.locale import LOCALE_REGISTRY, get_supported_locales
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 
 _DEV_AI_RUNTIME_TOKEN = "dev-internal-token"
@@ -21,6 +21,7 @@ _DEV_OBJECT_STORAGE_ACCESS_KEY = "minioadmin"
 _INSECURE_DB_PASSWORDS = frozenset({"postgres"})
 _DEPLOYED_ENVS = frozenset({"production", "staging"})
 _OBJECT_STORAGE_BACKENDS = frozenset({"minio", "s3"})
+_OBJECT_STORAGE_AUTH_MODES = frozenset({"hmac", "gcp"})
 _OBJECT_STORAGE_PRESIGN_MODES = frozenset({"direct", "proxy"})
 
 
@@ -36,11 +37,21 @@ class Settings(BaseAppSettings):
     api_root_path: str = "/medtronics-api/"
 
     # ── Database ──────────────────────────────────────────────
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/microcoaching"
+    # MICROCOACHING_DATABASE_URL / MICROCOACHING_DATABASE_PASSWORD are the
+    # preferred names — the bare DATABASE_URL / DATABASE_PASSWORD collide with
+    # the same vars in sibling Leapfrog services (e.g. leapfrog-ai-services)
+    # when their envs are ever merged. Old names kept as fallback aliases.
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/microcoaching",
+        validation_alias=AliasChoices("microcoaching_database_url", "database_url"),
+    )
     # Sourced from env in production. Default None so a missing env var
     # surfaces clearly at first DB connection rather than silently using
     # someone's stale local password.
-    database_password: str | None = "dpkgyl"
+    database_password: str | None = Field(
+        default="dpkgyl",
+        validation_alias=AliasChoices("microcoaching_database_password", "database_password"),
+    )
     database_pool_size: int = 5
     database_max_overflow: int = 10
     database_pool_recycle: int = 3600
@@ -357,6 +368,8 @@ class Settings(BaseAppSettings):
     # ── Object storage (MinIO or AWS S3 via boto3) ───────────────
     # ``minio`` (local compose default) or ``s3`` (AWS / S3-compatible cloud).
     object_storage_backend: str = "minio"
+    # ``hmac`` uses the access key. ``gcp`` uses the pod's attached service account.
+    object_storage_auth: str = "hmac"
     # Required for backend=minio; optional override for backend=s3.
     object_storage_endpoint: str | None = "localhost:9100"
     object_storage_presigned_endpoint: str | None = None
@@ -466,6 +479,14 @@ class Settings(BaseAppSettings):
             )
         self.object_storage_backend = backend
 
+        auth = self.object_storage_auth.strip().lower()
+        if auth not in _OBJECT_STORAGE_AUTH_MODES:
+            raise ValueError(
+                f"OBJECT_STORAGE_AUTH must be one of {sorted(_OBJECT_STORAGE_AUTH_MODES)}; "
+                f"got {self.object_storage_auth!r}"
+            )
+        self.object_storage_auth = auth
+
         mode = self.object_storage_presign_mode.strip().lower()
         if mode not in _OBJECT_STORAGE_PRESIGN_MODES:
             raise ValueError(
@@ -479,10 +500,25 @@ class Settings(BaseAppSettings):
                 raise ValueError("OBJECT_STORAGE_ENDPOINT is required when OBJECT_STORAGE_BACKEND=minio")
             access = self.object_storage_access_key.get_secret_value()
             secret = self.object_storage_secret_key.get_secret_value()
-            if not access or not secret:
+            if auth != "gcp" and (not access or not secret):
                 raise ValueError(
                     "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
                     "when OBJECT_STORAGE_BACKEND=minio"
+                )
+        if auth == "gcp":
+            endpoint = (self.object_storage_endpoint or "").strip().lower()
+            if not (self.object_storage_secure or endpoint.startswith("https://")):
+                raise ValueError(
+                    "OBJECT_STORAGE_SECURE must be true when OBJECT_STORAGE_AUTH=gcp (bearer token)"
+                )
+            has_hmac = bool(
+                self.object_storage_access_key.get_secret_value()
+                and self.object_storage_secret_key.get_secret_value()
+            )
+            if mode == "proxy" and not has_hmac:
+                raise ValueError(
+                    "OBJECT_STORAGE_PRESIGN_MODE=proxy requires an HMAC key when OBJECT_STORAGE_AUTH=gcp; "
+                    "use OBJECT_STORAGE_PRESIGN_MODE=direct to sign links with the service account"
                 )
         if backend == "s3":
             # Never auto-create buckets against AWS from the app.
@@ -505,7 +541,7 @@ class Settings(BaseAppSettings):
                 errors.append("OBJECT_STORAGE_ACCESS_KEY must not use the dev default in production")
             if secret == _DEV_OBJECT_STORAGE_ACCESS_KEY:
                 errors.append("OBJECT_STORAGE_SECRET_KEY must not use the dev default in production")
-        elif self.object_storage_backend != "s3":
+        elif self.object_storage_backend != "s3" and self.object_storage_auth != "gcp":
             errors.append(
                 "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
                 "in production unless OBJECT_STORAGE_BACKEND=s3 (IAM / default credential chain)"
