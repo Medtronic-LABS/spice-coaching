@@ -1,7 +1,7 @@
 """Resolve ingest ``source_path`` values to a local file for extractors.
 
 ``POST /admin/ingest/upload`` stores ``original_storage_path`` as
-``{object_storage_bucket_name}/{object_key}``. Legacy rows use an absolute filesystem
+``{storage_bucket}/{object_key}``. Legacy rows use an absolute filesystem
 path. Stage A extractors expect a readable local path, so the pipeline
 materialises object-storage references into a temp file under
 ``{upload_dir}/ingest_work/`` and deletes it after the run completes.
@@ -26,7 +26,7 @@ async def materialize_local_source_file(source_ref: str | Path) -> tuple[Path, P
         return candidate, None
 
     settings = get_settings()
-    if not looks_like_object_storage_storage_path(ref_str, bucket_name=settings.object_storage_bucket_name):
+    if not looks_like_object_storage_storage_path(ref_str, bucket_name=settings.storage_bucket):
         return Path(ref_str), None
 
     client = get_object_storage_client()

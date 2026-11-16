@@ -54,16 +54,14 @@ def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         "STAGE_C_INSUFFICIENT_SOURCE_MIN_TOKENS",
         "QUIZ_PASS_THRESHOLD_DEFAULT",
         "APP_ENV",
-        "OBJECT_STORAGE_BACKEND",
-        "OBJECT_STORAGE_ENDPOINT",
-        "OBJECT_STORAGE_PRESIGNED_ENDPOINT",
-        "OBJECT_STORAGE_PRESIGN_MODE",
-        "OBJECT_STORAGE_ACCESS_KEY",
-        "OBJECT_STORAGE_SECRET_KEY",
-        "OBJECT_STORAGE_BUCKET_NAME",
-        "OBJECT_STORAGE_SECURE",
-        "OBJECT_STORAGE_REGION",
-        "OBJECT_STORAGE_AUTO_CREATE_BUCKET",
+        "MICROCOACHING_STORAGE_PROVIDER",
+        "MICROCOACHING_STORAGE_BUCKET",
+        "MICROCOACHING_STORAGE_ENDPOINT",
+        "MICROCOACHING_STORAGE_REGION",
+        "MICROCOACHING_STORAGE_ACCESS_KEY",
+        "MICROCOACHING_STORAGE_SECRET_KEY",
+        "MICROCOACHING_STORAGE_PUBLIC_ENDPOINT",
+        "MICROCOACHING_STORAGE_CREATE_BUCKET",
         "ADMIN_FILE_ALLOWED_PREFIXES",
         "ADMIN_FILE_UPLOAD_PREFIX",
         "ADMIN_FILE_PRESIGNED_MAX_SECONDS",
@@ -234,19 +232,17 @@ def test_staging_retention_default() -> None:
     assert Settings().staging_retention_days == 30
 
 
-def test_object_storage_defaults() -> None:
+def test_storage_settings_have_no_provider_specific_defaults() -> None:
+    """Nothing is assumed about the provider; the rules live in objectstore.config.StorageConfig."""
     s = Settings()
-    assert s.object_storage_backend == "minio"
-    assert s.object_storage_auth == "hmac"
-    assert s.object_storage_endpoint == "localhost:9100"
-    assert s.object_storage_presigned_endpoint is None
-    assert s.object_storage_presign_mode == "proxy"
-    assert s.object_storage_access_key.get_secret_value() == "minioadmin"
-    assert s.object_storage_secret_key.get_secret_value() == "minioadmin"
-    assert s.object_storage_bucket_name == "medtronics-storage"
-    assert s.object_storage_secure is False
-    assert s.object_storage_region == "us-east-1"
-    assert s.object_storage_auto_create_bucket is True
+    assert s.storage_provider is None
+    assert s.storage_bucket == ""
+    assert s.storage_endpoint is None
+    assert s.storage_region is None
+    assert s.storage_access_key.get_secret_value() == ""
+    assert s.storage_secret_key.get_secret_value() == ""
+    assert s.storage_public_endpoint is None
+    assert s.storage_create_bucket is False
     assert s.admin_file_allowed_prefix_set == frozenset(
         {"uploads", "source-documents", "media", "ingest", "module-thumbnails"}
     )
@@ -254,76 +250,35 @@ def test_object_storage_defaults() -> None:
     assert s.admin_file_presigned_max_seconds == 24 * 60 * 60
 
 
-def test_object_storage_gcp_auth_allows_empty_keys() -> None:
+def test_storage_settings_read_the_microcoaching_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MICROCOACHING_STORAGE_PROVIDER", "gcs")
+    monkeypatch.setenv("MICROCOACHING_STORAGE_BUCKET", "example-bucket")
+    monkeypatch.setenv("MICROCOACHING_STORAGE_ACCESS_KEY", "example-key")
+    monkeypatch.setenv("MICROCOACHING_STORAGE_CREATE_BUCKET", "true")
+    s = Settings()
+    assert (s.storage_provider, s.storage_bucket) == ("gcs", "example-bucket")
+    assert s.storage_access_key.get_secret_value() == "example-key"
+    assert s.storage_create_bucket is True
+
+
+@pytest.mark.parametrize(
+    "old_name",
+    ["OBJECT_STORAGE_BACKEND", "OBJECT_STORAGE_BUCKET_NAME", "STORAGE_PROVIDER", "STORAGE_BUCKET"],
+)
+def test_storage_settings_ignore_every_other_name(monkeypatch: pytest.MonkeyPatch, old_name: str) -> None:
+    """Hard cut: neither the pre-rename names nor the bare field names are read."""
+    monkeypatch.setenv(old_name, "minio")
+    s = Settings()
+    assert s.storage_provider is None
+    assert s.storage_bucket == ""
+
+
+def test_storage_secrets_do_not_appear_in_repr() -> None:
     s = Settings(
-        object_storage_backend="minio",
-        object_storage_endpoint="storage.googleapis.com",
-        object_storage_access_key="",
-        object_storage_secret_key="",
-        object_storage_auth="gcp",
-        object_storage_secure=True,
-        object_storage_presign_mode="direct",
-        object_storage_auto_create_bucket=False,
+        microcoaching_storage_access_key="example-key", microcoaching_storage_secret_key="example-secret"
     )
-    assert s.object_storage_auth == "gcp"
-
-
-def _gcp_settings(**overrides: object) -> Settings:
-    base: dict[str, object] = {
-        "object_storage_backend": "minio",
-        "object_storage_endpoint": "storage.googleapis.com",
-        "object_storage_access_key": "",
-        "object_storage_secret_key": "",
-        "object_storage_auth": "gcp",
-        "object_storage_secure": True,
-        "object_storage_presign_mode": "direct",
-    }
-    base.update(overrides)
-    return Settings(**base)  # type: ignore[arg-type]
-
-
-def test_object_storage_rejects_unknown_auth() -> None:
-    with pytest.raises(ValueError, match="OBJECT_STORAGE_AUTH"):
-        _gcp_settings(object_storage_auth="oauth")
-
-
-def test_object_storage_gcp_requires_secure_transport() -> None:
-    with pytest.raises(ValueError, match="OBJECT_STORAGE_SECURE"):
-        _gcp_settings(object_storage_secure=False)
-
-
-def test_object_storage_gcp_proxy_requires_hmac_key() -> None:
-    with pytest.raises(ValueError, match="requires an HMAC key"):
-        _gcp_settings(object_storage_presign_mode="proxy")
-
-
-def test_object_storage_gcp_passes_production_safety_without_keys() -> None:
-    s = _gcp_settings(
-        app_env="production",
-        database_password="not-the-default",
-        ai_runtime_token="prod-token",
-        spice_auth_enabled=True,
-        cors_allow_origins="https://app.example.org",
-    )
-    assert s.object_storage_auth == "gcp"
-
-
-def test_object_storage_s3_forces_auto_create_off() -> None:
-    s = Settings(
-        object_storage_backend="s3",
-        object_storage_endpoint=None,
-        object_storage_access_key="",
-        object_storage_secret_key="",
-        object_storage_auto_create_bucket=True,
-        object_storage_presign_mode="direct",
-    )
-    assert s.object_storage_backend == "s3"
-    assert s.object_storage_auto_create_bucket is False
-
-
-def test_object_storage_rejects_unknown_backend() -> None:
-    with pytest.raises(ValidationError, match="OBJECT_STORAGE_BACKEND"):
-        Settings(object_storage_backend="gcs")  # type: ignore[call-arg]
+    assert "example-key" not in repr(s)
+    assert "example-secret" not in repr(s)
 
 
 def test_admin_file_upload_prefix_must_be_allowlisted() -> None:
@@ -461,8 +416,6 @@ def test_deployed_env_does_not_require_spice_tenant_id_map(
     settings = Settings(
         database_password="secure-password",
         ai_runtime_token="prod-token",
-        object_storage_access_key="prod-access",
-        object_storage_secret_key="prod-secret",
     )
     assert settings.spice_auth_enabled is True
     assert not hasattr(settings, "spice_tenant_id_map")

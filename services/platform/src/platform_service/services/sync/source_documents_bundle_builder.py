@@ -68,7 +68,7 @@ class SourceDocumentsBundleBuilder:
                         assigned_at_by_id[row.source_document_id] = row.assigned_at
 
         settings = settings or get_settings()
-        bucket_name = settings.object_storage_bucket_name
+        bucket_name = settings.storage_bucket
 
         all_doc_ids = list({*module_docs_by_id.keys(), *assigned_docs_by_id.keys()})
         presigned_by_doc, expires_by_doc, thumb_by_id = await self._presign_maps(

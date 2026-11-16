@@ -26,7 +26,7 @@ def parse_upload_metadata(raw: dict[str, str] | None) -> tuple[str | None, str |
     """Normalise S3/MinIO stat metadata keys to (content_sha256, original_filename).
 
     ``original-filename`` may be percent-encoded on the wire when non-ASCII
-    (see ``S3ObjectStore`` metadata sanitisation).
+    (see ``objectstore.naming.ascii_safe_metadata``).
     """
     if not raw:
         return None, None

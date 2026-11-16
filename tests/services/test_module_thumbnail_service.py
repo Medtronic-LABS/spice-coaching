@@ -20,7 +20,7 @@ _BUCKET = "medtronics-storage"
 
 
 def _settings() -> Settings:
-    return Settings(object_storage_bucket_name=_BUCKET)
+    return Settings(microcoaching_storage_bucket=_BUCKET)
 
 
 @pytest.mark.asyncio

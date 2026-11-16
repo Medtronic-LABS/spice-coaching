@@ -161,7 +161,7 @@ class ModulesBundleBuilder:
         provenance_context = await resolve_card_provenance(self._session, all_cards, storage=None)
 
         settings = settings or get_settings()
-        bucket_name = settings.object_storage_bucket_name
+        bucket_name = settings.storage_bucket
 
         payloads = []
         for module, cards in module_cards:

@@ -356,7 +356,7 @@ class KnowledgeUploadService:
         path = storage_path.strip()
         if not path:
             return None
-        bucket_name = self._settings.object_storage_bucket_name
+        bucket_name = self._settings.storage_bucket
         if not looks_like_object_storage_storage_path(path, bucket_name=bucket_name):
             raise KnowledgeValidationError(
                 f"thumbnail_storage_path must be a {bucket_name!r}/ object reference",

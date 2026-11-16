@@ -74,12 +74,15 @@ from platform_service.deps import (  # noqa: E402
     get_object_storage_client,
     shutdown_clients,
 )
+from platform_service.objectstore import announce_object_store  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def _lifespan(fastapi_app: FastAPI):
+    # Build the object store now so a bad storage setting fails the rollout, not the first upload.
+    announce_object_store(get_object_storage_client())
     yield
     await shutdown_clients()
 
