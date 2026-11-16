@@ -56,7 +56,7 @@ def thumbnail_storage_path(
     *,
     suffix: str = "png",
 ) -> str:
-    return f"{settings.object_storage_bucket_name}/{thumbnail_object_name(source_document_id, suffix=suffix)}"
+    return f"{settings.storage_bucket}/{thumbnail_object_name(source_document_id, suffix=suffix)}"
 
 
 _THUMBNAIL_CONTENT_TYPES: dict[str, str] = {
@@ -226,7 +226,7 @@ async def presign_thumbnail(
         return None
     settings = settings or get_settings()
     if not looks_like_object_storage_storage_path(
-        thumbnail_storage_path, bucket_name=settings.object_storage_bucket_name
+        thumbnail_storage_path, bucket_name=settings.storage_bucket
     ):
         return None
     try:

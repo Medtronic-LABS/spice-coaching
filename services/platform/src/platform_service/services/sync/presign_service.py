@@ -58,7 +58,7 @@ class SyncPresignService:
         """
         settings = settings or get_settings()
         ttl = settings.admin_file_presigned_max_seconds
-        bucket_name = settings.object_storage_bucket_name
+        bucket_name = settings.storage_bucket
 
         if not source_document_ids:
             return SourceDocumentsPresignResponse(
@@ -207,7 +207,7 @@ class SyncPresignService:
         """
         settings = settings or get_settings()
         ttl = settings.admin_file_presigned_max_seconds
-        bucket_name = settings.object_storage_bucket_name
+        bucket_name = settings.storage_bucket
 
         urls: list[StoragePathPresignedUrlPayload] = []
         missing_paths: list[str] = []
@@ -262,7 +262,7 @@ class SyncPresignService:
     ) -> tuple[list[PayloadT], list[UUID]]:
         urls: list[PayloadT] = []
         missing_ids: list[UUID] = []
-        bucket_name = settings.object_storage_bucket_name
+        bucket_name = settings.storage_bucket
 
         for entity_id in entity_ids:
             entity = entity_by_id.get(entity_id)

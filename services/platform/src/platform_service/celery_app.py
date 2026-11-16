@@ -32,6 +32,8 @@ from mc_foundation.logging import reset_logging, setup_logging
 from platform_service.config import get_settings
 from platform_service.db.base import dispose_all_engines, reset_engine_caches
 from platform_service.deps import shutdown_clients
+from platform_service.objectstore import announce_object_store, create_object_store
+from platform_service.objectstore.config import StorageConfigError
 from platform_service.task_names import (
     AGGREGATE_CHAT_FAQS,
     AGGREGATE_CHAT_FEEDBACK_SUMMARY,
@@ -130,6 +132,15 @@ def _on_worker_init(**_kwargs: object) -> None:
     # setup_logging signal usually already configured us; re-apply if needed.
     if not getattr(logging.getLogger(), "_mc_configured", False):
         _configure_worker_logging(include_pid=False)
+    # Fail the rollout on a bad storage setting, not the first ingest job that writes a file.
+    # Celery logs and swallows exceptions raised by signal handlers, so exit explicitly.
+    try:
+        store = create_object_store(settings=get_settings())
+    except StorageConfigError as exc:
+        logger.critical("object storage is misconfigured; the worker will not start: %s", exc)
+        raise SystemExit(1) from exc
+    announce_object_store(store)
+    store.close()
 
 
 @beat_init.connect

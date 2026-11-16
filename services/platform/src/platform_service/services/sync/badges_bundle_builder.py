@@ -33,7 +33,7 @@ class BadgesBundleBuilder:
         settings: Settings | None = None,
     ) -> BadgesSyncBundle:
         settings = settings or get_settings()
-        bucket_name = settings.object_storage_bucket_name
+        bucket_name = settings.storage_bucket
 
         active_badges = await self._badge_repo.list_active_for_tenant(tenant_id)
         earned_tuples = await self._chw_badge_repo.list_earned_for_chw(
