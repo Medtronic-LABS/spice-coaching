@@ -665,7 +665,7 @@ class CoachingRagService:
         docs = await source_repo.list_source_documents_by_ids(list(doc_id_set))
         docs.sort(key=lambda d: (d.title.lower(), str(d.id)))
 
-        bucket_name = settings.object_storage_bucket_name
+        bucket_name = settings.storage_bucket
         attributions: list[SourceAttribution] = []
         for doc in docs:
             if doc.source_type not in _KNOWN_SOURCE_TYPES:

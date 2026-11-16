@@ -61,7 +61,7 @@ async def validate_module_thumbnail_storage_path(
     if not path:
         raise ValidationError("invalid_thumbnail_storage_path", "storage_path must not be empty")
 
-    bucket_name = settings.object_storage_bucket_name
+    bucket_name = settings.storage_bucket
     if not looks_like_object_storage_storage_path(path, bucket_name=bucket_name):
         raise ValidationError(
             "invalid_thumbnail_storage_path",
