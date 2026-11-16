@@ -53,8 +53,8 @@ services:
     image: quay.io/minio/minio:RELEASE.2024-09-09T16-59-28Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
-      MINIO_ROOT_PASSWORD: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
+      MINIO_ROOT_USER: ${MICROCOACHING_STORAGE_ACCESS_KEY:-microcoaching}
+      MINIO_ROOT_PASSWORD: ${MICROCOACHING_STORAGE_SECRET_KEY:-microcoaching123}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -106,25 +106,18 @@ services:
       search_metadata_max_search_phrases: ${SEARCH_METADATA_MAX_SEARCH_PHRASES:-10}
       search_metadata_max_synonyms: ${SEARCH_METADATA_MAX_SYNONYMS:-10}
       search_metadata_max_tags: ${SEARCH_METADATA_MAX_TAGS:-10}
-      # Local compose MinIO (host .env may set localhost:19902 for non-compose runs).
-      object_storage_backend: minio
-      object_storage_endpoint: minio:9000
-      # The public URL browsers use to fetch presigned S3/MinIO links — must
-      # match whichever backend domain this deployment actually serves.
-      # Falls back to UHIS_BACKEND_BASE_URL (the one shared source of truth
-      # for this environment's domain, see spice_auth_base_url below) so the
-      # domain lives in exactly one place. OBJECT_STORAGE_PUBLIC_PRESIGNED_ENDPOINT
-      # is distinct from OBJECT_STORAGE_PRESIGNED_ENDPOINT (.env.example's
-      # host-mode MinIO port) to avoid the same host/container collision that
-      # made SPICE_AUTH_BASE_URL unoverridable.
-      object_storage_presigned_endpoint: ${OBJECT_STORAGE_PUBLIC_PRESIGNED_ENDPOINT:-${UHIS_BACKEND_BASE_URL:-https://uhis-dev-backend.labsplatform.com}}
-      object_storage_presign_mode: proxy
-      object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
-      object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
-      object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-dev-micro-coaching-reports}
-      object_storage_auto_create_bucket: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-true}
-      object_storage_secure: "false"
-      object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
+      # Object storage: the local compose MinIO. Other providers: see the example env file.
+      MICROCOACHING_STORAGE_PROVIDER: minio
+      MICROCOACHING_STORAGE_ENDPOINT: http://minio:9000
+      # The host browsers use to fetch download links; it must be the domain this deployment
+      # actually serves. Falls back to UHIS_BACKEND_BASE_URL (the one shared source of truth
+      # for this environment's domain, see spice_auth_base_url below).
+      MICROCOACHING_STORAGE_PUBLIC_ENDPOINT: ${MICROCOACHING_STORAGE_PUBLIC_ENDPOINT:-${UHIS_BACKEND_BASE_URL:-https://uhis-dev-backend.labsplatform.com}}
+      MICROCOACHING_STORAGE_ACCESS_KEY: ${MICROCOACHING_STORAGE_ACCESS_KEY:-microcoaching}
+      MICROCOACHING_STORAGE_SECRET_KEY: ${MICROCOACHING_STORAGE_SECRET_KEY:-microcoaching123}
+      MICROCOACHING_STORAGE_BUCKET: ${MICROCOACHING_STORAGE_BUCKET:-dev-micro-coaching-reports}
+      MICROCOACHING_STORAGE_CREATE_BUCKET: ${MICROCOACHING_STORAGE_CREATE_BUCKET:-true}
+      MICROCOACHING_STORAGE_REGION: ${MICROCOACHING_STORAGE_REGION:-us-east-1}
       admin_file_allowed_prefixes: ${ADMIN_FILE_ALLOWED_PREFIXES:-uploads,source-documents,media,ingest,module-thumbnails}
       admin_file_upload_prefix: ${ADMIN_FILE_UPLOAD_PREFIX:-uploads}
       admin_file_presigned_max_seconds: ${ADMIN_FILE_PRESIGNED_MAX_SECONDS:-86400}
@@ -213,16 +206,13 @@ services:
       chat_feedback_summary_max_positive_offline_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_POSITIVE_OFFLINE_SAMPLES:-10}
       chat_feedback_summary_max_negative_online_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_ONLINE_SAMPLES:-30}
       chat_feedback_summary_max_negative_offline_samples: ${CHAT_FEEDBACK_SUMMARY_MAX_NEGATIVE_OFFLINE_SAMPLES:-30}
-      object_storage_backend: minio
-      object_storage_endpoint: minio:9000
-      object_storage_presigned_endpoint: minio:9000
-      object_storage_presign_mode: proxy
-      object_storage_access_key: ${OBJECT_STORAGE_ACCESS_KEY:-microcoaching}
-      object_storage_secret_key: ${OBJECT_STORAGE_SECRET_KEY:-microcoaching123}
-      object_storage_bucket_name: ${OBJECT_STORAGE_BUCKET_NAME:-dev-micro-coaching-reports}
-      object_storage_auto_create_bucket: ${OBJECT_STORAGE_AUTO_CREATE_BUCKET:-true}
-      object_storage_secure: "false"
-      object_storage_region: ${OBJECT_STORAGE_REGION:-us-east-1}
+      MICROCOACHING_STORAGE_PROVIDER: minio
+      MICROCOACHING_STORAGE_ENDPOINT: http://minio:9000
+      MICROCOACHING_STORAGE_ACCESS_KEY: ${MICROCOACHING_STORAGE_ACCESS_KEY:-microcoaching}
+      MICROCOACHING_STORAGE_SECRET_KEY: ${MICROCOACHING_STORAGE_SECRET_KEY:-microcoaching123}
+      MICROCOACHING_STORAGE_BUCKET: ${MICROCOACHING_STORAGE_BUCKET:-dev-micro-coaching-reports}
+      MICROCOACHING_STORAGE_CREATE_BUCKET: ${MICROCOACHING_STORAGE_CREATE_BUCKET:-true}
+      MICROCOACHING_STORAGE_REGION: ${MICROCOACHING_STORAGE_REGION:-us-east-1}
       app_env: ${APP_ENV:-development}
       log_service_name: platform-celery-worker
       # App logger level (Settings.log_level). Distinct from celery --loglevel.

@@ -17,12 +17,8 @@ from pydantic import AliasChoices, Field, SecretStr, field_validator, model_vali
 from pydantic_settings import SettingsConfigDict
 
 _DEV_AI_RUNTIME_TOKEN = "dev-internal-token"
-_DEV_OBJECT_STORAGE_ACCESS_KEY = "minioadmin"
 _INSECURE_DB_PASSWORDS = frozenset({"postgres"})
-_DEPLOYED_ENVS = frozenset({"production", "staging"})
-_OBJECT_STORAGE_BACKENDS = frozenset({"minio", "s3"})
-_OBJECT_STORAGE_AUTH_MODES = frozenset({"hmac", "gcp"})
-_OBJECT_STORAGE_PRESIGN_MODES = frozenset({"direct", "proxy"})
+DEPLOYED_ENVS = frozenset({"production", "staging"})
 
 
 class Settings(BaseAppSettings):
@@ -365,25 +361,26 @@ class Settings(BaseAppSettings):
     # Max seconds the ingest batch worker waits for a thumbnail Celery task before Stage A.
     ingest_thumbnail_wait_seconds: int = 300
 
-    # ── Object storage (MinIO or AWS S3 via boto3) ───────────────
-    # ``minio`` (local compose default) or ``s3`` (AWS / S3-compatible cloud).
-    object_storage_backend: str = "minio"
-    # ``hmac`` uses the access key. ``gcp`` uses the pod's attached service account.
-    object_storage_auth: str = "hmac"
-    # Required for backend=minio; optional override for backend=s3.
-    object_storage_endpoint: str | None = "localhost:9100"
-    object_storage_presigned_endpoint: str | None = None
-    # ``proxy`` signs against OBJECT_STORAGE_PRESIGNED_ENDPOINT (compose/nginx);
-    # ``direct`` signs against the data endpoint / AWS regional host.
-    object_storage_presign_mode: str = "proxy"
-    # Empty keys + backend=s3 → default AWS credential chain (env / instance role / IRSA).
-    object_storage_access_key: SecretStr = SecretStr(_DEV_OBJECT_STORAGE_ACCESS_KEY)
-    object_storage_secret_key: SecretStr = SecretStr(_DEV_OBJECT_STORAGE_ACCESS_KEY)
-    object_storage_bucket_name: str = "medtronics-storage"
-    # Honored only for backend=minio; forced off for backend=s3 in the adapter.
-    object_storage_auto_create_bucket: bool = True
-    object_storage_secure: bool = False
-    object_storage_region: str = "us-east-1"
+    # ── Object storage ──────────────────────────────────────────
+    # One provider switch (minio | s3 | gcs) plus provider-neutral settings, read only from
+    # MICROCOACHING_STORAGE_*. The per-provider rules and defaults live in
+    # platform_service.objectstore.config.StorageConfig, which is built at process start-up.
+    storage_provider: str | None = Field(default=None, validation_alias="microcoaching_storage_provider")
+    storage_bucket: str = Field(default="", validation_alias="microcoaching_storage_bucket")
+    storage_endpoint: str | None = Field(default=None, validation_alias="microcoaching_storage_endpoint")
+    storage_region: str | None = Field(default=None, validation_alias="microcoaching_storage_region")
+    # Both empty = authenticate as the identity attached to the workload (GCP service account / AWS role).
+    storage_access_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="microcoaching_storage_access_key"
+    )
+    storage_secret_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="microcoaching_storage_secret_key"
+    )
+    # Host that browsers use in download links, when it is not the storage endpoint itself.
+    storage_public_endpoint: str | None = Field(
+        default=None, validation_alias="microcoaching_storage_public_endpoint"
+    )
+    storage_create_bucket: bool = Field(default=False, validation_alias="microcoaching_storage_create_bucket")
     admin_file_allowed_prefixes: str = "uploads,source-documents,media,ingest,module-thumbnails"
     # Single write prefix for POST /admin/files (must be in admin_file_allowed_prefixes).
     admin_file_upload_prefix: str = "uploads"
@@ -470,82 +467,14 @@ class Settings(BaseAppSettings):
         return self
 
     @model_validator(mode="after")
-    def _validate_object_storage(self) -> Self:
-        backend = self.object_storage_backend.strip().lower()
-        if backend not in _OBJECT_STORAGE_BACKENDS:
-            raise ValueError(
-                f"OBJECT_STORAGE_BACKEND must be one of {sorted(_OBJECT_STORAGE_BACKENDS)}; "
-                f"got {self.object_storage_backend!r}"
-            )
-        self.object_storage_backend = backend
-
-        auth = self.object_storage_auth.strip().lower()
-        if auth not in _OBJECT_STORAGE_AUTH_MODES:
-            raise ValueError(
-                f"OBJECT_STORAGE_AUTH must be one of {sorted(_OBJECT_STORAGE_AUTH_MODES)}; "
-                f"got {self.object_storage_auth!r}"
-            )
-        self.object_storage_auth = auth
-
-        mode = self.object_storage_presign_mode.strip().lower()
-        if mode not in _OBJECT_STORAGE_PRESIGN_MODES:
-            raise ValueError(
-                f"OBJECT_STORAGE_PRESIGN_MODE must be one of "
-                f"{sorted(_OBJECT_STORAGE_PRESIGN_MODES)}; got {self.object_storage_presign_mode!r}"
-            )
-        self.object_storage_presign_mode = mode
-
-        if backend == "minio":
-            if not (self.object_storage_endpoint or "").strip():
-                raise ValueError("OBJECT_STORAGE_ENDPOINT is required when OBJECT_STORAGE_BACKEND=minio")
-            access = self.object_storage_access_key.get_secret_value()
-            secret = self.object_storage_secret_key.get_secret_value()
-            if auth != "gcp" and (not access or not secret):
-                raise ValueError(
-                    "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
-                    "when OBJECT_STORAGE_BACKEND=minio"
-                )
-        if auth == "gcp":
-            endpoint = (self.object_storage_endpoint or "").strip().lower()
-            if not (self.object_storage_secure or endpoint.startswith("https://")):
-                raise ValueError(
-                    "OBJECT_STORAGE_SECURE must be true when OBJECT_STORAGE_AUTH=gcp (bearer token)"
-                )
-            has_hmac = bool(
-                self.object_storage_access_key.get_secret_value()
-                and self.object_storage_secret_key.get_secret_value()
-            )
-            if mode == "proxy" and not has_hmac:
-                raise ValueError(
-                    "OBJECT_STORAGE_PRESIGN_MODE=proxy requires an HMAC key when OBJECT_STORAGE_AUTH=gcp; "
-                    "use OBJECT_STORAGE_PRESIGN_MODE=direct to sign links with the service account"
-                )
-        if backend == "s3":
-            # Never auto-create buckets against AWS from the app.
-            self.object_storage_auto_create_bucket = False
-        return self
-
-    @model_validator(mode="after")
     def _validate_production_safety(self) -> Self:
-        if self.app_env not in _DEPLOYED_ENVS:
+        if self.app_env not in DEPLOYED_ENVS:
             return self
         errors: list[str] = []
         if not self.database_password or self.database_password in _INSECURE_DB_PASSWORDS:
             errors.append("DATABASE_PASSWORD must be set to a non-default value in production")
         if self.ai_runtime_token == _DEV_AI_RUNTIME_TOKEN:
             errors.append("AI_RUNTIME_TOKEN must not use the dev default in production")
-        access = self.object_storage_access_key.get_secret_value()
-        secret = self.object_storage_secret_key.get_secret_value()
-        if access or secret:
-            if access == _DEV_OBJECT_STORAGE_ACCESS_KEY:
-                errors.append("OBJECT_STORAGE_ACCESS_KEY must not use the dev default in production")
-            if secret == _DEV_OBJECT_STORAGE_ACCESS_KEY:
-                errors.append("OBJECT_STORAGE_SECRET_KEY must not use the dev default in production")
-        elif self.object_storage_backend != "s3" and self.object_storage_auth != "gcp":
-            errors.append(
-                "OBJECT_STORAGE_ACCESS_KEY and OBJECT_STORAGE_SECRET_KEY are required "
-                "in production unless OBJECT_STORAGE_BACKEND=s3 (IAM / default credential chain)"
-            )
         if not self.spice_auth_enabled:
             errors.append("SPICE_AUTH_ENABLED must be true in production")
         if "*" in self.cors_allow_origins_list:

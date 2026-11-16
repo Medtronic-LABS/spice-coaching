@@ -73,7 +73,7 @@ async def test_presign_source_document_thumbnail_found(db_session: AsyncSession)
         resp = await SyncPresignService(db_session).get_source_document_thumbnail_presigned_urls(
             source_document_ids=[doc.id],
             storage=storage,
-            settings=Settings(object_storage_bucket_name=_BUCKET),
+            settings=Settings(microcoaching_storage_bucket=_BUCKET),
         )
 
     assert len(resp.urls) == 1
@@ -95,7 +95,7 @@ async def test_presign_source_document_thumbnail_missing_when_no_path(
     resp = await SyncPresignService(db_session).get_source_document_thumbnail_presigned_urls(
         source_document_ids=[doc.id],
         storage=storage,
-        settings=Settings(object_storage_bucket_name=_BUCKET),
+        settings=Settings(microcoaching_storage_bucket=_BUCKET),
     )
 
     assert resp.urls == []
@@ -117,7 +117,7 @@ async def test_presign_source_document_thumbnail_unknown_id(db_session: AsyncSes
         resp = await SyncPresignService(db_session).get_source_document_thumbnail_presigned_urls(
             source_document_ids=[doc.id, unknown_id],
             storage=storage,
-            settings=Settings(object_storage_bucket_name=_BUCKET),
+            settings=Settings(microcoaching_storage_bucket=_BUCKET),
         )
 
     assert len(resp.urls) == 1
@@ -133,7 +133,7 @@ async def test_presign_source_document_thumbnail_empty_request(db_session: Async
     resp = await SyncPresignService(db_session).get_source_document_thumbnail_presigned_urls(
         source_document_ids=[],
         storage=storage,
-        settings=Settings(object_storage_bucket_name=_BUCKET),
+        settings=Settings(microcoaching_storage_bucket=_BUCKET),
     )
 
     assert resp.urls == []

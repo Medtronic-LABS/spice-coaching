@@ -61,13 +61,23 @@ ai-runtime uses `INTERNAL_TOKEN` for the same shared secret.
 
 | Variable | Purpose |
 |---|---|
-| `OBJECT_STORAGE_BACKEND` | `minio` or `s3` |
-| `OBJECT_STORAGE_ENDPOINT` | S3 API endpoint |
-| `OBJECT_STORAGE_PRESIGNED_ENDPOINT` | Host used in signed URLs |
-| `OBJECT_STORAGE_PRESIGN_MODE` | `proxy` or `direct` |
-| `OBJECT_STORAGE_ACCESS_KEY` / `OBJECT_STORAGE_SECRET_KEY` | Credentials. Staging and production must not use local MinIO defaults. |
-| `OBJECT_STORAGE_BUCKET_NAME` | Bucket name |
+| `MICROCOACHING_STORAGE_PROVIDER` | `minio`, `s3` or `gcs`. Required; the service does not start without it. |
+| `MICROCOACHING_STORAGE_BUCKET` | Bucket name. Required. |
+| `MICROCOACHING_STORAGE_ENDPOINT` | Storage API URL. Required for `minio`; optional for `s3` (AWS regional endpoint) and `gcs` (Google's). A bare host means HTTPS. |
+| `MICROCOACHING_STORAGE_REGION` | Region for `s3` and `minio` (default `us-east-1`). |
+| `MICROCOACHING_STORAGE_ACCESS_KEY` / `MICROCOACHING_STORAGE_SECRET_KEY` | Key pair. Required for `minio`. For `s3` and `gcs`, leave both empty to use the identity attached to the workload (AWS role, GCP service account). |
+| `MICROCOACHING_STORAGE_PUBLIC_ENDPOINT` | Host browsers use in download links, when it is not the endpoint itself. With `gcs` it needs a key pair. |
+| `MICROCOACHING_STORAGE_CREATE_BUCKET` | Create the bucket if missing. `minio` only; rejected for `s3` and `gcs`. |
 | `ADMIN_FILE_UPLOAD_PREFIX` | Prefix for editor uploads |
+
+With `gcs` and no key pair (GKE Workload Identity), the pod's service account needs object access on the
+bucket, `storage.buckets.get` on the bucket (readiness check) and `roles/iam.serviceAccountTokenCreator` on
+itself (download links are signed through IAM `signBlob`). The service logs one line at start-up with the
+provider, bucket, auth and link signer in use. In this mode the endpoint must be an HTTPS `googleapis.com` host,
+because the pod's token is sent on every request.
+
+The pre-rename `OBJECT_STORAGE_*` variables are no longer read. If one is still set, start-up logs a warning
+naming its replacement; if the provider is missing, start-up fails and lists them.
 
 ## ClickHouse, locale, logging
 
@@ -94,7 +104,8 @@ Set `APP_ENV=staging` or `APP_ENV=production` on shared hosts. The service fails
 | `APP_ENV` | `staging` or `production` |
 | `DATABASE_PASSWORD` | Non-empty. Must not be `postgres`. |
 | `AI_RUNTIME_TOKEN` | Must not be the local development default. |
-| `OBJECT_STORAGE_ACCESS_KEY` / `OBJECT_STORAGE_SECRET_KEY` | Must not be local MinIO defaults when set. Empty keys are allowed only with `OBJECT_STORAGE_BACKEND=s3`. |
+| `MICROCOACHING_STORAGE_PROVIDER` | Must be set. |
+| `MICROCOACHING_STORAGE_ACCESS_KEY` / `MICROCOACHING_STORAGE_SECRET_KEY` | Must not be the local MinIO values when set. Empty keys are allowed with `s3` and `gcs`. |
 | `SPICE_AUTH_ENABLED` | Must be `true`. |
 | `CORS_ALLOW_ORIGINS` | Must not include `*`. |
 

@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 
 def _embed_tiptap_for_cards(cards: list[dict[str, Any]], *, settings: Settings) -> list[dict[str, Any]]:
     """Embed TipTap image nodes into body_localized for each card that has media."""
-    bucket = settings.object_storage_bucket_name
+    bucket = settings.storage_bucket
     primary_locale = deployment_locales(settings)
     result: list[dict[str, Any]] = []
     for card in cards:

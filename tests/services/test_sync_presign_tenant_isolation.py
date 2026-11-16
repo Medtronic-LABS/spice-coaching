@@ -89,7 +89,7 @@ async def test_presign_source_document_rejects_other_tenant(db_session: AsyncSes
     doc = await _seed_source_document(db_session)
     await _seed_module(db_session, tenant_id=_TENANT_A, source_document_ids=[doc.id])
     storage = _mock_storage()
-    settings = Settings(object_storage_bucket_name=_BUCKET)
+    settings = Settings(microcoaching_storage_bucket=_BUCKET)
 
     resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc.id],
@@ -109,7 +109,7 @@ async def test_presign_source_document_allows_own_tenant(db_session: AsyncSessio
     doc = await _seed_source_document(db_session)
     await _seed_module(db_session, tenant_id=_TENANT_A, source_document_ids=[doc.id])
     storage = _mock_storage()
-    settings = Settings(object_storage_bucket_name=_BUCKET)
+    settings = Settings(microcoaching_storage_bucket=_BUCKET)
 
     resp = await SyncPresignService(db_session).get_source_document_presigned_urls(
         source_document_ids=[doc.id],
@@ -139,7 +139,7 @@ async def test_presign_source_document_thumbnail_rejects_other_tenant(db_session
         resp = await SyncPresignService(db_session).get_source_document_thumbnail_presigned_urls(
             source_document_ids=[doc.id],
             storage=storage,
-            settings=Settings(object_storage_bucket_name=_BUCKET),
+            settings=Settings(microcoaching_storage_bucket=_BUCKET),
             tenant_id=_TENANT_B,
         )
 

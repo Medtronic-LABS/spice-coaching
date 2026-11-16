@@ -39,8 +39,7 @@ def figure_storage_path(
     suffix: str,
 ) -> str:
     return (
-        f"{settings.object_storage_bucket_name}/"
-        f"{figure_object_name(source_document_id, content_sha256, suffix=suffix)}"
+        f"{settings.storage_bucket}/{figure_object_name(source_document_id, content_sha256, suffix=suffix)}"
     )
 
 
