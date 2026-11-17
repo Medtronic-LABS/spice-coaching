@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,16 +110,21 @@ class VideoProgressRepository:
     ) -> list[CHWVideoProgress]:
         """Progress rows for still-assigned video documents with ``updated_at > since``.
 
-        Intersection of ``chw_video_progress``, current ``document_assignment``, and
-        ``source_document.source_type == 'video'``, scoped to CHW + tenant.
+        A video is "assigned" when its document is flagged ``assign_to_all`` (non-retired,
+        same tenant) or the CHW has a current ``document_assignment`` row for it. Scoped to
+        CHW + tenant and ``source_document.source_type == 'video'``.
         """
+        explicitly_assigned = exists().where(
+            DocumentAssignment.source_document_id == CHWVideoProgress.source_document_id,
+            DocumentAssignment.user_id == CHWVideoProgress.chw_id,
+        )
+        assigned_to_all = and_(
+            SourceDocument.assign_to_all.is_(True),
+            SourceDocument.status != "retired",
+            SourceDocument.tenant_id == tenant_id,
+        )
         stmt = (
             select(CHWVideoProgress)
-            .join(
-                DocumentAssignment,
-                (DocumentAssignment.source_document_id == CHWVideoProgress.source_document_id)
-                & (DocumentAssignment.user_id == CHWVideoProgress.chw_id),
-            )
             .join(
                 SourceDocument,
                 SourceDocument.id == CHWVideoProgress.source_document_id,
@@ -129,6 +134,7 @@ class VideoProgressRepository:
                 CHWVideoProgress.tenant_id == tenant_id,
                 CHWVideoProgress.updated_at > since,
                 SourceDocument.source_type == "video",
+                or_(assigned_to_all, explicitly_assigned),
             )
             .order_by(CHWVideoProgress.updated_at.asc())
         )

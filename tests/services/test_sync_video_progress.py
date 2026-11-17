@@ -51,6 +51,7 @@ async def _seed_doc(
         original_storage_path=f"medtronics-storage/ingest/{uuid4()}.bin",
         original_filename="clip.mp4" if source_type == "video" else "doc.pdf",
         status="ingested",
+        assign_to_all=False,
         tenant_id=tenant_id,
     )
     session.add(doc)

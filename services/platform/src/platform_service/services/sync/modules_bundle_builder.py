@@ -33,7 +33,10 @@ from platform_service.services.card_provenance import (
     resolve_card_provenance,
 )
 from platform_service.services.source_thumbnail_service import presign_thumbnail
-from platform_service.services.sync.module_assignment_resolver import resolve_assigned_modules
+from platform_service.services.sync.module_assignment_resolver import (
+    resolve_assign_to_all_modules,
+    resolve_assigned_modules,
+)
 from platform_service.services.sync.storage_path import sync_object_name
 
 
@@ -221,19 +224,29 @@ class ModulesBundleBuilder:
 
         assigned_module_ids: list[AssignedModulePayload] = []
         requested_modules: list[RequestedModulePayload] = []
+        assignment_tenant = tenant_id if tenant_id is not None else DEFAULT_TENANT_ID
+        # assign_to_all modules are visible to every SK (works with auth off); explicit
+        # per-user rows win for ``assigned_at`` when both exist.
+        assignments_by_module = await resolve_assign_to_all_modules(
+            self._session,
+            tenant_id=assignment_tenant,
+        )
         if user_id is not None:
-            assignments_by_module = await resolve_assigned_modules(
-                self._session,
-                user_id=user_id,
-                tenant_id=tenant_id if tenant_id is not None else DEFAULT_TENANT_ID,
-            )
-            for module_id in sorted(assignments_by_module):
-                assigned_module_ids.append(
-                    AssignedModulePayload(
-                        module_id=module_id,
-                        assigned_at=assignments_by_module[module_id],
-                    )
+            assignments_by_module.update(
+                await resolve_assigned_modules(
+                    self._session,
+                    user_id=user_id,
+                    tenant_id=assignment_tenant,
                 )
+            )
+        for module_id in sorted(assignments_by_module):
+            assigned_module_ids.append(
+                AssignedModulePayload(
+                    module_id=module_id,
+                    assigned_at=assignments_by_module[module_id],
+                )
+            )
+        if user_id is not None:
             request_rows = await TrainingRequestRepository(self._session).list_for_chw(
                 chw_id=user_id,
                 tenant_id=tenant_id,

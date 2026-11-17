@@ -180,6 +180,7 @@ async def _seed_source_document(
     storage_path: str = _STORAGE_PATH,
     original_filename: str | None = "manual.pdf",
     sync_published_visible: bool = False,
+    assign_to_all: bool = False,
 ) -> SourceDocument:
     doc = SourceDocument(
         title=title,
@@ -189,6 +190,7 @@ async def _seed_source_document(
         original_storage_path=storage_path,
         original_filename=original_filename,
         sync_published_visible=sync_published_visible,
+        assign_to_all=assign_to_all,
         tenant_id=1,
     )
     session.add(doc)
@@ -219,6 +221,7 @@ async def _seed_module(
     set_family_pointer: bool = True,
     created_at: datetime | None = None,
     published_at: datetime | None = None,
+    assign_to_all: bool = False,
 ) -> Module:
     family = ModuleFamily(module_code=f"f-{uuid4().hex[:8]}", tenant_id=1)
     session.add(family)
@@ -255,6 +258,7 @@ async def _seed_module(
             else (datetime.now(UTC) if lifecycle_status == "published" else None)
         ),
         created_at=created_at or datetime.now(UTC),
+        assign_to_all=assign_to_all,
         tenant_id=1,
     )
     session.add(module)

@@ -238,6 +238,51 @@ class TestIngestUpload:
             ).scalar_one()
             assert doc.content_domain == source["content_domain"]
 
+    async def test_upload_assign_to_all_defaults_true(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        resp = await _upload_files(client, [("a.pdf", b"%PDF-a")])
+        assert resp.status_code == 201
+        doc = (
+            await db_session.execute(
+                select(SourceDocument).where(
+                    SourceDocument.id == resp.json()["sources"][0]["source_document_id"]
+                )
+            )
+        ).scalar_one()
+        assert doc.assign_to_all is True
+
+    async def test_upload_persists_per_file_assign_to_all(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+    ) -> None:
+        resp = await _upload_files(
+            client,
+            [("a.pdf", b"%PDF-a"), ("b.pdf", b"%PDF-b")],
+            data={"assign_to_all": "[false, true]"},
+        )
+        assert resp.status_code == 201
+        flags = []
+        for source in resp.json()["sources"]:
+            doc = (
+                await db_session.execute(
+                    select(SourceDocument).where(SourceDocument.id == source["source_document_id"])
+                )
+            ).scalar_one()
+            flags.append(doc.assign_to_all)
+        assert flags == [False, True]
+
+    async def test_upload_rejects_assign_to_all_length_mismatch(self, client: AsyncClient) -> None:
+        resp = await _upload_files(
+            client,
+            [("a.pdf", b"%PDF-a"), ("b.pdf", b"%PDF-b")],
+            data={"assign_to_all": "[true]"},
+        )
+        assert resp.status_code == 400
+
 
 class TestIngestEnqueuesCelery:
     async def test_start_ingest_enqueues_batch_task(

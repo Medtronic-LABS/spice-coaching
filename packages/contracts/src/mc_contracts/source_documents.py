@@ -26,6 +26,19 @@ class SourceDocumentSummary(BaseModel):
     uploaded_date: datetime
     ingested_at: datetime
     updated_at: datetime
+    # true = delivered to every SK in the tenant; false = only explicitly assigned SKs.
+    assign_to_all: bool = False
+
+
+class SourceDocumentAssignToAllRequest(BaseModel):
+    """Body for ``PUT /admin/source-documents/{source_document_id}/assign-to-all``."""
+
+    assign_to_all: bool
+
+
+class SourceDocumentAssignToAllResponse(BaseModel):
+    source_document_id: UUID
+    assign_to_all: bool
 
 
 class SourceDocumentListItem(SourceDocumentSummary):

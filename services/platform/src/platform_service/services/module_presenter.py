@@ -106,6 +106,7 @@ async def summary_from_module(
         quality_flags=module.quality_flags_jsonb,
         search_metadata=module.search_metadata_jsonb,
         chatbot_faqs_only=module.chatbot_faqs_only,
+        assign_to_all=module.assign_to_all,
         thumbnail_storage_path=thumb_path,
         thumbnail_presigned_url=thumb_url,
         thumbnail_presigned_expires_seconds=thumb_expires,

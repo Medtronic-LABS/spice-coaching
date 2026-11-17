@@ -35,6 +35,7 @@ Canonical HTTP routes for platform-api and ai-runtime. Paths below are relative 
 | `GET` | `/admin/ingestion-runs/{run_id}` | Ingestion run detail | [Admin ingest](admin-ingest.md) |
 | `GET` | `/admin/source-documents` | List source documents | [Admin ingest](admin-ingest.md) |
 | `PATCH` | `/admin/source-documents/{source_document_id}` | Update title/description | [Admin ingest](admin-ingest.md) |
+| `PUT` | `/admin/source-documents/{source_document_id}/assign-to-all` | Assign to all SKs | [Admin ingest](admin-ingest.md) |
 | `PUT` | `/admin/source-documents/{source_document_id}/thumbnail` | Replace thumbnail | [Admin ingest](admin-ingest.md) |
 | `POST` | `/admin/knowledge/upload` | Upload knowledge PDF | [Admin ingest](admin-ingest.md) |
 | `GET` | `/admin/knowledge/uploaders` | Knowledge uploaders | [Admin ingest](admin-ingest.md) |
@@ -53,6 +54,7 @@ Canonical HTTP routes for platform-api and ai-runtime. Paths below are relative 
 | `PUT` | `/admin/modules/{module_id}` | Save content version | [Admin modules](admin-modules.md) |
 | `DELETE` | `/admin/modules/{module_id}` | Retire module | [Admin modules](admin-modules.md) |
 | `POST` | `/admin/modules/{module_id}/publish` | Publish | [Admin modules](admin-modules.md) |
+| `PUT` | `/admin/modules/{module_id}/assign-to-all` | Assign to all SKs | [Admin modules](admin-modules.md) |
 | `POST` | `/admin/modules/{module_id}/deactivate` | Deactivate | [Admin modules](admin-modules.md) |
 | `POST` | `/admin/modules/{module_id}/reactivate` | Reactivate | [Admin modules](admin-modules.md) |
 | `POST` | `/admin/badges` | Create badge | [Admin modules](admin-modules.md) |

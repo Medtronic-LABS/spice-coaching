@@ -112,6 +112,7 @@ class _StagedIngestUpload:
     description: str | None
     override_duplicate: bool
     content_domain: str
+    assign_to_all: bool = True
 
 
 class IngestUploadService:
@@ -343,6 +344,35 @@ class IngestUploadService:
         return resolved
 
     @staticmethod
+    def resolve_assign_to_all_for_files(
+        assign_to_all_json: str | None,
+        files: list[UploadFile],
+    ) -> list[bool]:
+        """Map each upload to an assign_to_all flag (default true when omitted)."""
+        if not files:
+            raise IngestValidationError("at least one file is required")
+        if assign_to_all_json is None:
+            return [True] * len(files)
+        try:
+            parsed = json.loads(assign_to_all_json)
+        except json.JSONDecodeError as exc:
+            raise IngestValidationError("assign_to_all must be valid JSON") from exc
+        if not isinstance(parsed, list):
+            raise IngestValidationError("assign_to_all must be a JSON array")
+        if len(parsed) != len(files):
+            raise IngestValidationError(
+                f"assign_to_all must have {len(files)} entries (one per file); got {len(parsed)}",
+            )
+        resolved: list[bool] = []
+        for index, entry in enumerate(parsed):
+            if not isinstance(entry, bool):
+                raise IngestValidationError(
+                    f"assign_to_all[{index}] must be a boolean",
+                )
+            resolved.append(entry)
+        return resolved
+
+    @staticmethod
     def duplicate_conflict_payload(conflict: DuplicateIngestConflict) -> dict[str, Any]:
         return {
             "filename": conflict.filename,
@@ -398,19 +428,22 @@ class IngestUploadService:
         params: IngestUploadParams,
         override_flags: list[bool],
         content_domains: list[str],
+        assign_to_all: list[bool] | None = None,
     ) -> list[IngestedSourceResult]:
         """Stage all files, reject conflicts atomically, then write storage + DB rows."""
         if self._storage is None:
             raise RuntimeError("IngestUploadService requires object storage for uploads")
 
+        assign_flags = assign_to_all if assign_to_all is not None else [True] * len(files)
         staged: list[_StagedIngestUpload] = []
         try:
-            for upload, doc_title, description, override_duplicate, content_domain in zip(
+            for upload, doc_title, description, override_duplicate, content_domain, assign_flag in zip(
                 files,
                 titles,
                 descriptions,
                 override_flags,
                 content_domains,
+                assign_flags,
                 strict=True,
             ):
                 source_type = self.source_type_for_upload(upload)
@@ -428,6 +461,7 @@ class IngestUploadService:
                         description=description,
                         override_duplicate=override_duplicate,
                         content_domain=content_domain,
+                        assign_to_all=assign_flag,
                     )
                 )
 
@@ -539,6 +573,7 @@ class IngestUploadService:
             sync_published_visible=False,
             status="uploaded",
             tenant_id=params.tenant_id,
+            assign_to_all=item.assign_to_all,
         )
         await record_attribution_event(
             self._db,

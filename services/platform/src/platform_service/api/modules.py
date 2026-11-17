@@ -15,6 +15,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from mc_contracts.enums import ContentDomain
 from mc_contracts.errors import ErrorCode
 from mc_contracts.modules import (
+    ModuleAssignToAllRequest,
+    ModuleAssignToAllResponse,
     ModuleCreateRequest,
     ModuleDetail,
     ModuleEditRequest,
@@ -61,6 +63,7 @@ from platform_service.deps import get_db, get_object_storage_client
 from platform_service.module_domains import catalog_domain_label
 from platform_service.services.attribution_audit import record_attribution_event
 from platform_service.services.dashboard_hierarchy import resolve_users_by_geography_ids
+from platform_service.services.module_assign_to_all_service import ModuleAssignToAllService
 from platform_service.services.module_attachment_validator import validate_module_attachments
 from platform_service.services.module_card_body_validator import validate_module_card_bodies
 from platform_service.services.module_card_service import (
@@ -689,6 +692,7 @@ async def publish_module(
             actor_id=action.actor_id,
             published_by_user_id=resolve_spice_user_id(request),
             reason=action.reason,
+            assign_to_all=action.assign_to_all,
         )
     except ModuleNotFoundError as exc:
         raise AppError(ErrorCode.MODULE_NOT_FOUND.value, str(exc), status=404) from exc
@@ -704,6 +708,26 @@ async def publish_module(
         "lifecycle_status": state.lifecycle_status,
         "activated_at": state.activated_at,
     }
+
+
+@router.put("/modules/{module_id}/assign-to-all", response_model=ModuleAssignToAllResponse)
+async def set_module_assign_to_all(
+    request: Request,
+    module_id: UUID,
+    body: ModuleAssignToAllRequest,
+    session: AsyncSession = Depends(get_db),
+) -> ModuleAssignToAllResponse:
+    """Deliver a module (and its linked videos) to every SK in the tenant, or only to assigned SKs."""
+    try:
+        module = await ModuleAssignToAllService(session).set_for_module(
+            module_id,
+            assign_to_all=body.assign_to_all,
+            updated_by=resolve_spice_user_id(request),
+        )
+    except LifecycleModuleNotFoundError as exc:
+        raise AppError(ErrorCode.MODULE_NOT_FOUND.value, str(exc), status=404) from exc
+    await session.commit()
+    return ModuleAssignToAllResponse(module_id=module.id, assign_to_all=module.assign_to_all)
 
 
 def _lifecycle_state_payload(state: ModuleLifecycleState) -> ModuleLifecycleStatePayload:

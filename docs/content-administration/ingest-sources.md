@@ -9,7 +9,7 @@ Route details: [Admin ingest](../api-reference/admin-ingest.md).
 ## Upload files
 
 1. Call `POST /admin/ingest/upload` with multipart field `files`.
-2. Optional form fields: `titles`, `descriptions`, `override_duplicates`, `content_domains` (`clinical` | `digital` | `operational`).
+2. Optional form fields: `titles`, `descriptions`, `override_duplicates`, `content_domains` (`clinical` | `digital` | `operational`), `assign_to_all` (JSON array of booleans, default `true` per file).
 3. Read `sources[].source_document_id` from the `201` response.
 
 **Result:** Rows exist with `status=uploaded`. The pipeline is not queued. `sync_published_visible` is always false on this route.
