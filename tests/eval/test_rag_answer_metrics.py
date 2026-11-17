@@ -323,7 +323,7 @@ def test_is_refusal_canonical_bn_phrase() -> None:
 
 
 def test_load_canonical_golden_dataset() -> None:
-    path = Path("eval/rag/golden/golden_dataset.json")
+    path = Path("eval/rag/golden/golden_dataset_bn.json")
     records = load_rag_golden_dataset(path)
     assert len(records) == 250
     assert all(record.language == "bn" for record in records)

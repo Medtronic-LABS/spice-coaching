@@ -99,8 +99,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=Path,
-        default=Path("eval/rag/golden/golden_dataset.json"),
-        help="Golden JSON dataset for batch retrieval eval (default: eval/rag/golden/golden_dataset.json)",
+        default=Path("eval/rag/golden/golden_dataset_bn.json"),
+        help="Golden JSON dataset for batch retrieval eval (default: eval/rag/golden/golden_dataset_bn.json)",
     )
     parser.add_argument(
         "--output",
